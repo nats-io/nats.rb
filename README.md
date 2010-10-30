@@ -17,8 +17,16 @@ This gem currently works on the following Ruby platforms:
       # Simple Subscriber
       nc.subscribe('foo') { |sub, msg| puts "Msg received on [#{sub}] : '#{msg}' }
 
+      # Wildcards
+
+      # '*" matches any token
+      nc.subscribe('foo.*.baz') { |sub, msg| puts "Msg received on [#{sub}] : '#{msg}' }
+
+      # '>" can only be last token, and matches to any depth
+      nc.subscribe('foo.>') { |sub, msg| puts "Msg received on [#{sub}] : '#{msg}' }
+
       # Simple Publisher
-      nc.publish('foo', 'Hello World!')
+      nc.publish('foo.bar.baz', 'Hello World!')
     end
 
 See under examples and benchmark for more..
