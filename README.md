@@ -1,6 +1,6 @@
 # NATS
 
-A simple publish-subscribe messaging system.
+A simple publish-subscribe messaging system based on eventmachine.
 
 ## Supported Platforms
 
@@ -14,6 +14,7 @@ This gem currently works on the following Ruby platforms:
     require "nats/client"
 
     NATS.start do |nc|
+
       # Simple Subscriber
       nc.subscribe('foo') { |sub, msg| puts "Msg received on [#{sub}] : '#{msg}' }
 
@@ -27,6 +28,9 @@ This gem currently works on the following Ruby platforms:
 
       # Simple Publisher
       nc.publish('foo.bar.baz', 'Hello World!')
+
+      # Stop using NATS.stop
+      EM.next_tick { NATS.stop }
     end
 
 See under examples and benchmark for more..
