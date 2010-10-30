@@ -1,0 +1,15 @@
+#!/usr/bin/env ruby
+
+require 'nats/client'
+  
+def usage
+  puts "Usage: pub.rb <subject> <msg>"; exit
+end
+
+subject, msg = ARGV
+usage unless subject && msg
+
+NATS.start do |n|
+  n.publish(subject, msg)
+  NATS.stop
+end
