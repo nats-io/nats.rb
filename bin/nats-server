@@ -1,0 +1,5 @@
+#!/usr/bin/env ruby
+# NATS command line interface script.
+# Run <tt>nats-server -h</tt> to get more usage.
+
+require 'nats/server'
