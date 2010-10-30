@@ -4,10 +4,12 @@ A simple publish-subscribe messaging system.
 
 ## Supported Platforms
 
-This gem currently works on the following Ruby platforms :
+This gem currently works on the following Ruby platforms:
 
 - MRI 1.8 and 1.9
 - Rubinius
+
+* Performance is best on 1.9.2
 
 ## Usage
 
@@ -20,3 +22,5 @@ This gem currently works on the following Ruby platforms :
       # Simple Publisher
       nc.publish('foo', 'Hello World!')
     end
+
+See under examples and benchmark for more..
