@@ -6,10 +6,8 @@ A simple publish-subscribe messaging system.
 
 This gem currently works on the following Ruby platforms:
 
-- MRI 1.8 and 1.9
+- MRI 1.8 and 1.9 (Performance is best on 1.9.2)
 - Rubinius
-
-* Performance is best on 1.9.2
 
 ## Usage
 
