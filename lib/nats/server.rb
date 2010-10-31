@@ -11,11 +11,7 @@ require 'pp'
 module NATS
   
   VERSION = "0.1".freeze
-  
-  # Pedantic
-  SUB = /^([^\.\*>\s]+|>$|\*)(\.([^\.\*>\s]+|>$|\*))*$/
-  SUB_NO_WC = /^([^\.\*>\s]+)(\.([^\.\*>\s]+))*$/
-  
+    
   # Ops
   INFO = /^INFO$/i
   PUB_OP = /^PUB\s+(\S+)\s+(\d+)(\s+REPLY)?$/i
@@ -44,6 +40,9 @@ module NATS
   AUTH_REQUIRED = "ERR 'Authorization is required'#{CR_LF}".freeze
   AUTH_FAILED = "ERR 'Authorization failed'#{CR_LF}".freeze
 
+  # Pedantic Mode
+  SUB = /^([^\.\*>\s]+|>$|\*)(\.([^\.\*>\s]+|>$|\*))*$/
+  SUB_NO_WC = /^([^\.\*>\s]+)(\.([^\.\*>\s]+))*$/
 
   # Subscriber
   Subscriber = Struct.new(:conn, :subject, :sid)
@@ -98,10 +97,10 @@ module NATS
         @sublist.remove(subscriber.subject, subscriber)
       end
       
-      def publish(subject, data)
+      def route_to_subscribers(subject, msg)
         @sublist.match(subject).each do |subscriber|
           trace "Matched subscriber", subscriber
-          subscriber.conn.send_data("MSG #{subject} #{subscriber.sid} #{data.bytesize}#{CR_LF}#{data}#{CR_LF}") 
+          subscriber.conn.send_data("MSG #{subject} #{subscriber.sid} #{msg.bytesize}#{CR_LF}#{msg}#{CR_LF}") 
         end
       end
 
@@ -144,21 +143,23 @@ module NATS
       close_connection and return if @buf =~ /(\006|\004)/ # ctrl+c or ctrl+d for telnet friendly
       while (@buf && !@buf.empty?)
         if (@msg_size && @buf.bytesize >= (@msg_size + CR_LF_SIZE))
-          payload = @buf.slice(0, @msg_size)
-          process_payload(payload)
-          @buf = @buf.slice((payload.bytesize + CR_LF_SIZE), @buf.bytesize)
+          msg = @buf.slice(0, @msg_size)
+          process_msg(msg)
+          @buf = @buf.slice((msg.bytesize + CR_LF_SIZE), @buf.bytesize)
         elsif @buf =~ /^(.*)\r\n/
           @buf = $'          
           process_op($1)
-        else break # Waiting for additional data
+        else # Waiting for additional data
+          return
         end
       end
+      # Nothing should be here.
     end
       
     def process_op(op)
       case op
         when PUB_OP
-          trace 'PUB OP', op if Server.trace_flag?
+          trace 'PUB OP', op
           return if @auth_pending
           @pub_sub, @msg_size, @reply = $1, $2.to_i, $3
           send_data PAYLOAD_TOO_BIG and return if (@msg_size > MAX_PAYLOAD_SIZE)
@@ -207,10 +208,10 @@ module NATS
       send_data "INFO #{Server.info_string}#{CR_LF}"          
     end
 
-    def process_payload(body)
-      trace 'Processing payload', body
+    def process_msg(body)
+      #trace 'Processing msg', body
       send_data OK unless noreply
-      Server.publish(@pub_sub, body)
+      Server.route_to_subscribers(@pub_sub, body)
       @pub_sub = @msg_size = @payload_regex = nil
       true
     end
