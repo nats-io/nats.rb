@@ -105,9 +105,6 @@ module NATS
       end
 
       def auth_ok?(user, pass)
-pp user
-pp pass
-pp @options
         user == @options[:user] && pass == @options[:pass]
       end
 
