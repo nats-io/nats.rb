@@ -1,7 +1,8 @@
+require 'lib/nats/server/const.rb'
 
 spec = Gem::Specification.new do |s|
   s.name = 'nats'
-  s.version = '0.2.0'
+  s.version = NATS::VERSION
   s.date = '2010-10-31'
   s.summary = 'Simple Publish-Subscribe Messaging System'
   s.homepage = "http://github.com/derekcollison/nats"

@@ -1,6 +1,6 @@
 # NATS
 
-A simple and performant EventMachine based Publish-Subscribe Messaging that just works.
+EventMachine based Publish-Subscribe Messaging that just works.
 
 ## Supported Platforms
 

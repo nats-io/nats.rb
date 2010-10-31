@@ -58,6 +58,20 @@ module NATS
           log "Could not read configuration file:  #{e}"
           exit
       end
+
+
+      def finalize_options
+        @options[:port] ||= DEFAULT_PORT
+        @options[:addr] ||= '0.0.0.0'
+        @debug_flag = @options[:debug]
+        @trace_flag = @options[:trace]
+        @auth_required = (@options[:user] != nil)
+        debug @options # Block pass?
+        debug "DEBUG is on"
+        trace "TRACE is on"
+        @log_time = @options[:log_time]
+      end
+
     end
 
   end

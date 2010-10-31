@@ -4,51 +4,15 @@ require File.dirname(__FILE__) + '/ext/bytesize'
 require File.dirname(__FILE__) + '/ext/json'
 require File.dirname(__FILE__) + '/server/sublist'
 require File.dirname(__FILE__) + '/server/parser'
+require File.dirname(__FILE__) + '/server/const'
 
 require 'socket'
 require 'pp'
 
 module NATS
-  
-  VERSION = "0.2.0".freeze
-    
-  # Ops
-  INFO = /^INFO$/i
-  PUB_OP = /^PUB\s+(\S+)\s+(\d+)(\s+REPLY)?$/i
-  SUB_OP = /^SUB\s+(\S+)\s+(\S+)$/i
-  UNSUB_OP = /^UNSUB\s+(\S+)$/i  
-  PING = /^PING$/i
-  CONNECT = /^CONNECT\s+(.+)$/i
-  
-  # Should be using something different if > 1MB payload
-  MAX_PAYLOAD_SIZE = 1024 * 1024
-
-  # RESPONSES
-  CR_LF = "\r\n".freeze
-  CR_LF_SIZE = CR_LF.bytesize
-  OK = "+OK #{CR_LF}".freeze  
-  PONG_RESPONSE = "PONG#{CR_LF}".freeze
-
-  INFO_RESPONSE = "#{CR_LF}".freeze
-
-  # ERR responses
-  PAYLOAD_TOO_BIG = "-ERR 'Payload size exceeded, max is #{MAX_PAYLOAD_SIZE} bytes'#{CR_LF}".freeze
-  INVALID_SUBJECT = "-ERR 'Invalid Subject'#{CR_LF}".freeze
-  INVALID_SID_TAKEN = "-ERR 'Invalid Subject Identifier (sid), already taken'#{CR_LF}".freeze
-  INVALID_SID_NOEXIST = "-ERR 'Invalid Subject-Identifier (sid), no subscriber registered'#{CR_LF}".freeze
-  INVALID_CONFIG = "-ERR 'Invalid config, valid JSON required for connection configuration'#{CR_LF}".freeze
-  AUTH_REQUIRED = "-ERR 'Authorization is required'#{CR_LF}".freeze
-  AUTH_FAILED = "-ERR 'Authorization failed'#{CR_LF}".freeze
-
-  # Pedantic Mode
-  SUB = /^([^\.\*>\s]+|>$|\*)(\.([^\.\*>\s]+|>$|\*))*$/
-  SUB_NO_WC = /^([^\.\*>\s]+)(\.([^\.\*>\s]+))*$/
 
   # Subscriber
   Subscriber = Struct.new(:conn, :subject, :sid)
-
-  # Autorization wait time
-  AUTH_TIMEOUT = 5
 
   class Server
 
@@ -68,15 +32,9 @@ module NATS
         @options = {}
         parser.parse!(argv)
         read_config_file
-        @options[:port] ||= DEFAULT_PORT
-        @options[:addr] ||= '0.0.0.0'
-        @debug_flag = @options[:debug]
-        @trace_flag = @options[:trace]
-        @auth_required = (@options[:user] != nil)
-        debug @options # Block pass?
-        debug "DEBUG is on"
-        trace "TRACE is on"
-        @log_time = @options[:log_time]
+        finalize_options
+
+        # Redirect for logs if needed
         $stdout = File.new(@options[:log_file], 'w') if @options[:log_file]
 
         @id = fast_uuid
@@ -97,10 +55,12 @@ module NATS
         @sublist.remove(subscriber.subject, subscriber)
       end
       
-      def route_to_subscribers(subject, msg)
+      def route_to_subscribers(subject, reply, msg)
         @sublist.match(subject).each do |subscriber|
           trace "Matched subscriber", subscriber[:subject], subscriber[:sid], subscriber.conn.client_info
-          subscriber.conn.send_data("MSG #{subject} #{subscriber.sid} #{msg.bytesize}#{CR_LF}#{msg}#{CR_LF}") 
+          subscriber.conn.send_data("MSG #{subject} #{subscriber.sid} #{reply} #{msg.bytesize}#{CR_LF}") 
+          subscriber.conn.send_data(msg)
+          subscriber.conn.send_data(CR_LF)
         end
       end
 
@@ -160,7 +120,7 @@ module NATS
         when PUB_OP
           trace 'PUB OP', op
           return if @auth_pending
-          @pub_sub, @msg_size, @reply = $1, $2.to_i, $3
+          @pub_sub, @reply, @msg_size, = $1, $3, $4.to_i
           send_data PAYLOAD_TOO_BIG and return if (@msg_size > MAX_PAYLOAD_SIZE)
           send_data INVALID_SUBJECT and return if @pedantic && !(@pub_sub =~ SUB_NO_WC)
         when SUB_OP
@@ -207,10 +167,10 @@ module NATS
     end
 
     def process_msg(body)
-      trace 'Processing msg', @pub_sub, body
+      trace 'Processing msg', @pub_sub, @reply, body
       send_data OK if @verbose
-      Server.route_to_subscribers(@pub_sub, body)
-      @pub_sub = @msg_size = @payload_regex = nil
+      Server.route_to_subscribers(@pub_sub, @reply, body)
+      @pub_sub = @msg_size = @reply = nil
       true
     end
     
@@ -241,13 +201,12 @@ module NATS
   end
 
 end
-   
+
 def fast_uuid
   v = [rand(0x0010000),rand(0x0010000),rand(0x0010000),
        rand(0x0010000),rand(0x0010000),rand(0x1000000)]
   "%04x%04x%04x%04x%04x%06x" % v
 end
-
 
 def log(*args)
   args.unshift(Time.now) if NATS::Server.log_time

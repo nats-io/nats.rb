@@ -18,6 +18,13 @@ class NATS < EM::Connection
   MAX_RECONNECT_ATTEMPTS = 15
   RECONNECT_TIME_WAIT = 2 # in secs
 
+  # Protocol
+  MSG  = /^MSG\s+(\S+)\s+(\S+)\s+((\S+)\s+)?(\d+)$/i
+  OK   = /^\+OK/i
+  ERR  = /^-ERR\s+('.+')?/i
+  PING = /^PING/i
+  INFO = /^INFO\s+(.+)/i
+
   # Pedantic Mode
   SUB = /^([^\.\*>\s]+|>$|\*)(\.([^\.\*>\s]+|>$|\*))*$/
   SUB_NO_WC = /^([^\.\*>\s]+)(\.([^\.\*>\s]+))*$/
@@ -50,6 +57,13 @@ class NATS < EM::Connection
       @err_cb, @err_cb_overridden = callback, true
     end
 
+    # utils
+    def create_inbox
+      v = [rand(0x0010000),rand(0x0010000),rand(0x0010000),
+           rand(0x0010000),rand(0x0010000),rand(0x1000000)]
+      "_INBOX.%04x%04x%04x%04x%04x%06x" % v
+    end
+    
   end
   
   attr_reader :connect_cb, :err_cb, :err_cb_overridden, :connected, :closing, :reconnecting
@@ -66,9 +80,11 @@ class NATS < EM::Connection
     send_connect_command
   end
   
-  def publish(subject, data)
+  def publish(subject, data='', opt_reply=nil)
     data = data.to_s
-    send_command("PUB #{subject} #{data.bytesize}#{CR_LF}#{data}#{CR_LF}")
+    send_command("PUB #{subject} #{opt_reply} #{data.bytesize}#{CR_LF}")
+    send_command(data)
+    send_data(CR_LF)
   end
     
   def subscribe(subject, &callback)
@@ -83,6 +99,13 @@ class NATS < EM::Connection
     send_command("UNSUB #{sid}#{CR_LF}")
   end
     
+  def request(subject, data=nil, opts={}, &callback)
+    inbox = NATS.create_inbox
+    s = subscribe(inbox) { |sub, msg| callback.call(msg) }
+    publish(subject, data, inbox)
+    return s
+  end
+
   def send_connect_command
     cs = { :verbose => false, :pedantic => false }
     if @uri.user
@@ -113,9 +136,9 @@ class NATS < EM::Connection
     close_connection_after_writing
   end
   
-  def on_msg(subject, sid, msg)
+  def on_msg(subject, sid, reply, msg)
     return unless subscriber = @subs[sid]
-    subscriber[:callback].call(subject, msg)
+    subscriber[:callback].call(subject, msg, reply)
   end
 
   def flush_pending
@@ -129,22 +152,22 @@ class NATS < EM::Connection
     while (@buf && !@buf.empty?)
       if (@needed && @buf.bytesize >= @needed + CR_LF_SIZE)
         payload = @buf.slice(0, @needed)
-        on_msg(@sub, @sid, payload)    
+        on_msg(@sub, @sid, @reply, payload)    
         @buf = @buf.slice((@needed + CR_LF_SIZE), @buf.bytesize)          
-        @sub = @sid = @needed = nil
+        @sub = @sid = @reply = @needed = nil
       elsif @buf =~ /^(.*)\r\n/ # Process a control line
         @buf = $'
         op = $1
         case op
-          when /^MSG\s+(\S+)\s+(\S+)\s+(\d+)$/i
-            @sub, @sid, @needed = $1, $2.to_i, $3.to_i
-          when /^\+OK/i
-          when /^-ERR\s+('.+')/i
+          when MSG
+            @sub, @sid, @reply, @needed = $1, $2.to_i, $4, $5.to_i
+          when OK
+          when ERR
             @err_cb = proc { raise "Error received from server :#{$1}."} unless user_err_cb?
             err_cb.call($1)
-          when /^PING/i
+          when PING
             send_command(PONG_RESPONSE)
-          when /^INFO\s+(.+)/i
+          when INFO
             process_info($1)
         end
       else # Waiting for additional data
