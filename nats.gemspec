@@ -1,4 +1,4 @@
-require 'lib/nats/server/const.rb'
+require './lib/nats/server/const.rb'
 
 spec = Gem::Specification.new do |s|
   s.name = 'nats'
@@ -30,7 +30,8 @@ spec = Gem::Specification.new do |s|
     "lib/nats/ext/json.rb",
     "lib/nats/server.rb",
     "lib/nats/server/parser.rb",
-    "lib/nats/server/sublist.rb"
+    "lib/nats/server/sublist.rb",
+    "lib/nats/server/const.rb"
   ]
 
 end
