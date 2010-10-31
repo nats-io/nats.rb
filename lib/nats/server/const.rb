@@ -1,7 +1,8 @@
 module NATS
   
-  VERSION = "0.2.2"
-    
+  VERSION  = "0.2.2"
+  APP_NAME = 'nats-server'
+ 
   # Ops
   INFO = /^INFO$/i
   PUB_OP = /^PUB\s+(\S+)\s+((\S+)\s+)?(\d+)$/i

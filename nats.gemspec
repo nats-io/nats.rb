@@ -14,6 +14,7 @@ spec = Gem::Specification.new do |s|
 
   s.add_dependency('eventmachine', '>= 0.12.4')
   s.add_dependency('yajl-ruby', '>= 0.7.8')
+  s.add_dependency('daemons', '>= 1.1.0')
 
   s.require_paths = ['lib']
   s.bindir = 'bin'

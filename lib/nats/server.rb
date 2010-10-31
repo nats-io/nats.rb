@@ -49,6 +49,14 @@ module NATS
 
         # Write pid file if need be.
         File.open(@options[:pid_file], 'w') { |f| f.puts "#{Process.pid}" } if @options[:pid_file]
+
+        # Check for daemon flag
+        if @options[:daemonize]
+          require 'rubygems'
+          require 'daemons'
+          log "Switching to daemon mode"
+          Daemons.daemonize(:app_name => APP_NAME)
+        end
       end
       
       def subscribe(subscriber)
@@ -238,10 +246,14 @@ def shutdown
 end
 
 ['TERM','INT'].each { |s| trap(s) { shutdown } }
+
+
+# Do setup
+NATS::Server.setup(ARGV.dup)
+
+# Event Loop
  
 EM.run {
-
-  NATS::Server.setup(ARGV.dup)
 
   log "Starting nats server on port #{NATS::Server.port}"
 
