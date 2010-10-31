@@ -13,6 +13,12 @@ task :gem do
   sh 'gem build *.gemspec'
 end
 
+desc "Install the gem"
+task :geminstall do
+  sh 'gem build *.gemspec'
+  sh 'gem install *.gem'
+end
+
 desc "Synonym for spec"
 task :test => :spec
 desc "Synonym for spec"
