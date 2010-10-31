@@ -17,4 +17,5 @@ NATS.start { |c|
     puts "Got a response: '#{response}'"
     NATS.stop
   }
+
 }
