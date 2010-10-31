@@ -1,8 +1,8 @@
 
 spec = Gem::Specification.new do |s|
   s.name = 'nats'
-  s.version = '0.1'
-  s.date = '2010-10-30'
+  s.version = '0.2.0'
+  s.date = '2010-10-31'
   s.summary = 'Simple Publish-Subscribe Messaging System'
   s.homepage = "http://github.com/derekcollison/nats"
   s.description = "A lightweight, fast, publish-subscribe messaging system."
