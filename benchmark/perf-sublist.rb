@@ -1,4 +1,4 @@
-require File.dirname(__FILE__) + '/../lib/server/sublist'
+require File.dirname(__FILE__) + '/../lib/nats/server/sublist'
 
 class PerfSublist
   @@levels = 5

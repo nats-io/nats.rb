@@ -1,5 +1,5 @@
 
-require File.dirname(__FILE__) + '/../lib/client'
+require File.dirname(__FILE__) + '/../lib/nats/client'
 
 data = '-ok-'.freeze
 
