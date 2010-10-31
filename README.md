@@ -47,7 +47,7 @@ This gem currently works on the following Ruby platforms:
       }
 
       # Stop using NATS.stop
-      EM.next_tick { NATS.stop }
+      NATS.stop
 
     end
 
