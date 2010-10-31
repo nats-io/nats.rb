@@ -2,5 +2,8 @@
 - proper flow control, EM and PING/PONG
 - clustering/routing
 - queues? Prefer, request for help, then pick first one back.
-- request/response automated, just use UUID now.
-- better reply semantics in protocol.
+- [DONE] request/response automated, just use UUID now.
+- [DONE] better reply semantics in protocol.
+- [DONE] daemon mode
+- tests! ;)
+- autolaunch?
