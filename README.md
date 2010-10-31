@@ -30,6 +30,10 @@ This gem currently works on the following Ruby platforms:
       # Simple Publisher
       nc.publish('foo.bar.baz', 'Hello World!')
 
+      # Unsubscribing
+      s1 = nc.subscribe('bar') { |sub, msg| puts "Msg received on [#{sub}] : '#{msg}' }
+      nc.unsubscribe(s1)
+
       # Stop using NATS.stop
       EM.next_tick { NATS.stop }
 
