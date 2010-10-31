@@ -19,7 +19,7 @@ This gem currently works on the following Ruby platforms:
       # Simple Subscriber
       nc.subscribe('foo') { |sub, msg| puts "Msg received on [#{sub}] : '#{msg}' }
 
-      # Wildcards
+      # Wildcard Subscriptions
 
       # '*" matches any token
       nc.subscribe('foo.*.baz') { |sub, msg| puts "Msg received on [#{sub}] : '#{msg}' }
@@ -31,8 +31,20 @@ This gem currently works on the following Ruby platforms:
       nc.publish('foo.bar.baz', 'Hello World!')
 
       # Unsubscribing
-      s1 = nc.subscribe('bar') { |sub, msg| puts "Msg received on [#{sub}] : '#{msg}' }
-      nc.unsubscribe(s1)
+      s = nc.subscribe('bar') { |sub, msg| puts "Msg received on [#{sub}] : '#{msg}' }
+      nc.unsubscribe(s)
+
+      # Request/Response
+
+      # The helper
+      c.subscribe('help') do |sub, msg, reply|
+        c.publish(reply, "I'll help!")
+      end
+
+      # Help request
+      c.request('help') { |response|
+        puts "Got a response: '#{response}'"
+      }
 
       # Stop using NATS.stop
       EM.next_tick { NATS.stop }
