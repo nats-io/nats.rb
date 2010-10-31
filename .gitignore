@@ -3,6 +3,6 @@
 .\#*
 *.rbc
 .bundle
-.gem
+*.gem
 .DS_Store
 
