@@ -63,7 +63,7 @@ class NATS < EM::Connection
     @debug = options[:debug]
     @sid, @subs = 1, {}
     @err_cb = NATS.err_cb
-    send_command("CONNECT #{connect_string}#{CR_LF}")
+    send_connect_command
   end
   
   def publish(subject, data)
@@ -83,13 +83,13 @@ class NATS < EM::Connection
     send_command("UNSUB #{sid}#{CR_LF}")
   end
     
-  def connect_string
-    cs = { :noreply => true }
+  def send_connect_command
+    cs = { :verbose => false, :pedantic => false }
     if @uri.user
-      cs[:user] = @uri.user
+      cs[:user] = @uri.user 
       cs[:pass] = @uri.password
     end
-    cs.to_json
+    send_command("CONNECT #{cs.to_json}#{CR_LF}")
   end
 
   def on_connect(&callback)
@@ -138,8 +138,8 @@ class NATS < EM::Connection
         case op
           when /^MSG\s+(\S+)\s+(\S+)\s+(\d+)$/i
             @sub, @sid, @needed = $1, $2.to_i, $3.to_i
-          when /^OK/i
-          when /^ERR\s+('.+')/i
+          when /^\+OK/i
+          when /^-ERR\s+('.+')/i
             @err_cb = proc { raise "Error received from server :#{$1}."} unless user_err_cb?
             err_cb.call($1)
           when /^PING/i
@@ -161,7 +161,7 @@ class NATS < EM::Connection
      @connected = true
      if reconnecting?
        EM.cancel_timer(@reconnect_timer)
-       send_command("CONNECT #{connect_string}#{CR_LF}")
+       send_connect_command
        @subs.each_pair { |k, v| send_command("SUB #{v[:subject]} #{k}#{CR_LF}") }
      end
      flush_pending if @pending

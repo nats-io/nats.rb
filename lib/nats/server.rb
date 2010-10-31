@@ -10,7 +10,7 @@ require 'pp'
 
 module NATS
   
-  VERSION = "0.1".freeze
+  VERSION = "0.2.0".freeze
     
   # Ops
   INFO = /^INFO$/i
@@ -26,19 +26,19 @@ module NATS
   # RESPONSES
   CR_LF = "\r\n".freeze
   CR_LF_SIZE = CR_LF.bytesize
-  OK = "OK#{CR_LF}".freeze  
+  OK = "+OK #{CR_LF}".freeze  
   PONG_RESPONSE = "PONG#{CR_LF}".freeze
 
   INFO_RESPONSE = "#{CR_LF}".freeze
 
   # ERR responses
-  PAYLOAD_TOO_BIG = "ERR 'Payload size exceeded, max is #{MAX_PAYLOAD_SIZE} bytes'#{CR_LF}".freeze
-  INVALID_SUBJECT = "ERR 'Invalid Subject'#{CR_LF}".freeze
-  INVALID_SID_TAKEN = "ERR 'Invalid Subject Identifier (sid), already taken'#{CR_LF}".freeze
-  INVALID_SID_NOEXIST = "ERR 'Invalid Subject-Identifier (sid), no subscriber registered'#{CR_LF}".freeze
-  INVALID_CONFIG = "ERR 'Invalid config, valid JSON required for connection configuration'#{CR_LF}".freeze
-  AUTH_REQUIRED = "ERR 'Authorization is required'#{CR_LF}".freeze
-  AUTH_FAILED = "ERR 'Authorization failed'#{CR_LF}".freeze
+  PAYLOAD_TOO_BIG = "-ERR 'Payload size exceeded, max is #{MAX_PAYLOAD_SIZE} bytes'#{CR_LF}".freeze
+  INVALID_SUBJECT = "-ERR 'Invalid Subject'#{CR_LF}".freeze
+  INVALID_SID_TAKEN = "-ERR 'Invalid Subject Identifier (sid), already taken'#{CR_LF}".freeze
+  INVALID_SID_NOEXIST = "-ERR 'Invalid Subject-Identifier (sid), no subscriber registered'#{CR_LF}".freeze
+  INVALID_CONFIG = "-ERR 'Invalid config, valid JSON required for connection configuration'#{CR_LF}".freeze
+  AUTH_REQUIRED = "-ERR 'Authorization is required'#{CR_LF}".freeze
+  AUTH_FAILED = "-ERR 'Authorization failed'#{CR_LF}".freeze
 
   # Pedantic Mode
   SUB = /^([^\.\*>\s]+|>$|\*)(\.([^\.\*>\s]+|>$|\*))*$/
@@ -99,12 +99,15 @@ module NATS
       
       def route_to_subscribers(subject, msg)
         @sublist.match(subject).each do |subscriber|
-          trace "Matched subscriber", subscriber
+          trace "Matched subscriber", subscriber[:subject], subscriber[:sid], subscriber.conn.client_info
           subscriber.conn.send_data("MSG #{subject} #{subscriber.sid} #{msg.bytesize}#{CR_LF}#{msg}#{CR_LF}") 
         end
       end
 
       def auth_ok?(user, pass)
+pp user
+pp pass
+pp @options
         user == @options[:user] && pass == @options[:pass]
       end
 
@@ -116,7 +119,6 @@ module NATS
   end
   
   module Connection
-    attr_accessor :noreply
 
     def client_info
       @client_info ||= Socket.unpack_sockaddr_in(get_peername)
@@ -124,7 +126,7 @@ module NATS
 
     def post_init
       @subscriptions = {}
-      @noreply = false
+      @verbose = @pedantic = true # suppressed by most clients, but allows friendly telnet
       @receive_data_calls = 0
       send_info
       @auth_pending = EM.add_timer(AUTH_TIMEOUT) { connect_auth_timeout } if Server.auth_required?
@@ -163,8 +165,7 @@ module NATS
           return if @auth_pending
           @pub_sub, @msg_size, @reply = $1, $2.to_i, $3
           send_data PAYLOAD_TOO_BIG and return if (@msg_size > MAX_PAYLOAD_SIZE)
-          # TODO: Check only in  pedantic mode?
-          # send_data "ERR 'Invalid Subject'#{CR_LF}" and return if !(@pub_sub =~ SUB_NO_WC)
+          send_data INVALID_SUBJECT and return if @pedantic && !(@pub_sub =~ SUB_NO_WC)
         when SUB_OP
           trace 'SUB OP', op
           return if @auth_pending
@@ -174,7 +175,7 @@ module NATS
           subscriber = Subscriber.new(self, sub, sid)
           @subscriptions[sid] = subscriber
           Server.subscribe(subscriber)
-          send_data OK unless noreply 
+          send_data OK if @verbose
         when UNSUB_OP
           trace 'UNSUB OP', op
           return if @xsauth_pending
@@ -182,7 +183,7 @@ module NATS
           send_data INVALID_SID_NOEXIST and return unless subscriber
           Server.unsubscribe(subscriber)
           @subscriptions.delete(sid)
-          send_data OK unless noreply
+          send_data OK if @verbose
         when PING
           trace 'PING OP', op
           send_data PONG_RESPONSE
@@ -209,16 +210,19 @@ module NATS
     end
 
     def process_msg(body)
-      #trace 'Processing msg', body
-      send_data OK unless noreply
+      trace 'Processing msg', @pub_sub, body
+      send_data OK if @verbose
       Server.route_to_subscribers(@pub_sub, body)
       @pub_sub = @msg_size = @payload_regex = nil
       true
     end
     
     def process_connect_config(config)
-      @noreply = config[:noreply] if config[:noreply]
+      @verbose  = config[:verbose] if config[:verbose]
+      @pedantic = config[:pedantic] if config[:pedantic]
+
       send_data OK and return unless Server.auth_required?
+
       EM.cancel_timer(@auth_pending)
       if Server.auth_ok?(config[:user], config[:pass])
         send_data OK
