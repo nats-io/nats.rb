@@ -33,7 +33,8 @@ module NATS
 
           opts.on("--user user", "User required for connections")                       { |user| @options[:user] = user }
 
-          opts.on("--password password", "Password required for connections")          { |pass| @options[:user] = pass }
+          opts.on("--pass password", "Password required for connections")               { |pass| @options[:pass] = pass }
+          opts.on("--password password", "Password required for connections")           { |pass| @options[:pass] = pass }
 
           opts.separator ""
           opts.separator "Common options:"
