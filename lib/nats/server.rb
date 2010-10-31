@@ -3,10 +3,11 @@ require File.dirname(__FILE__) + '/ext/em'
 require File.dirname(__FILE__) + '/ext/bytesize'
 require File.dirname(__FILE__) + '/ext/json'
 require File.dirname(__FILE__) + '/server/sublist'
-require File.dirname(__FILE__) + '/server/parser'
+require File.dirname(__FILE__) + '/server/options'
 require File.dirname(__FILE__) + '/server/const'
 
 require 'socket'
+require 'fileutils'
 require 'pp'
 
 module NATS
@@ -25,26 +26,29 @@ module NATS
       alias trace_flag? :trace_flag
  
       def version; "nats server version #{NATS::VERSION}" end
+
       def host; @options[:addr]  end
       def port; @options[:port]  end
+      def pid_file; @options[:pid_file] end
 
       def setup(argv)
         @options = {}
+
         parser.parse!(argv)
         read_config_file
         finalize_options
 
-        # Redirect for logs if needed
-        $stdout = File.new(@options[:log_file], 'w') if @options[:log_file]
-
         @id = fast_uuid
+        @sublist = Sublist.new
         @info = {
           :nats_server_id => Server.id,
           :version => VERSION,
           :auth_required => auth_required?,
           :max_payload => MAX_PAYLOAD_SIZE
         }
-        @sublist = Sublist.new
+
+        # Write pid file if need be.
+        File.open(@options[:pid_file], 'w') { |f| f.puts "#{Process.pid}" } if @options[:pid_file]
       end
       
       def subscribe(subscriber)
@@ -229,11 +233,11 @@ def shutdown
   puts
   log 'Server exiting..'
   EM.stop
+  FileUtils.rm(NATS::Server.pid_file) if NATS::Server.pid_file
   exit
 end
 
-trap("TERM") { shutdown }
-trap("INT")  { shutdown }
+['TERM','INT'].each { |s| trap(s) { shutdown } }
  
 EM.run {
 
