@@ -57,6 +57,8 @@ module NATS
           log "Switching to daemon mode"
           Daemons.daemonize(:app_name => APP_NAME)
         end
+
+        setup_logs
       end
       
       def subscribe(subscriber)

@@ -60,6 +60,13 @@ module NATS
       end
 
 
+      def setup_logs
+        return unless @options[:log_file]
+        $stdout.reopen(@options[:log_file], "w")
+        $stdout.sync = true
+        $stderr.reopen($stdout)
+      end
+
       def finalize_options
         # Addr/Port
         @options[:port] ||= DEFAULT_PORT
@@ -68,16 +75,17 @@ module NATS
         # Debug and Tracing
         @debug_flag = @options[:debug]
         @trace_flag = @options[:trace]
+
+        # Log timestamps
+        @log_time = @options[:log_time]
+        # setup_logs
+
         debug @options # Block pass?
         debug "DEBUG is on"
         trace "TRACE is on"
         
         # Auth
         @auth_required = (@options[:user] != nil)
-
-        # Redirect for logs if needed, and timestamp option
-        @log_time = @options[:log_time]
-        $stdout = File.new(@options[:log_file], 'w') if @options[:log_file]
       end
 
     end

@@ -18,7 +18,7 @@ spec = Gem::Specification.new do |s|
 
   s.require_paths = ['lib']
   s.bindir = 'bin'
-  s.executables = ['nats-server']
+  s.executables = [NATS::APP_NAME]
 
   s.files = [
     "COPYING",
