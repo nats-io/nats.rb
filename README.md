@@ -1,6 +1,6 @@
 # NATS
 
-A simple publish-subscribe messaging system based on eventmachine.
+A simple and performant EventMachine based Publish-Subscribe Messaging that just works.
 
 ## Supported Platforms
 
@@ -8,6 +8,7 @@ This gem currently works on the following Ruby platforms:
 
 - MRI 1.8 and 1.9 (Performance is best on 1.9.2)
 - Rubinius
+- JRuby (should work)
 
 ## Usage
 
@@ -34,4 +35,4 @@ This gem currently works on the following Ruby platforms:
 
     end
 
-See under examples and benchmark for more..
+See examples and benchmark for more..
