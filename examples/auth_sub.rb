@@ -1,4 +1,3 @@
-#!/usr/bin/env ruby
 
 require 'rubygems'
 require 'nats/client'
@@ -10,9 +9,7 @@ def usage
   puts "Usage: auth_sub <user> <pass> <subject>"; exit
 end
 
-user = ARGV.shift
-pass = ARGV.shift
-subject = ARGV.shift
+user, pass, subject = ARGV
 usage unless user and pass and subject
 
 uri = "nats://#{user}:#{pass}@localhost:8222"
