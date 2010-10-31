@@ -55,7 +55,7 @@ module NATS
           require 'rubygems'
           require 'daemons'
           log "Switching to daemon mode"
-          Daemons.daemonize(:app_name => APP_NAME)
+          Daemons.daemonize(:app_name => APP_NAME, :mode => :exec)
         end
 
         setup_logs
