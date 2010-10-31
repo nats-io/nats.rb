@@ -82,9 +82,7 @@ class NATS < EM::Connection
   
   def publish(subject, data='', opt_reply=nil)
     data = data.to_s
-    send_command("PUB #{subject} #{opt_reply} #{data.bytesize}#{CR_LF}")
-    send_command(data)
-    send_data(CR_LF)
+    send_command("PUB #{subject} #{opt_reply} #{data.bytesize}#{CR_LF}#{data}#{CR_LF}")
   end
     
   def subscribe(subject, &callback)

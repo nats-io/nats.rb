@@ -189,8 +189,8 @@ module NATS
     end
     
     def process_connect_config(config)
-      @verbose  = config[:verbose] if config[:verbose]
-      @pedantic = config[:pedantic] if config[:pedantic]
+      @verbose  = config[:verbose] if config[:verbose] != nil
+      @pedantic = config[:pedantic] if config[:pedantic] != nil
 
       send_data OK and return unless Server.auth_required?
 
