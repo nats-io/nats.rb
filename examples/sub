@@ -13,7 +13,9 @@ end
 subject = ARGV.shift
 usage unless subject
 
+NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
+
 NATS.start do |n|
-  puts "Listening on '#{subject}'"
-  n.subscribe(subject) { |sub, msg| puts "Msg Received on [#{sub}] : '#{msg}'" }
+  puts "Listening on [#{subject}]"
+  n.subscribe(subject) { |sub, msg| puts "Received on [#{sub}] : '#{msg}'" }
 end

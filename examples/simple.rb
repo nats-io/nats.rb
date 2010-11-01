@@ -5,6 +5,8 @@ require 'nats/client'
 trap("TERM") { NATS.stop }
 trap("INT")  { NATS.stop }
 
+NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
+
 NATS.start { |c|
   
   test_sub = c.subscribe('test') do |sub, msg|

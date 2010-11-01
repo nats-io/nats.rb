@@ -12,9 +12,13 @@ usage unless user and pass and subject
 # Default
 msg ||= 'Hello World'
 
-uri = "nats://#{user}:#{pass}@localhost:8222"
+uri = "nats://#{user}:#{pass}@localhost:#{NATS::DEFAULT_PORT}"
+
+NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
 NATS.start(:uri => uri) do |n|
   n.publish(subject, msg)
   NATS.stop
 end
+
+puts "Published on [#{subject}] : '#{msg}'"
