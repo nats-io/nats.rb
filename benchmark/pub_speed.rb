@@ -3,11 +3,11 @@ require File.dirname(__FILE__) + '/../lib/nats/client'
 
 data = '-ok-'.freeze
 
-NATS.on_error { |err| puts "Error: #{err}" }
+NATS.on_error { |err| puts "Server Error: #{err}"; exit }
 
 NATS.start do |c|
   
-  r, loop = 0, 500000
+  r, loop = 0, 250000
   start = Time.now 
   
   do_subs = true if ARGV.shift =~ /-listen/i
