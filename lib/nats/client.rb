@@ -6,9 +6,10 @@ require File.dirname(__FILE__) + '/ext/json'
 
 class NATS < EM::Connection
   
-  VERSION = "0.1".freeze
+  VERSION = "0.2.2".freeze
 
-  DEFAULT_URI = 'nats://localhost:8222'
+  DEFAULT_PORT = 4222
+  DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
 
   CR_LF = "\r\n".freeze
   CR_LF_SIZE = CR_LF.bytesize
@@ -50,7 +51,7 @@ class NATS < EM::Connection
     end
     
     def stop
-      client.close if client
+      client.close if (client and client.connected?)
     end
 
     def on_error(&callback)
@@ -159,7 +160,7 @@ class NATS < EM::Connection
         case op
           when MSG
             @sub, @sid, @reply, @needed = $1, $2.to_i, $4, $5.to_i
-          when OK
+          when OK # No-op right now
           when ERR
             @err_cb = proc { raise "Error received from server :#{$1}."} unless user_err_cb?
             err_cb.call($1)
@@ -204,7 +205,7 @@ class NATS < EM::Connection
   def process_disconnect
     if not closing? and @err_cb
       err_string = @connected ? "Client disconnected from server on #{@uri}." : "Could not connect to server on #{@uri}"
-      err_cb.call(err_string) if @err_cb and not closing?
+      err_cb.call(err_string)
     end
     ensure
     stop_em = (NATS.client == self and connected? and closing? and not NATS.reactor_was_running?)
