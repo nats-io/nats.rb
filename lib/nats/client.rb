@@ -1,5 +1,6 @@
 
 require 'uri'
+
 require File.dirname(__FILE__) + '/ext/em'
 require File.dirname(__FILE__) + '/ext/bytesize'
 require File.dirname(__FILE__) + '/ext/json'
@@ -16,7 +17,7 @@ class NATS < EM::Connection
 
   PONG_RESPONSE = "PONG#{CR_LF}".freeze
 
-  MAX_RECONNECT_ATTEMPTS = 15
+  MAX_RECONNECT_ATTEMPTS = 10
   RECONNECT_TIME_WAIT = 2 # in secs
 
   # Protocol
@@ -35,11 +36,13 @@ class NATS < EM::Connection
     alias :reactor_was_running? :reactor_was_running
 
     def connect(options = {})
-      server = (options[:uri] || ENV['NATS_URI'] || DEFAULT_URI)
-      debug  = (options[:debug] || ENV['NATS_DEBUG'])
-      uri = URI.parse(server)
+      options[:uri] ||= ENV['NATS_URI'] || DEFAULT_URI
+      options[:debug] ||= ENV['NATS_DEBUG']
+      options[:autostart] ||= ENV['NATS_AUTO'] || true
+      uri = options[:uri] = URI.parse(options[:uri])
       @err_cb = proc { raise "Could not connect to server on #{uri}."} unless @err_cb
-      EM.connect(uri.host, uri.port, self, :uri => uri, :debug => debug)
+      check_autostart(uri) if options[:autostart]
+      EM.connect(uri.host, uri.port, self, options)
     end
     
     def start(*args, &blk)
@@ -64,7 +67,46 @@ class NATS < EM::Connection
            rand(0x0010000),rand(0x0010000),rand(0x1000000)]
       "_INBOX.%04x%04x%04x%04x%04x%06x" % v
     end
+
+    def check_autostart(uri)
+      require 'socket'
+      return unless uri_is_local?(uri)
+      return if server_running?(uri)
+      return unless try_autostart_succeeded?(uri)
+      wait_for_server(uri)
+    end
+
+    def uri_is_local?(uri)
+      uri.host == 'localhost' || uri.host == '127.0.0.1'
+    end
+
+    def try_autostart_succeeded?(uri)
+      port_arg = "-p #{uri.port}"
+      user_arg = "--user #{uri.user}" if uri.user
+      pass_arg = "--pass #{uri.password}" if uri.password
+      log_arg  = '-l /tmp/nats-server.log'
+      pid_arg  = '-P /tmp/nats-server.pid'
+      # daemon mode to release client
+      system("nats-server #{port_arg} #{user_arg} #{pass_arg} #{log_arg} #{pid_arg} -d")
+      $? == 0
+    end
     
+    def wait_for_server(uri)
+      start = Time.now
+      while (Time.now - start < 5) # Wait 5 seconds max
+        break if server_running?(uri)
+        sleep(0.1)
+      end
+    end
+
+    def server_running?(uri)
+      s = TCPSocket.new(uri.host, uri.port)
+      s.close
+      return true
+    rescue
+      return false
+    end
+
   end
   
   attr_reader :connect_cb, :err_cb, :err_cb_overridden, :connected, :closing, :reconnecting
@@ -191,12 +233,16 @@ class NATS < EM::Connection
      @err_cb = proc { raise "Client disconnected from server on #{@uri}."} unless user_err_cb? or reconnecting?
      @reconnecting = false
    end
-  
+
+  def schedule_reconnect(wait=RECONNECT_TIME_WAIT)
+    @reconnecting = true
+    @reconnect_attempts = 0
+    @reconnect_timer = EM.add_periodic_timer(wait) { attempt_reconnect }
+  end
+
   def unbind
     if connected? and not closing? and not reconnecting?
-      @reconnecting = true
-      @reconnect_attempts = 0
-      @reconnect_timer = EM.add_periodic_timer(RECONNECT_TIME_WAIT) { attempt_reconnect }
+      schedule_reconnect
     else
       process_disconnect unless reconnecting?
     end
