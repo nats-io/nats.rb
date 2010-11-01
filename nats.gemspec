@@ -12,7 +12,7 @@ spec = Gem::Specification.new do |s|
   s.authors = ["Derek Collison"]
   s.email = ["derek.collison@gmail.com"]
 
-  s.add_dependency('eventmachine', '>= 0.12.4')
+  s.add_dependency('eventmachine', '>= 0.12.10')
   s.add_dependency('yajl-ruby', '>= 0.7.8')
   s.add_dependency('daemons', '>= 1.1.0')
 
