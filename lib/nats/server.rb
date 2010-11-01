@@ -52,6 +52,8 @@ module NATS
         if @options[:daemonize]
           require 'rubygems'
           require 'daemons'
+          # These log messages visible to controlling TTY
+          log "Starting #{NATS::APP_NAME} version #{NATS::VERSION} on port #{NATS::Server.port}"
           log "Switching to daemon mode"
           Daemons.daemonize(:app_name => APP_NAME, :mode => :exec)
         end
