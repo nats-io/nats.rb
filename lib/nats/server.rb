@@ -16,9 +16,7 @@ module NATS
   Subscriber = Struct.new(:conn, :subject, :sid)
 
   class Server
-
-    DEFAULT_PORT = 8222
-
+    
     class << self
       attr_reader :id, :info, :log_time, :auth_required, :debug_flag, :trace_flag
       alias auth_required? :auth_required
@@ -71,10 +69,19 @@ module NATS
       
       def route_to_subscribers(subject, reply, msg)
         @sublist.match(subject).each do |subscriber|
+          # Skip anyone in the closing state
+          next if subscriber.conn.closing
+          
           trace "Matched subscriber", subscriber[:subject], subscriber[:sid], subscriber.conn.client_info
           subscriber.conn.send_data("MSG #{subject} #{subscriber.sid} #{reply} #{msg.bytesize}#{CR_LF}") 
           subscriber.conn.send_data(msg)
           subscriber.conn.send_data(CR_LF)
+
+          # Check the outbound queue here and react if need be..
+          if subscriber.conn.get_outbound_data_size > MAX_OUTBOUND_SIZE
+            subscriber.conn.error_close SLOW_CONSUMER
+            log "Slow consumer dropped", subscriber.conn.client_info
+          end
         end
       end
 
@@ -91,6 +98,8 @@ module NATS
   
   module Connection
 
+    attr_reader :closing
+    
     def client_info
       @client_info ||= Socket.unpack_sockaddr_in(get_peername)
     end
@@ -105,16 +114,15 @@ module NATS
     end
 
     def connect_auth_timeout
-      send_data AUTH_REQUIRED
+      error_close AUTH_REQUIRED
       debug "Connection timeout due to lack of auth credentials"
-      close_connection_after_writing
     end
 
     def receive_data(data)
       @receive_data_calls += 1
       (@buf ||= '') << data
       close_connection and return if @buf =~ /(\006|\004)/ # ctrl+c or ctrl+d for telnet friendly
-      while (@buf && !@buf.empty?)
+      while (@buf && !@buf.empty? && !@closing)
         if (@msg_size && @buf.bytesize >= (@msg_size + CR_LF_SIZE))
           msg = @buf.slice(0, @msg_size)
           process_msg(msg)
@@ -172,7 +180,7 @@ module NATS
           send_info
         else
           trace 'Unknown Op', op
-          send_data "ERR 'Unkown Op'#{CR_LF}"
+          send_data UNKNOWN_OP
       end
     end
 
@@ -199,10 +207,15 @@ module NATS
         send_data OK
         @auth_pending = nil
       else
-        send_data AUTH_FAILED
-        close_connection_after_writing
+        error_close AUTH_FAILED
         debug "Authorization failed for connection"
       end
+    end
+    
+    def error_close(msg)
+      send_data msg
+      close_connection_after_writing
+      @closing = true
     end
     
     def unbind
@@ -257,7 +270,7 @@ NATS::Server.setup(ARGV.dup)
  
 EM.run {
 
-  log "Starting nats server on port #{NATS::Server.port}"
+  log "Starting #{NATS::APP_NAME} version #{NATS::VERSION} on port #{NATS::Server.port}"
 
   begin
     EM.set_descriptor_table_size(32768) # Requires Root privileges    
