@@ -17,6 +17,7 @@ desc "Install the gem"
 task :geminstall do
   sh 'gem build *.gemspec'
   sh 'gem install *.gem'
+  sh 'rm *.gem'
 end
 
 desc "Synonym for spec"
