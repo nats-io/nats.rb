@@ -7,7 +7,7 @@ require File.dirname(__FILE__) + '/ext/json'
 
 class NATS < EM::Connection
   
-  VERSION = "0.2.2".freeze
+  VERSION = "0.2.4".freeze
 
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
@@ -53,12 +53,31 @@ class NATS < EM::Connection
       }
     end
     
-    def stop
+    def stop(&blk)
       client.close if (client and client.connected?)
+      blk.call if blk
     end
 
     def on_error(&callback)
       @err_cb, @err_cb_overridden = callback, true
+    end
+
+    # Mirror instance methods for our client
+    def publish(*args)
+      (@client ||= connect).publish(*args)
+    end
+
+    def subscribe(*args)
+      (@client ||= connect).subscribe(*args)
+    end
+
+    def unsubscribe(*args)
+      (@client ||= connect).unsubscribe(*args)
+
+    end
+
+    def request(*args)
+      (@client ||= connect).request(*args)
     end
 
     # utils
@@ -164,12 +183,12 @@ class NATS < EM::Connection
     @err_cb, @err_cb_overridden = callback, true
   end
 
-  def user_err_cb?
-    err_cb_overridden || NATS.err_cb_overridden
-  end
-
   def on_reconnect(&callback)
     @reconnect_cb = callback
+  end
+
+  def user_err_cb?
+    err_cb_overridden || NATS.err_cb_overridden
   end
   
   def close
