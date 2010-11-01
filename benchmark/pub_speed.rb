@@ -3,7 +3,7 @@ require File.dirname(__FILE__) + '/../lib/nats/client'
 
 data = '-ok-'.freeze
 
-NATS.on_error { |err| puts "Server Error: #{err}"; exit }
+NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
 NATS.start do |c|
   
