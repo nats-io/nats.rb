@@ -23,15 +23,7 @@ This gem currently works on the following Ruby platforms:
     NATS.start do
 
       # Simple Subscriber
-      NATS.subscribe('foo') { |sub, msg| puts "Msg received on [#{sub}] : '#{msg}' }
-
-      # Wildcard Subscriptions
-
-      # '*" matches any token
-      NATS.subscribe('foo.*.baz') { |sub, msg| puts "Msg received on [#{sub}] : '#{msg}' }
-
-      # '>" can only be last token, and matches to any depth
-      NATS.subscribe('foo.>') { |sub, msg| puts "Msg received on [#{sub}] : '#{msg}' }
+      NATS.subscribe('foo') { |msg| puts "Msg received : '#{msg}' }
 
       # Simple Publisher
       NATS.publish('foo.bar.baz', 'Hello World!')
@@ -40,13 +32,13 @@ This gem currently works on the following Ruby platforms:
       NATS.publish('foo', 'You done?') { puts 'msg processed!' }
       
       # Unsubscribing
-      s = NATS.subscribe('bar') { |sub, msg| puts "Msg received on [#{sub}] : '#{msg}' }
+      s = NATS.subscribe('bar') { |msg| puts "Msg received : '#{msg}' }
       NATS.unsubscribe(s)
 
       # Request/Response
 
       # The helper
-      NATS.subscribe('help') do |sub, msg, reply|
+      NATS.subscribe('help') do |msg, reply|
         NATS.publish(reply, "I'll help!")
       end
 
@@ -54,6 +46,15 @@ This gem currently works on the following Ruby platforms:
       NATS.request('help') { |response|
         puts "Got a response: '#{response}'"
       }
+
+      # Wildcard Subscriptions
+
+      # '*" matches any token
+      NATS.subscribe('foo.*.baz') { |msg _, sub| puts "Msg received on [#{sub}] : '#{msg}' }
+
+      # '>" can only be last token, and matches to any depth
+      NATS.subscribe('foo.>') { |msg, _, sub| puts "Msg received on [#{sub}] : '#{msg}' }
+
 
       # Stop using NATS.stop, exits EM loop if NATS.start started it
       NATS.stop

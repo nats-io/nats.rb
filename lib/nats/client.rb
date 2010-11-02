@@ -7,7 +7,7 @@ require File.dirname(__FILE__) + '/ext/json'
 
 class NATS < EM::Connection
   
-  VERSION = "0.2.7".freeze
+  VERSION = "0.2.8".freeze
 
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
@@ -170,7 +170,7 @@ class NATS < EM::Connection
     
   def request(subject, data=nil, opts={}, &callback)
     inbox = NATS.create_inbox
-    s = subscribe(inbox) { |sub, msg| callback.call(msg) }
+    s = subscribe(inbox) { |msg| callback.call(msg) }
     publish(subject, data, inbox)
     return s
   end
@@ -213,7 +213,7 @@ class NATS < EM::Connection
   
   def on_msg(subject, sid, reply, msg)
     return unless subscriber = @subs[sid]
-    subscriber[:callback].call(subject, msg, reply) if subscriber[:callback]
+    subscriber[:callback].call(msg, reply, subject) if subscriber[:callback]
   end
 
   def flush_pending

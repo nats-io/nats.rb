@@ -18,5 +18,5 @@ NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
 NATS.start do
   puts "Listening on [#{subject}]"
-  NATS.subscribe(subject) { |sub, msg| puts "\##{i+=1}: Received on [#{sub}] : '#{msg}'" }
+  NATS.subscribe(subject) { |msg, _, sub| puts "\##{i+=1}: Received on [#{sub}] : '#{msg}'" }
 end

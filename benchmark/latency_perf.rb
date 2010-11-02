@@ -46,7 +46,7 @@ NATS.start do
   end
 
   s_conn = NATS.connect
-  s_conn.subscribe('test') do |sub, msg, reply|
+  s_conn.subscribe('test') do |msg, reply|
     s_conn.publish(reply)
   end
 

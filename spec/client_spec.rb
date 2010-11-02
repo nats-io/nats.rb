@@ -41,7 +41,7 @@ describe NATS do
   it 'should receive a message that it has a subscription to' do
     received = false
     NATS.start { |nc|
-      nc.subscribe('foo') { |sub, msg|
+      nc.subscribe('foo') { |msg|
         received=true
         msg.should == 'xxx'
         NATS.stop
@@ -55,7 +55,7 @@ describe NATS do
   it 'should receive a message that it has a wildcard subscription to' do
     received = false
     NATS.start { |nc|
-      nc.subscribe('*') { |sub, msg|
+      nc.subscribe('*') { |msg|
         received=true
         msg.should == 'xxx'
         NATS.stop
@@ -69,7 +69,7 @@ describe NATS do
   it 'should not receive a message that it has unsubscribed from' do
     received = 0
     NATS.start { |nc|
-      s = nc.subscribe('*') { |sub, msg|
+      s = nc.subscribe('*') { |msg|
         received += 1
         msg.should == 'xxx'
         nc.unsubscribe(s)
@@ -83,7 +83,7 @@ describe NATS do
   it 'should receive a response from a request' do
     received = false
     NATS.start { |nc|
-      nc.subscribe('need_help') { |sub, msg, reply|
+      nc.subscribe('need_help') { |msg, reply|
         msg.should == 'yyy'
         nc.publish(reply, 'help')
       }
@@ -100,7 +100,7 @@ describe NATS do
   it 'should perform similar using class mirror functions' do
     received = false
     NATS.start {
-      s = NATS.subscribe('need_help') { |sub, msg, reply|
+      s = NATS.subscribe('need_help') { |msg, reply|
         msg.should == 'yyy'
         NATS.publish(reply, 'help')
         NATS.unsubscribe(s)
@@ -168,7 +168,7 @@ describe NATS do
 
     NATS.start {
       new_conn = NATS.connect
-      new_conn.subscribe('test_conn_rr') do |sub, msg, reply|
+      new_conn.subscribe('test_conn_rr') do |msg, reply|
         received_request = true
         new_conn.publish(reply)
       end
