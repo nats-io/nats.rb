@@ -2,7 +2,7 @@
 require 'optparse'
 require 'yaml'
 
-module NATS
+module NATSD
   class Server
 
     class << self
@@ -43,7 +43,7 @@ module NATS
           opts.separator "Common options:"
 
           opts.on_tail("-h", "--help", "Show this message")                             { puts opts; exit }
-          opts.on_tail('-v', '--version', "Show version")                               { puts NATS::Server.version; exit }
+          opts.on_tail('-v', '--version', "Show version")                               { puts NATSD::Server.version; exit }
           opts.on_tail("-D", "--debug", "Set debugging on")                             { @options[:debug] = true }
           opts.on_tail("-V", "--trace", "Set tracing on of raw protocol")               { @options[:trace] = true }
         end

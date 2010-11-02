@@ -10,7 +10,7 @@ require 'socket'
 require 'fileutils'
 require 'pp'
 
-module NATS
+module NATSD
 
   # Subscriber
   Subscriber = Struct.new(:conn, :subject, :sid)
@@ -23,7 +23,7 @@ module NATS
       alias debug_flag? :debug_flag
       alias trace_flag? :trace_flag
  
-      def version; "nats server version #{NATS::VERSION}" end
+      def version; "nats server version #{NATSD::VERSION}" end
 
       def host; @options[:addr]  end
       def port; @options[:port]  end
@@ -53,7 +53,7 @@ module NATS
           require 'rubygems'
           require 'daemons'
           # These log messages visible to controlling TTY
-          log "Starting #{NATS::APP_NAME} version #{NATS::VERSION} on port #{NATS::Server.port}"
+          log "Starting #{NATSD::APP_NAME} version #{NATSD::VERSION} on port #{NATSD::Server.port}"
           log "Switching to daemon mode"
           Daemons.daemonize(:app_name => APP_NAME, :mode => :exec)
         end
@@ -252,16 +252,16 @@ def fast_uuid
 end
 
 def log(*args)
-  args.unshift(Time.now) if NATS::Server.log_time
+  args.unshift(Time.now) if NATSD::Server.log_time
   pp args.compact
 end
 
 def debug(*args)
-  log *args if NATS::Server.debug_flag?
+  log *args if NATSD::Server.debug_flag?
 end
 
 def trace(*args)
-  log *args if NATS::Server.trace_flag?
+  log *args if NATSD::Server.trace_flag?
 end
 
 def log_error(e=$!)
@@ -272,26 +272,26 @@ def shutdown
   puts
   log 'Server exiting..'
   EM.stop
-  FileUtils.rm(NATS::Server.pid_file) if NATS::Server.pid_file
+  FileUtils.rm(NATSD::Server.pid_file) if NATSD::Server.pid_file
   exit
 end
 
 ['TERM','INT'].each { |s| trap(s) { shutdown } }
 
 # Do setup
-NATS::Server.setup(ARGV.dup)
+NATSD::Server.setup(ARGV.dup)
 
 # Event Loop
 
 EM.run {
 
-  log "Starting #{NATS::APP_NAME} version #{NATS::VERSION} on port #{NATS::Server.port}"
+  log "Starting #{NATSD::APP_NAME} version #{NATSD::VERSION} on port #{NATSD::Server.port}"
 
   begin
     EM.set_descriptor_table_size(32768) # Requires Root privileges    
-    EventMachine::start_server(NATS::Server.host, NATS::Server.port, NATS::Connection)
+    EventMachine::start_server(NATSD::Server.host, NATSD::Server.port, NATSD:Connection)
   rescue => e
-    log "Could not start server on port #{NATS::Server.port}"
+    log "Could not start server on port #{NATSD::Server.port}"
     log_error
     exit
   end
