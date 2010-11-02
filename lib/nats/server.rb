@@ -289,7 +289,7 @@ EM.run {
 
   begin
     EM.set_descriptor_table_size(32768) # Requires Root privileges    
-    EventMachine::start_server(NATSD::Server.host, NATSD::Server.port, NATSD:Connection)
+    EventMachine::start_server(NATSD::Server.host, NATSD::Server.port, NATSD::Connection)
   rescue => e
     log "Could not start server on port #{NATSD::Server.port}"
     log_error
