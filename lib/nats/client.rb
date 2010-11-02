@@ -7,7 +7,7 @@ require File.dirname(__FILE__) + '/ext/json'
 
 class NATS < EM::Connection
   
-  VERSION = "0.2.8".freeze
+  VERSION = "0.3.2".freeze
 
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
@@ -158,7 +158,7 @@ class NATS < EM::Connection
     
   def subscribe(subject, &callback)
     @sid += 1    
-    @subs[@sid] = {:subject => subject, :callback => callback}
+    @subs[@sid] = { :subject => subject, :callback => callback }
     send_command("SUB #{subject} #{@sid}#{CR_LF}")
     @sid
   end
@@ -213,7 +213,14 @@ class NATS < EM::Connection
   
   def on_msg(subject, sid, reply, msg)
     return unless subscriber = @subs[sid]
-    subscriber[:callback].call(msg, reply, subject) if subscriber[:callback]
+    if cb = subscriber[:callback]
+      case cb.arity
+        when 0 then cb.call
+        when 1 then cb.call(msg)
+        when 2 then cb.call(msg, reply)
+        else cb.call(msg, reply, subject)
+      end
+    end
   end
 
   def flush_pending
