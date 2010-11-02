@@ -60,7 +60,7 @@ See examples and benchmark for more..
 
 (The MIT License)
 
-Copyright (c) 2009,2010 Derek Collison
+Copyright (c) 2010 Derek Collison
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to
