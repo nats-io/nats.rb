@@ -7,7 +7,7 @@ require File.dirname(__FILE__) + '/ext/json'
 
 class NATS < EM::Connection
   
-  VERSION = "0.2.4".freeze
+  VERSION = "0.2.6".freeze
 
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
@@ -15,6 +15,7 @@ class NATS < EM::Connection
   CR_LF = "\r\n".freeze
   CR_LF_SIZE = CR_LF.bytesize
 
+  PING_REQUEST  = "PING#{CR_LF}".freeze
   PONG_RESPONSE = "PONG#{CR_LF}".freeze
 
   MAX_RECONNECT_ATTEMPTS = 10
@@ -25,6 +26,7 @@ class NATS < EM::Connection
   OK   = /^\+OK/i
   ERR  = /^-ERR\s+('.+')?/i
   PING = /^PING/i
+  PONG = /^PONG/i  
   INFO = /^INFO\s+(.+)/i
 
   # Pedantic Mode
@@ -67,8 +69,8 @@ class NATS < EM::Connection
     end
 
     # Mirror instance methods for our client
-    def publish(*args)
-      (@client ||= connect).publish(*args)
+    def publish(*args, &blk)
+      (@client ||= connect).publish(*args, &blk)
     end
 
     def subscribe(*args, &blk)
@@ -145,9 +147,13 @@ class NATS < EM::Connection
     send_connect_command
   end
   
-  def publish(subject, data='', opt_reply=nil)
+  def publish(subject, data='', opt_reply=nil, &blk)
     data = data.to_s
     send_command("PUB #{subject} #{opt_reply} #{data.bytesize}#{CR_LF}#{data}#{CR_LF}")
+    if blk    
+      (@pongs ||= []) << blk 
+      send_command(PING_REQUEST)
+    end
   end
     
   def subscribe(subject, &callback)
@@ -230,6 +236,9 @@ class NATS < EM::Connection
             err_cb.call($1)
           when PING
             send_command(PONG_RESPONSE)
+          when PONG
+            cb = @pongs.shift
+            EM.next_tick { cb.call } if cb            
           when INFO
             process_info($1)
         end
