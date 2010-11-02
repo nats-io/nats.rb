@@ -8,7 +8,7 @@ This gem currently works on the following Ruby platforms:
 
 - MRI 1.8 and 1.9 (Performance is best on 1.9.2)
 - Rubinius
-- JRuby (should work)
+- JRuby (not quite yet)
 
 ## Getting Started
 

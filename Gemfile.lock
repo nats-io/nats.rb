@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    nats (0.3.2)
+    nats (0.3.4)
       daemons (>= 1.1.0)
       eventmachine (>= 0.12.10)
       yajl-ruby (>= 0.7.8)
@@ -30,6 +30,7 @@ PLATFORMS
 DEPENDENCIES
   daemons (>= 1.1.0)
   eventmachine (>= 0.12.10)
+  json_pure
   nats!
   rspec
   yajl-ruby (>= 0.7.8)

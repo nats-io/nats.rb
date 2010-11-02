@@ -1,7 +1,7 @@
 require File.dirname(__FILE__) + '/spec_helper'
 
 # HACK - Autostart functionality not happy with spec, so make sure running.
-`ruby -S bundle exec nats-server -d`
+`ruby -S bundle exec nats-server -d 2> /dev/null`
 
 describe NATS do
 
