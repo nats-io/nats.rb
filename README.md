@@ -10,8 +10,14 @@ This gem currently works on the following Ruby platforms:
 - Rubinius
 - JRuby (should work)
 
-## Usage
+## Getting Started
 
+    rake geminstall
+    cd ./examples
+    pub foo 'Hello World!'
+
+## Usage
+   
     require "nats/client"
 
     NATS.start do
