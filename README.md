@@ -14,39 +14,42 @@ This gem currently works on the following Ruby platforms:
 
     require "nats/client"
 
-    NATS.start do |nc|
+    NATS.start do
 
       # Simple Subscriber
-      nc.subscribe('foo') { |sub, msg| puts "Msg received on [#{sub}] : '#{msg}' }
+      NATS.subscribe('foo') { |sub, msg| puts "Msg received on [#{sub}] : '#{msg}' }
 
       # Wildcard Subscriptions
 
       # '*" matches any token
-      nc.subscribe('foo.*.baz') { |sub, msg| puts "Msg received on [#{sub}] : '#{msg}' }
+      NATS.subscribe('foo.*.baz') { |sub, msg| puts "Msg received on [#{sub}] : '#{msg}' }
 
       # '>" can only be last token, and matches to any depth
-      nc.subscribe('foo.>') { |sub, msg| puts "Msg received on [#{sub}] : '#{msg}' }
+      NATS.subscribe('foo.>') { |sub, msg| puts "Msg received on [#{sub}] : '#{msg}' }
 
       # Simple Publisher
-      nc.publish('foo.bar.baz', 'Hello World!')
+      NATS.publish('foo.bar.baz', 'Hello World!')
 
+      # Publish with closure, callback fires when server has processed the message
+      NATS.publish('foo', 'You done?') { puts 'msg processed!' }
+      
       # Unsubscribing
-      s = nc.subscribe('bar') { |sub, msg| puts "Msg received on [#{sub}] : '#{msg}' }
-      nc.unsubscribe(s)
+      s = NATS.subscribe('bar') { |sub, msg| puts "Msg received on [#{sub}] : '#{msg}' }
+      NATS.unsubscribe(s)
 
       # Request/Response
 
       # The helper
-      c.subscribe('help') do |sub, msg, reply|
-        c.publish(reply, "I'll help!")
+      NATS.subscribe('help') do |sub, msg, reply|
+        NATS.publish(reply, "I'll help!")
       end
 
       # Help request
-      c.request('help') { |response|
+      NATS.request('help') { |response|
         puts "Got a response: '#{response}'"
       }
 
-      # Stop using NATS.stop
+      # Stop using NATS.stop, exits EM loop if NATS.start started it
       NATS.stop
 
     end
