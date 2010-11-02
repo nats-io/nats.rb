@@ -42,8 +42,7 @@ NATS.start do
     # Send last message and add closure which gets called when the server has processed
     # the message. This way we know all messages have been processed by the server.
     NATS.publish($sub, $data) {
-      stop = Time.now
-      puts "\nTest completed : #{($loop/(stop-$start)).ceil} msgs/sec.\n"
+      puts "\nTest completed : #{($loop/(Time.now-$start)).ceil} msgs/sec.\n"
       NATS.stop
     }
   end
@@ -72,7 +71,7 @@ NATS.start do
   end
 
   # kick things off..
-  puts "Sending #{$loop} messages of size #{$data.size} bytes, outbound buffer maximum is #{$max_outstanding} bytes"
+  puts "Sending #{$loop} messages of size #{$data.size} bytes on [#{$sub}], outbound buffer maximum is #{$max_outstanding} bytes"
   drain
 
 end
