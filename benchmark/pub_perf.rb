@@ -6,7 +6,6 @@ $loop = 100000
 $hash = 10000
 
 $max_outstanding = (512*1024) #512k
-$flow_trigger = (128*1024) #128k
 
 $data = '-ok-'
 $sub  = 'test'
@@ -19,14 +18,16 @@ parser = OptionParser.new do |opts|
   opts.separator ""
   opts.separator "options:"
 
-  opts.on("-n ITERATIONS", "iterations to send (default: #{$loop}}")    { |iter| $loop = iter.to_i }
-  opts.on("-s SIZE", "Message size (default: #{$data.size}")            { |size| $data_size = size.to_i }
-  opts.on("-S SUBJECT", "Send subject (default: (#{$sub}")              { |nsub| $sub = nsub }
-  opts.on("-O Max outstanding", "Maximum number of outstanding bytes")  { |out|  $max_outstanding = out.to_i }
+  opts.on("-n ITERATIONS", "iterations to send (default: #{$loop}}")     { |iter| $loop = iter.to_i }
+  opts.on("-s SIZE", "Message size (default: #{$data.size})")            { |size| $data_size = size.to_i }
+  opts.on("-S SUBJECT", "Send subject (default: (#{$sub})")              { |nsub| $sub = nsub }
+  opts.on("-O Max outstanding", "Maximum number of outstanding bytes " +
+          "(default: #{$max_outstanding/1024}k)")                        { |out|  $max_outstanding = out.to_i }
 end
 
 parser.parse(ARGV)
 $to_drain = $loop - 1
+$flow_trigger = $max_outstanding/4
 
 trap("TERM") { exit! }
 trap("INT")  { exit! }
