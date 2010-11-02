@@ -116,4 +116,16 @@ describe NATS do
     received.should be_true
   end
 
+  it 'should return inside closure on publish when server received msg' do
+    received_pub_closure = false
+    NATS.start {
+      NATS.publish('foo') {
+        received_pub_closure = true
+        NATS.stop
+      }
+    timeout_nats_on_failure
+    }
+    received_pub_closure.should be_true    
+  end
+  
 end
