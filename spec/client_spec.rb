@@ -146,5 +146,44 @@ describe NATS do
     received_pub_closure.should be_true
     replies.should == expected
   end
-  
+
+  it "should be able to start and use a new connection inside of start block" do
+    new_conn = nil
+    received = false
+    NATS.start {
+      NATS.subscribe('foo') { received = true; NATS.stop }
+      new_conn = NATS.connect
+      new_conn.publish('foo', 'hello')
+      timeout_nats_on_failure
+    }
+    new_conn.should_not be_nil
+    new_conn.class.should == NATS
+    received.should be_true
+  end
+
+  it 'should allow proper request/reply across multiple connections' do
+    new_conn = nil
+    received_request = false
+    received_reply = false
+
+    NATS.start {
+      new_conn = NATS.connect
+      new_conn.subscribe('test_conn_rr') do |sub, msg, reply|
+        received_request = true
+        new_conn.publish(reply)
+      end
+      new_conn.on_connect do
+        NATS.request('test_conn_rr') do
+          received_reply = true
+          NATS.stop
+        end
+      end
+      timeout_nats_on_failure
+    }
+    new_conn.should_not be_nil
+    new_conn.class.should == NATS
+    received_request.should be_true
+    received_reply.should be_true
+  end
+
 end
