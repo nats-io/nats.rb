@@ -47,6 +47,10 @@ class NATS < EM::Connection
     
     def start(*args, &blk)
       @reactor_was_running = EM.reactor_running?
+      unless (@reactor_running || blk)
+        err = "EM needs to be running when NATS.start called without a run block"
+        @err_cb ? @err_cb.call(err) : raise(err)
+      end
       EM.run {
         @client = connect(*args)
         @client.on_connect(&blk) if blk
@@ -67,17 +71,16 @@ class NATS < EM::Connection
       (@client ||= connect).publish(*args)
     end
 
-    def subscribe(*args)
-      (@client ||= connect).subscribe(*args)
+    def subscribe(*args, &blk)
+      (@client ||= connect).subscribe(*args, &blk)
     end
 
     def unsubscribe(*args)
       (@client ||= connect).unsubscribe(*args)
-
     end
 
-    def request(*args)
-      (@client ||= connect).request(*args)
+    def request(*args, &blk)
+      (@client ||= connect).request(*args, &blk)
     end
 
     # utils
@@ -198,7 +201,7 @@ class NATS < EM::Connection
   
   def on_msg(subject, sid, reply, msg)
     return unless subscriber = @subs[sid]
-    subscriber[:callback].call(subject, msg, reply)
+    subscriber[:callback].call(subject, msg, reply) if subscriber[:callback]
   end
 
   def flush_pending
@@ -272,11 +275,10 @@ class NATS < EM::Connection
       err_string = @connected ? "Client disconnected from server on #{@uri}." : "Could not connect to server on #{@uri}"
       err_cb.call(err_string)
     end
-    ensure
-    stop_em = (NATS.client == self and connected? and closing? and not NATS.reactor_was_running?)
-    EM.stop if stop_em
-    @connected = @reconnecting = false
-    EM.cancel_timer(@reconnect_timer) if @reconnect_timer
+  ensure
+    EM.cancel_timer(@reconnect_timer) if @reconnect_timer    
+    EM.stop if (NATS.client == self and connected? and closing? and not NATS.reactor_was_running?)
+    @connected = @reconnecting = false    
     true # Chaining
   end
   
