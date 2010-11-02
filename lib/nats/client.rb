@@ -7,7 +7,7 @@ require File.dirname(__FILE__) + '/ext/json'
 
 class NATS < EM::Connection
   
-  VERSION = "0.2.6".freeze
+  VERSION = "0.2.7".freeze
 
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
@@ -32,19 +32,24 @@ class NATS < EM::Connection
   # Pedantic Mode
   SUB = /^([^\.\*>\s]+|>$|\*)(\.([^\.\*>\s]+|>$|\*))*$/
   SUB_NO_WC = /^([^\.\*>\s]+)(\.([^\.\*>\s]+))*$/
-    
+
+  # Duplicate autostart protection
+  @@tried_autostart = {}
+
   class << self
     attr_reader :client, :reactor_was_running, :err_cb, :err_cb_overridden
     alias :reactor_was_running? :reactor_was_running
 
-    def connect(options = {})
+    def connect(options = {}, &blk)
       options[:uri] ||= ENV['NATS_URI'] || DEFAULT_URI
       options[:debug] ||= ENV['NATS_DEBUG']
       options[:autostart] ||= ENV['NATS_AUTO'] || true
       uri = options[:uri] = URI.parse(options[:uri])
       @err_cb = proc { raise "Could not connect to server on #{uri}."} unless @err_cb
       check_autostart(uri) if options[:autostart]
-      EM.connect(uri.host, uri.port, self, options)
+      client = EM.connect(uri.host, uri.port, self, options)
+      client.on_connect(&blk) if blk
+      return client
     end
     
     def start(*args, &blk)
@@ -53,10 +58,7 @@ class NATS < EM::Connection
         err = "EM needs to be running when NATS.start called without a run block"
         @err_cb ? @err_cb.call(err) : raise(err)
       end
-      EM.run {
-        @client = connect(*args)
-        @client.on_connect(&blk) if blk
-      }
+      EM.run { @client = connect(*args, &blk) }
     end
     
     def stop(&blk)
@@ -93,15 +95,15 @@ class NATS < EM::Connection
     end
 
     def check_autostart(uri)
-      require 'socket'
-      return unless uri_is_local?(uri)
+      return if uri_is_remote?(uri) || @@tried_autostart[uri]
+      @@tried_autostart[uri] = true
       return if server_running?(uri)
       return unless try_autostart_succeeded?(uri)
       wait_for_server(uri)
     end
 
-    def uri_is_local?(uri)
-      uri.host == 'localhost' || uri.host == '127.0.0.1'
+    def uri_is_remote?(uri)
+      uri.host != 'localhost' && uri.host != '127.0.0.1'
     end
 
     def try_autostart_succeeded?(uri)
@@ -124,6 +126,7 @@ class NATS < EM::Connection
     end
 
     def server_running?(uri)
+      require 'socket'
       s = TCPSocket.new(uri.host, uri.port)
       s.close
       return true
@@ -150,10 +153,7 @@ class NATS < EM::Connection
   def publish(subject, data='', opt_reply=nil, &blk)
     data = data.to_s
     send_command("PUB #{subject} #{opt_reply} #{data.bytesize}#{CR_LF}#{data}#{CR_LF}")
-    if blk    
-      (@pongs ||= []) << blk 
-      send_command(PING_REQUEST)
-    end
+    queue_server_rt(&blk) if blk
   end
     
   def subscribe(subject, &callback)
@@ -182,6 +182,12 @@ class NATS < EM::Connection
       cs[:pass] = @uri.password
     end
     send_command("CONNECT #{cs.to_json}#{CR_LF}")
+  end
+
+  def queue_server_rt(&cb)
+    return unless cb
+    (@pongs ||= []) << cb 
+    send_command(PING_REQUEST)
   end
 
   def on_connect(&callback)
@@ -253,17 +259,21 @@ class NATS < EM::Connection
   end
 
   def connection_completed
-     @connected = true
-     if reconnecting?
-       EM.cancel_timer(@reconnect_timer)
-       send_connect_command
-       @subs.each_pair { |k, v| send_command("SUB #{v[:subject]} #{k}#{CR_LF}") }
-     end
-     flush_pending if @pending
-     connect_cb.call(self) if @connect_cb and not reconnecting?
-     @err_cb = proc { raise "Client disconnected from server on #{@uri}."} unless user_err_cb? or reconnecting?
-     @reconnecting = false
-   end
+    @connected = true
+    if reconnecting?
+      EM.cancel_timer(@reconnect_timer)
+      send_connect_command
+      @subs.each_pair { |k, v| send_command("SUB #{v[:subject]} #{k}#{CR_LF}") }
+    end
+    flush_pending if @pending
+    @err_cb = proc { raise "Client disconnected from server on #{@uri}."} unless user_err_cb? or reconnecting?
+    if (connect_cb and not reconnecting?)
+      # We will round trip the server here to make sure all state from any pending commands
+      # has been processed before calling the connect callback.
+      queue_server_rt { connect_cb.call(self) }
+    end
+    @reconnecting = false
+  end
 
   def schedule_reconnect(wait=RECONNECT_TIME_WAIT)
     @reconnecting = true
