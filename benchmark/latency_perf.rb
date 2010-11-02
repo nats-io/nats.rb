@@ -27,12 +27,6 @@ NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
 NATS.start do
 
-  s_conn = NATS.connect
-
-  s_conn.subscribe('test') do |sub, msg, reply|
-    s_conn.publish(reply)
-  end
-
   def done
     ms = "%.2f" % (((Time.now-$start)/$loop)*1000.0)
     puts "\nTest completed : #{ms} ms avg request/response latency\n"
@@ -51,8 +45,17 @@ NATS.start do
     }
   end
 
-  $start = Time.now
-  puts "Sending #{$loop} request/responses"
-  # Send first request
-  send_request
+  s_conn = NATS.connect
+  s_conn.subscribe('test') do |sub, msg, reply|
+    s_conn.publish(reply)
+  end
+
+
+  # Send first request when we are connected with subscriber
+  s_conn.on_connect {
+    puts "Sending #{$loop} request/responses"
+    $start = Time.now
+    send_request
+  }
+
 end
