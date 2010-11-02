@@ -1,6 +1,6 @@
 module NATS
   
-  VERSION  = "0.2.6"
+  VERSION  = "0.2.7"
   APP_NAME = 'nats-server'
  
   DEFAULT_PORT = 4222

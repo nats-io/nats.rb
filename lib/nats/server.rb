@@ -36,7 +36,7 @@ module NATS
         read_config_file
         finalize_options
 
-        @id = fast_uuid
+        @id, @cid = fast_uuid, 1
         @sublist = Sublist.new
         @info = {
           :nats_server_id => Server.id,
@@ -91,6 +91,10 @@ module NATS
         user == @options[:user] && pass == @options[:pass]
       end
 
+      def cid
+        @cid+=1
+      end
+
       def info_string
         @info.to_json
       end
@@ -100,24 +104,25 @@ module NATS
   
   module Connection
 
-    attr_reader :closing
+    attr_reader :cid, :closing
     
     def client_info
       @client_info ||= Socket.unpack_sockaddr_in(get_peername)
     end
 
     def post_init
+      @cid = Server.cid
       @subscriptions = {}
       @verbose = @pedantic = true # suppressed by most clients, but allows friendly telnet
       @receive_data_calls = 0
       send_info
       @auth_pending = EM.add_timer(AUTH_TIMEOUT) { connect_auth_timeout } if Server.auth_required?
-      debug "Client connection created", client_info
+      debug "Client connection created", client_info, cid
     end
 
     def connect_auth_timeout
       error_close AUTH_REQUIRED
-      debug "Connection timeout due to lack of auth credentials"
+      debug "Connection timeout due to lack of auth credentials", cid
     end
 
     def receive_data(data)
@@ -142,13 +147,13 @@ module NATS
     def process_op(op)
       case op
         when PUB_OP
-          trace 'PUB OP', op
+          ctrace 'PUB OP', op
           return if @auth_pending
           @pub_sub, @reply, @msg_size, = $1, $3, $4.to_i
           send_data PAYLOAD_TOO_BIG and return if (@msg_size > MAX_PAYLOAD_SIZE)
           send_data INVALID_SUBJECT and return if @pedantic && !(@pub_sub =~ SUB_NO_WC)
         when SUB_OP
-          trace 'SUB OP', op
+          ctrace 'SUB OP', op
           return if @auth_pending
           sub, sid = $1, $2          
           send_data INVALID_SUBJECT and return if !($1 =~ SUB)          
@@ -158,7 +163,7 @@ module NATS
           Server.subscribe(subscriber)
           send_data OK if @verbose
         when UNSUB_OP
-          trace 'UNSUB OP', op
+          ctrace 'UNSUB OP', op
           return if @xsauth_pending
           sid, subscriber = $1, @subscriptions[$1]
           send_data INVALID_SID_NOEXIST and return unless subscriber
@@ -166,10 +171,10 @@ module NATS
           @subscriptions.delete(sid)
           send_data OK if @verbose
         when PING
-          trace 'PING OP', op
+          ctrace 'PING OP', op
           send_data PONG_RESPONSE
         when CONNECT
-          trace 'CONNECT OP', op
+          ctrace 'CONNECT OP', op
           begin
             config = JSON.parse($1, :symbolize_keys => true)
             process_connect_config(config)
@@ -178,10 +183,10 @@ module NATS
             log_error
           end
         when INFO
-          trace 'INFO OP', op
+          ctrace 'INFO OP', op
           send_info
         else
-          trace 'Unknown Op', op
+          ctrace 'Unknown Op', op
           send_data UNKNOWN_OP
       end
     end
@@ -191,7 +196,7 @@ module NATS
     end
 
     def process_msg(body)
-      trace 'Processing msg', @pub_sub, @reply, body
+      ctrace 'Processing msg', @pub_sub, @reply, body
       send_data OK if @verbose
       Server.route_to_subscribers(@pub_sub, @reply, body)
       @pub_sub = @msg_size = @reply = nil
@@ -210,7 +215,7 @@ module NATS
         @auth_pending = nil
       else
         error_close AUTH_FAILED
-        debug "Authorization failed for connection"
+        debug "Authorization failed for connection", cid
       end
     end
     
@@ -221,11 +226,15 @@ module NATS
     end
     
     def unbind
-      debug "Client connection closed", client_info
-      trace "Receive_Data called #{@receive_data_calls} times."
+      debug "Client connection closed", client_info, cid
+      ctrace "Receive_Data called #{@receive_data_calls} times." if @receive_data_calls > 0
       @subscriptions.each_value { |subscriber| Server.unsubscribe(subscriber) }
       EM.cancel_timer(@auth_pending) if @auth_pending
       @auth_pending = nil
+    end
+
+    def ctrace(*args)
+      trace(args, "c: #{cid}")
     end
   end
 
