@@ -54,7 +54,7 @@ class NATS < EM::Connection
     
     def start(*args, &blk)
       @reactor_was_running = EM.reactor_running?
-      unless (@reactor_running || blk)
+      unless (@reactor_was_running || blk)
         err = "EM needs to be running when NATS.start called without a run block"
         @err_cb ? @err_cb.call(err) : raise(err)
       end
