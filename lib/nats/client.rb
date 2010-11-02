@@ -238,7 +238,7 @@ class NATS < EM::Connection
             send_command(PONG_RESPONSE)
           when PONG
             cb = @pongs.shift
-            EM.next_tick { cb.call } if cb            
+            cb.call if cb
           when INFO
             process_info($1)
         end
