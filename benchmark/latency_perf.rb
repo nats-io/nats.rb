@@ -27,8 +27,10 @@ NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
 NATS.start do
 
-  NATS.subscribe('test') do |sub, msg, reply|
-    NATS.publish(reply)
+  s_conn = NATS.connect
+
+  s_conn.subscribe('test') do |sub, msg, reply|
+    s_conn.publish(reply)
   end
 
   def done
