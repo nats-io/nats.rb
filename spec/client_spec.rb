@@ -6,7 +6,7 @@ require File.dirname(__FILE__) + '/spec_helper'
 describe NATS do
 
   before(:all) do
-    Thread.new { EM.run }
+    # Thread.new { EM.run }
   end
 
   it 'should perform basic block start and stop' do
@@ -90,6 +90,25 @@ describe NATS do
       nc.request('need_help', 'yyy') { |response|
         received=true
         response.should == 'help'
+        NATS.stop
+      }
+      timeout_nats_on_failure
+    }
+    received.should be_true
+  end
+
+  it 'should perform similar using class mirror functions' do
+    received = false
+    NATS.start {
+      s = NATS.subscribe('need_help') { |sub, msg, reply|
+        msg.should == 'yyy'
+        NATS.publish(reply, 'help')
+        NATS.unsubscribe(s)
+      }
+      r = NATS.request('need_help', 'yyy') { |response|
+        received=true
+        response.should == 'help'
+        NATS.unsubscribe(r)
         NATS.stop
       }
       timeout_nats_on_failure
