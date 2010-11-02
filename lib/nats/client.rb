@@ -113,7 +113,7 @@ class NATS < EM::Connection
       log_arg  = '-l /tmp/nats-server.log'
       pid_arg  = '-P /tmp/nats-server.pid'
       # daemon mode to release client
-      system("nats-server #{port_arg} #{user_arg} #{pass_arg} #{log_arg} #{pid_arg} -d")
+      system("nats-server #{port_arg} #{user_arg} #{pass_arg} #{log_arg} #{pid_arg} -d 2> /dev/null")
       $? == 0
     end
     
