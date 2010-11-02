@@ -5,9 +5,9 @@ require File.dirname(__FILE__) + '/ext/em'
 require File.dirname(__FILE__) + '/ext/bytesize'
 require File.dirname(__FILE__) + '/ext/json'
 
-class NATS < EM::Connection
-  
-  VERSION = "0.3.2".freeze
+module NATS
+
+  VERSION = "0.3.4".freeze
 
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
@@ -36,6 +36,8 @@ class NATS < EM::Connection
   # Duplicate autostart protection
   @@tried_autostart = {}
 
+  class Error < StandardError; end
+
   class << self
     attr_reader :client, :reactor_was_running, :err_cb, :err_cb_overridden
     alias :reactor_was_running? :reactor_was_running
@@ -45,7 +47,7 @@ class NATS < EM::Connection
       options[:debug] ||= ENV['NATS_DEBUG']
       options[:autostart] ||= ENV['NATS_AUTO'] || true
       uri = options[:uri] = URI.parse(options[:uri])
-      @err_cb = proc { raise "Could not connect to server on #{uri}."} unless @err_cb
+      @err_cb = proc { raise Error, "Could not connect to server on #{uri}."} unless @err_cb
       check_autostart(uri) if options[:autostart]
       client = EM.connect(uri.host, uri.port, self, options)
       client.on_connect(&blk) if blk
@@ -56,7 +58,7 @@ class NATS < EM::Connection
       @reactor_was_running = EM.reactor_running?
       unless (@reactor_was_running || blk)
         err = "EM needs to be running when NATS.start called without a run block"
-        @err_cb ? @err_cb.call(err) : raise(err)
+        @err_cb ? @err_cb.call(err) : raise(Error, err)
       end
       EM.run { @client = connect(*args, &blk) }
     end
@@ -245,7 +247,7 @@ class NATS < EM::Connection
             @sub, @sid, @reply, @needed = $1, $2.to_i, $4, $5.to_i
           when OK # No-op right now
           when ERR
-            @err_cb = proc { raise "Error received from server :#{$1}."} unless user_err_cb?
+            @err_cb = proc { raise Error, "Error received from server :#{$1}."} unless user_err_cb?
             err_cb.call($1)
           when PING
             send_command(PONG_RESPONSE)
@@ -273,7 +275,7 @@ class NATS < EM::Connection
       @subs.each_pair { |k, v| send_command("SUB #{v[:subject]} #{k}#{CR_LF}") }
     end
     flush_pending if @pending
-    @err_cb = proc { raise "Client disconnected from server on #{@uri}."} unless user_err_cb? or reconnecting?
+    @err_cb = proc { raise Error, "Client disconnected from server on #{@uri}."} unless user_err_cb? or reconnecting?
     if (connect_cb and not reconnecting?)
       # We will round trip the server here to make sure all state from any pending commands
       # has been processed before calling the connect callback.
@@ -324,7 +326,7 @@ class NATS < EM::Connection
   end
 
   def inspect
-    "#<nats client v#{NATS::VERSION}>"
+    "<nats client v#{NATS::VERSION}>"
   end
   
 end

@@ -5,10 +5,6 @@ require File.dirname(__FILE__) + '/spec_helper'
 
 describe NATS do
 
-  before(:all) do
-    # Thread.new { EM.run }
-  end
-
   it 'should perform basic block start and stop' do
     NATS.start { NATS.stop }
   end
@@ -18,6 +14,22 @@ describe NATS do
       nc.publish('foo')
       nc.publish('foo', 'hello')
       nc.publish('foo', 'hello', 'reply')
+      NATS.stop
+    }
+  end
+
+  it 'should raise and error when it cant connect to a remote host' do
+    begin
+      NATS.start(:uri => 'nats://192.168.0.254:32768')
+      NATS.stop
+    rescue => e
+      e.should be_instance_of NATS::Error
+    end
+  end
+
+  it 'should not complain when publishing to nil' do
+    NATS.start { |nc|
+      nc.publish(nil)
       NATS.stop
     }
   end
@@ -157,7 +169,6 @@ describe NATS do
       timeout_nats_on_failure
     }
     new_conn.should_not be_nil
-    new_conn.class.should == NATS
     received.should be_true
   end
 
@@ -181,7 +192,6 @@ describe NATS do
       timeout_nats_on_failure
     }
     new_conn.should_not be_nil
-    new_conn.class.should == NATS
     received_request.should be_true
     received_reply.should be_true
   end
