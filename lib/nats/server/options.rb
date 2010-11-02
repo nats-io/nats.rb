@@ -36,6 +36,9 @@ module NATS
           opts.on("--pass password", "Password required for connections")               { |pass| @options[:pass] = pass }
           opts.on("--password password", "Password required for connections")           { |pass| @options[:pass] = pass }
 
+          opts.on("--no_epoll", "Enable epoll (Linux)")                                 { @options[:noepoll] = true }
+          opts.on("--kqueue", "Enable kqueue (MacOSX and BSD)")                         { @options[:nokqueue] = true }
+
           opts.separator ""
           opts.separator "Common options:"
 

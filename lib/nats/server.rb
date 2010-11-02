@@ -59,6 +59,11 @@ module NATS
         end
 
         setup_logs
+
+        # Setup optimized select versions 
+        EM.epoll unless @options[:noepoll]
+        EM.kqueue unless @options[:nokqueue]
+
       end
       
       def subscribe(subscriber)
@@ -273,12 +278,11 @@ end
 
 ['TERM','INT'].each { |s| trap(s) { shutdown } }
 
-
 # Do setup
 NATS::Server.setup(ARGV.dup)
 
 # Event Loop
- 
+
 EM.run {
 
   log "Starting #{NATS::APP_NAME} version #{NATS::VERSION} on port #{NATS::Server.port}"
