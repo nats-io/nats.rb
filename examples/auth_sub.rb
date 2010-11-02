@@ -16,7 +16,7 @@ uri = "nats://#{user}:#{pass}@localhost:#{NATS::DEFAULT_PORT}"
 
 NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
-NATS.start(:uri => uri) do |n|
+NATS.start(:uri => uri) do
   puts "Listening on [#{subject}]"
-  n.subscribe(subject) { |sub, msg| puts "Received on [#{sub}] : '#{msg}'" }
+  NATS.subscribe(subject) { |sub, msg| puts "Received on [#{sub}] : '#{msg}'" }
 end

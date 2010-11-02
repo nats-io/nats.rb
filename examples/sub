@@ -15,7 +15,7 @@ usage unless subject
 
 NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
-NATS.start do |n|
+NATS.start do
   puts "Listening on [#{subject}]"
-  n.subscribe(subject) { |sub, msg| puts "Received on [#{sub}] : '#{msg}'" }
+  NATS.subscribe(subject) { |sub, msg| puts "Received on [#{sub}] : '#{msg}'" }
 end

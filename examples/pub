@@ -13,9 +13,8 @@ msg ||= 'Hello World'
 
 NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
-NATS.start do |n|
-  n.publish(subject, msg)
-  NATS.stop
+NATS.start do
+  NATS.publish(subject, msg) { NATS.stop }
 end
 
 puts "Published on [#{subject}] : '#{msg}'"

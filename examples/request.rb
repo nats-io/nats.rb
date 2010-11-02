@@ -7,15 +7,15 @@ trap("INT")  { NATS.stop }
 
 NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
-NATS.start { |c|
+NATS.start {
   
   # The helper
-  c.subscribe('help') do |sub, msg, reply|
-    c.publish(reply, "I'll help!")
+  NATS.subscribe('help') do |sub, msg, reply|
+    NATS.publish(reply, "I'll help!")
   end
 
   # Help request
-  c.request('help') { |response|
+  NATS.request('help') { |response|
     puts "Got a response: '#{response}'"
     NATS.stop
   }
