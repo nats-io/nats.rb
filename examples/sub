@@ -12,10 +12,11 @@ end
 
 subject = ARGV.shift
 usage unless subject
+i = 0
 
 NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
 NATS.start do
   puts "Listening on [#{subject}]"
-  NATS.subscribe(subject) { |sub, msg| puts "Received on [#{sub}] : '#{msg}'" }
+  NATS.subscribe(subject) { |sub, msg| puts "\##{i+=1}: Received on [#{sub}] : '#{msg}'" }
 end
