@@ -13,9 +13,9 @@ module NATS
           opts.separator ""
           opts.separator "Server options:"
 
-          opts.on("-a", "--addr HOST", "bind to HOST address " +
+          opts.on("-a", "--addr HOST", "Bind to HOST address " +
                                        "(default: #{@options[:addr]})")                 { |host| @options[:address] = host }
-          opts.on("-p", "--port PORT", "use PORT (default: #{@options[:port]})")        { |port| @options[:port] = port.to_i }
+          opts.on("-p", "--port PORT", "Use PORT (default: #{@options[:port]})")        { |port| @options[:port] = port.to_i }
         
           opts.on("-d", "--daemonize", "Run daemonized in the background")              { @options[:daemonize] = true }
           opts.on("-l", "--log FILE", "File to redirect output " +                      
