@@ -127,5 +127,24 @@ describe NATS do
     }
     received_pub_closure.should be_true    
   end
+
+  it 'should return inside closure in ordered fashion when server received msg' do
+    replies = []
+    expected = []
+    received_pub_closure = false
+    NATS.start {
+      (1..100).each { |i|
+        expected << i
+        NATS.publish('foo') { replies << i } 
+      }
+      NATS.publish('foo') {
+        received_pub_closure = true
+        NATS.stop
+      }
+      timeout_nats_on_failure
+    }
+    received_pub_closure.should be_true
+    replies.should == expected
+  end
   
 end
