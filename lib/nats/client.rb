@@ -5,9 +5,9 @@ require File.dirname(__FILE__) + '/ext/em'
 require File.dirname(__FILE__) + '/ext/bytesize'
 require File.dirname(__FILE__) + '/ext/json'
 
-class NATS < EM::Connection
+module NATS
 
-  VERSION = "0.3.4".freeze
+  VERSION = "0.3.6".freeze
 
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
@@ -147,7 +147,7 @@ class NATS < EM::Connection
   def initialize(options)
     @uri = options[:uri]
     @debug = options[:debug]
-    @sid, @subs = 1, {}
+    @ssid, @subs = 1, {}
     @err_cb = NATS.err_cb
     send_connect_command
   end
@@ -159,10 +159,10 @@ class NATS < EM::Connection
   end
     
   def subscribe(subject, &callback)
-    @sid += 1    
-    @subs[@sid] = { :subject => subject, :callback => callback }
-    send_command("SUB #{subject} #{@sid}#{CR_LF}")
-    @sid
+    @ssid += 1    
+    @subs[@ssid] = { :subject => subject, :callback => callback }
+    send_command("SUB #{subject} #{@ssid}#{CR_LF}")
+    @ssid
   end
 
   def unsubscribe(sid)
