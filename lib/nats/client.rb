@@ -5,7 +5,7 @@ require File.dirname(__FILE__) + '/ext/em'
 require File.dirname(__FILE__) + '/ext/bytesize'
 require File.dirname(__FILE__) + '/ext/json'
 
-module NATS
+class NATS < EM::Connection
 
   VERSION = "0.3.4".freeze
 
