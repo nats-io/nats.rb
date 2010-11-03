@@ -7,7 +7,7 @@ require File.dirname(__FILE__) + '/ext/json'
 
 module NATS
 
-  VERSION = "0.3.6".freeze
+  VERSION = "0.3.7".freeze
 
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
@@ -57,8 +57,7 @@ module NATS
     def start(*args, &blk)
       @reactor_was_running = EM.reactor_running?
       unless (@reactor_was_running || blk)
-        err = "EM needs to be running when NATS.start called without a run block"
-        @err_cb ? @err_cb.call(err) : raise(Error, err)
+        raise(Error, "EM needs to be running when NATS.start called without a run block")        
       end
       EM.run { @client = connect(*args, &blk) }
     end

@@ -196,4 +196,28 @@ describe NATS do
     received_reply.should be_true
   end
 
+  it 'should complain if NATS.start called without a block when we would need to start EM' do
+    begin
+      NATS.start
+      NATS.stop
+    rescue => e
+      e.should be_instance_of NATS::Error
+    end
+  end
+
+  it 'should not complain if NATS.start called without a block when EM is running already' do
+    EM.run do
+      begin
+        NATS.start
+        NATS.stop { EM.stop }
+      rescue => e
+        e.should_not be_instance_of NATS::Error
+      end
+    end
+  end
+
+  it 'should use default url if passed uri is nil' do
+    NATS.start(:uri => nil) {  NATS.stop }
+  end
+
 end
