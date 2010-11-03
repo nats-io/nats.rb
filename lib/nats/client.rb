@@ -7,7 +7,7 @@ require File.dirname(__FILE__) + '/ext/json'
 
 module NATS
 
-  VERSION = "0.3.7".freeze
+  VERSION = "0.3.8".freeze
 
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
@@ -17,6 +17,8 @@ module NATS
 
   PING_REQUEST  = "PING#{CR_LF}".freeze
   PONG_RESPONSE = "PONG#{CR_LF}".freeze
+
+  EMPTY_MSG = ''.freeze
 
   MAX_RECONNECT_ATTEMPTS = 10
   RECONNECT_TIME_WAIT = 2 # in secs
@@ -151,13 +153,15 @@ module NATS
     send_connect_command
   end
   
-  def publish(subject, data='', opt_reply=nil, &blk)
+  def publish(subject, data=EMPTY_MSG, opt_reply=nil, &blk)
+    return unless subject
     data = data.to_s
     send_command("PUB #{subject} #{opt_reply} #{data.bytesize}#{CR_LF}#{data}#{CR_LF}")
     queue_server_rt(&blk) if blk
   end
     
   def subscribe(subject, &callback)
+    return unless subject
     @ssid += 1    
     @subs[@ssid] = { :subject => subject, :callback => callback }
     send_command("SUB #{subject} #{@ssid}#{CR_LF}")
@@ -170,6 +174,7 @@ module NATS
   end
     
   def request(subject, data=nil, opts={}, &callback)
+    return unless subject
     inbox = NATS.create_inbox
     s = subscribe(inbox) { |msg| callback.call(msg) }
     publish(subject, data, inbox)

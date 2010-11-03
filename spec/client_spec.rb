@@ -5,17 +5,17 @@ require File.dirname(__FILE__) + '/spec_helper'
 
 describe NATS do
 
-  it 'should perform basic block start and stop' do
-    NATS.start { NATS.stop }
+  it 'should complain if NATS.start is called without EM running and no block was given' do
+    begin
+      EM.reactor_running?.should be_false
+      NATS.start
+    rescue => e
+      e.should be_instance_of NATS::Error
+    end
   end
 
-  it 'should do publish without payload and with opt_reply without error' do
-    NATS.start { |nc|
-      nc.publish('foo')
-      nc.publish('foo', 'hello')
-      nc.publish('foo', 'hello', 'reply')
-      NATS.stop
-    }
+  it 'should perform basic block start and stop' do
+    NATS.start { NATS.stop }
   end
 
   it 'should raise and error when it cant connect to a remote host' do
@@ -27,10 +27,20 @@ describe NATS do
     end
   end
 
-  it 'should not complain when publishing to nil' do
+  it 'should do publish without payload and with opt_reply without error' do
     NATS.start { |nc|
-      nc.publish(nil)
+      nc.publish('foo')
+      nc.publish('foo', 'hello')
+      nc.publish('foo', 'hello', 'reply')
       NATS.stop
+    }
+  end
+
+  it 'should not complain when publishing to nil' do
+    NATS.start {
+      NATS.publish(nil)
+      NATS.publish(nil, 'hello')
+      EM.add_timer(0.1) { NATS.stop }
     }
   end
 
@@ -218,6 +228,13 @@ describe NATS do
 
   it 'should use default url if passed uri is nil' do
     NATS.start(:uri => nil) {  NATS.stop }
+  end
+
+  it 'should not complain about publish to nil unless in pedantic mode' do
+    NATS.start {
+      NATS.publish(nil, 'Hello!')
+      NATS.stop
+    }
   end
 
 end

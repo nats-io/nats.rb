@@ -17,4 +17,4 @@ NATS.start do
   NATS.publish(subject, msg) { NATS.stop }
 end
 
-puts "Published on [#{subject}] : '#{msg}'"
+puts "Published [#{subject}] : '#{msg}'"
