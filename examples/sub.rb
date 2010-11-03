@@ -6,6 +6,10 @@ require 'nats/client'
 trap("TERM") { NATS.stop }
 trap("INT")  { NATS.stop }
 
+def usage
+  puts "Usage: ruby sub.rb <subject>"; exit
+end
+
 subject = ARGV.shift
 usage unless subject
 

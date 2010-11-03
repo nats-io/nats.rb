@@ -4,7 +4,7 @@ require 'rubygems'
 require 'nats/client'
   
 def usage
-  puts "Usage: pub.rb <subject> <msg>"; exit
+  puts "Usage: ruby pub.rb <subject> <msg>"; exit
 end
 
 subject, msg = ARGV
