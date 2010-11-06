@@ -1,16 +1,19 @@
 require File.dirname(__FILE__) + '/spec_helper'
 
-TEST_SERVER = 'nats://localhost:4222'
-
-# HACK - Autostart functionality not happy with spec, so make sure running.
-`ruby -S bundle exec nats-server -d 2> /dev/null`
-
 describe NATS do
+
+  before(:all) do
+    @s = NatsServerControl.new
+    @s.start_server
+  end
+
+  after(:all) do
+    @s.kill_server
+  end
 
   it "should complain if it can't connect to server when not running and not told to autostart" do
     received_error = false
     begin
-      EM.reactor_running?.should be_false
       NATS.start(:uri => 'nats://localhost:3222', :autostart => false) {
         EM.add_timer(1) { NATS.stop }
       }

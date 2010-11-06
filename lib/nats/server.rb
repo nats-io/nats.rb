@@ -135,14 +135,26 @@ module NATSD
       (@buf ||= '') << data
       close_connection and return if @buf =~ /(\006|\004)/ # ctrl+c or ctrl+d for telnet friendly
       while (@buf && !@buf.empty? && !@closing)
-        if (@msg_size && @buf.bytesize >= (@msg_size + CR_LF_SIZE))
-          msg = @buf.slice(0, @msg_size)
-          process_msg(msg)
-          @buf = @buf.slice((msg.bytesize + CR_LF_SIZE), @buf.bytesize)
+        # Waiting on msg payload
+        if @msg_size
+          if (@buf.bytesize >= (@msg_size + CR_LF_SIZE))
+              msg = @buf.slice(0, @msg_size)
+              process_msg(msg)
+              @buf = @buf.slice((msg.bytesize + CR_LF_SIZE), @buf.bytesize)
+          else # Waiting for additional msg data
+            return
+          end
+        # Waiting on control line 
         elsif @buf =~ /^(.*)\r\n/
           @buf = $'          
           process_op($1)
-        else # Waiting for additional data
+        else # Waiting for additional data for control line
+          # This is not normal. Close immediately
+          if @buf.bytesize > MAX_CONTROL_LINE_SIZE
+            debug "MAX_CONTROL_LINE exceeded, closing connection.."
+            @closing = true
+            close_connection
+          end
           return
         end
       end

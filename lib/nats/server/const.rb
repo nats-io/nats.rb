@@ -12,7 +12,10 @@ module NATSD
   UNSUB_OP = /^UNSUB\s+(\S+)$/i  
   PING = /^PING$/i
   CONNECT = /^CONNECT\s+(.+)$/i
-  
+
+  # 1k should be plenty since payloads sans connect are payload
+  MAX_CONTROL_LINE_SIZE = 1024
+
   # Should be using something different if > 1MB payload
   MAX_PAYLOAD_SIZE = (1024*1024)
 
