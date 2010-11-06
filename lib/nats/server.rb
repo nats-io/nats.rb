@@ -45,9 +45,6 @@ module NATSD
           :max_payload => MAX_PAYLOAD_SIZE
         }
 
-        # Write pid file if need be.
-        File.open(@options[:pid_file], 'w') { |f| f.puts "#{Process.pid}" } if @options[:pid_file]
-
         # Check for daemon flag
         if @options[:daemonize]
           require 'rubygems'
@@ -63,6 +60,9 @@ module NATSD
         # Setup optimized select versions 
         EM.epoll unless @options[:noepoll]
         EM.kqueue unless @options[:nokqueue]
+
+        # Write pid file if need be.
+        File.open(@options[:pid_file], 'w') { |f| f.puts "#{Process.pid}" } if @options[:pid_file]
 
       end
       

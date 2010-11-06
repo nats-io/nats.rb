@@ -1,6 +1,6 @@
 module NATSD
   
-  VERSION  = "0.3.8"
+  VERSION  = "0.3.9"
   APP_NAME = 'nats-server'
  
   DEFAULT_PORT = 4222
