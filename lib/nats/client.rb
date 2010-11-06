@@ -47,7 +47,7 @@ module NATS
     def connect(options = {}, &blk)
       options[:uri] ||= ENV['NATS_URI'] || DEFAULT_URI
       options[:debug] ||= ENV['NATS_DEBUG']
-      options[:autostart] ||= ENV['NATS_AUTO'] || true
+      options[:autostart] = (ENV['NATS_AUTO'] || true) unless options[:autostart] != nil
       uri = options[:uri] = URI.parse(options[:uri])
       @err_cb = proc { raise Error, "Could not connect to server on #{uri}."} unless @err_cb
       check_autostart(uri) if options[:autostart]
