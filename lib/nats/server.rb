@@ -19,9 +19,10 @@ module NATSD
     
     class << self
       attr_reader :id, :info, :log_time, :auth_required, :debug_flag, :trace_flag
+
       alias auth_required? :auth_required
-      alias debug_flag? :debug_flag
-      alias trace_flag? :trace_flag
+      alias debug_flag?    :debug_flag
+      alias trace_flag?    :trace_flag
  
       def version; "nats server version #{NATSD::VERSION}" end
 
