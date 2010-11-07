@@ -50,7 +50,7 @@ This gem currently works on the following Ruby platforms:
       # Wildcard Subscriptions
 
       # '*" matches any token
-      NATS.subscribe('foo.*.baz') { |msg _, sub| puts "Msg received on [#{sub}] : '#{msg}'" }
+      NATS.subscribe('foo.*.baz') { |msg, _, sub| puts "Msg received on [#{sub}] : '#{msg}'" }
 
       # '>" can only be last token, and matches to any depth
       NATS.subscribe('foo.>') { |msg, _, sub| puts "Msg received on [#{sub}] : '#{msg}'" }
