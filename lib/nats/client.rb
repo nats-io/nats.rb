@@ -7,7 +7,7 @@ require File.dirname(__FILE__) + '/ext/json'
 
 module NATS
 
-  VERSION = "0.3.10".freeze
+  VERSION = "0.3.11".freeze
 
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
@@ -173,10 +173,16 @@ module NATS
     send_command("UNSUB #{sid}#{CR_LF}")
   end
     
-  def request(subject, data=nil, opts={}, &callback)
+  def request(subject, data=nil, opts={}, &cb)
     return unless subject
     inbox = NATS.create_inbox
-    s = subscribe(inbox) { |m,r| callback.call(m,r) }
+    s = subscribe(inbox) { |msg, reply|
+      case cb.arity
+        when 0 then cb.call
+        when 1 then cb.call(msg)
+        else cb.call(msg, reply)
+      end
+    }
     publish(subject, data, inbox)
     return s
   end
