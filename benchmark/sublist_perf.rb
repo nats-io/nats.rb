@@ -1,12 +1,13 @@
-require File.dirname(__FILE__) + '/../lib/nats/server/sublist'
+$LOAD_PATH << File.expand_path("../../lib", __FILE__)
+require 'nats/server/sublist'
 
 class PerfSublist
   @@levels = 5
   @@targets = ['derek', 'ruth', 'sam', 'meg', 'brett', 'ben', 'miles', 'bella', 'rex', 'diamond']
-  @@sublist = Sublist.new()
-  
+  @@sublist = Sublist.new
+
   def PerfSublist.subsInit(pre=nil)
-    @@targets.each {|t| 
+    @@targets.each {|t|
         sub = pre ? (pre + "." + t) : t
         @@sublist.insert(sub, sub)
         subsInit(sub) if sub.split(".").size < @@levels
@@ -16,13 +17,13 @@ class PerfSublist
   def PerfSublist.disableSublistCache
     @@sublist.disable_cache
   end
-  
+
   def PerfSublist.addWildcards
     @@sublist.insert("ruth.>", "honey")
     @@sublist.insert("ruth.sam.meg.>", "honey")
-    @@sublist.insert("ruth.*.meg.*", "honey")    
+    @@sublist.insert("ruth.*.meg.*", "honey")
   end
-  
+
   def PerfSublist.matchTest(subject, loop)
     start = Time.now
     loop.times {@@sublist.match(subject)}
@@ -31,13 +32,12 @@ class PerfSublist
   end
 
   def PerfSublist.reset
-    @@sublist = Sublist.new()    
+    @@sublist = Sublist.new
   end
-      
+
   def PerfSublist.subscriptionCount
     @@sublist.count
   end
-
 end
 
 def ms_time(t)
@@ -78,7 +78,7 @@ PerfSublist.matchTest("derek.sam.meg.billybob", 50000) # worst case miss
 #Profiler__::print_profile($stdout)
 
 #Run multiple times to see Jruby speedup
-0.times do 
+0.times do
   puts "\n\n"
   #PerfSublist.reset
   #PerfSublist.subsInit

@@ -1,6 +1,5 @@
-
-require 'optparse'
-require File.dirname(__FILE__) + '/../lib/nats/client'
+$LOAD_PATH << File.expand_path("../../lib", __FILE__)
+require 'nats/client'
 
 $loop = 100000
 $hash = 10000
