@@ -25,6 +25,7 @@ spec = Gem::Specification.new do |s|
     "nats.gemspec",
     "Rakefile",
     "bin/nats-server",
+    "lib/nats.rb",
     "lib/nats/client.rb",
     "lib/nats/ext/bytesize.rb",
     "lib/nats/ext/em.rb",
@@ -34,5 +35,4 @@ spec = Gem::Specification.new do |s|
     "lib/nats/server/sublist.rb",
     "lib/nats/server/const.rb"
   ]
-
 end
