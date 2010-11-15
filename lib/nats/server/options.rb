@@ -1,4 +1,4 @@
-require 'nats/server'
+require 'nats/server/const'
 
 class NATSD::Server
   module Options
@@ -67,7 +67,7 @@ class NATSD::Server
 
     def finalize_options
       # Addr/Port
-      @options[:port] ||= DEFAULT_PORT
+      @options[:port] ||= NATSD::DEFAULT_PORT
       @options[:addr] ||= '0.0.0.0'
 
       # Debug and Tracing

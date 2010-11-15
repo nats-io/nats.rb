@@ -1,4 +1,5 @@
 module NATSD
+  class Server;end
   VERSION  = "0.3.11"
   APP_NAME = 'nats-server'
 

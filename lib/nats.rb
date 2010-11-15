@@ -51,7 +51,7 @@ module NATS
       options[:debug] ||= ENV['NATS_DEBUG']
       options[:autostart] = (ENV['NATS_AUTO'] || true) unless options[:autostart] != nil
       uri = options[:uri] = URI.parse(options[:uri])
-      @err_cb = proc { raise Error, "Could not connect to server on #{uri}."} unless @err_cb
+      @err_cb = proc { raise Error, "Could not connect to server on #{uri}."} unless err_cb
       check_autostart(uri) if options[:autostart]
       client = EM.connect(uri.host, uri.port, self, options)
       client.on_connect(&blk) if blk

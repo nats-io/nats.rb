@@ -11,6 +11,8 @@ module NATS
     @debug = options[:debug]
     @ssid, @subs = 1, {}
     @err_cb = NATS.err_cb
+    @reconnect_timer, @needed = nil, nil
+    @connected, @closing, @reconnecting = false, false, false
     send_connect_command
   end
 
