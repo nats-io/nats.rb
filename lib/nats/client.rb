@@ -1,4 +1,3 @@
-
 require 'uri'
 
 require File.dirname(__FILE__) + '/ext/em'
@@ -6,7 +5,6 @@ require File.dirname(__FILE__) + '/ext/bytesize'
 require File.dirname(__FILE__) + '/ext/json'
 
 module NATS
-
   VERSION = "0.3.11".freeze
 
   DEFAULT_PORT = 4222
@@ -28,7 +26,7 @@ module NATS
   OK   = /^\+OK/i
   ERR  = /^-ERR\s+('.+')?/i
   PING = /^PING/i
-  PONG = /^PONG/i  
+  PONG = /^PONG/i
   INFO = /^INFO\s+(.+)/i
 
   # Pedantic Mode
@@ -55,15 +53,15 @@ module NATS
       client.on_connect(&blk) if blk
       return client
     end
-    
+
     def start(*args, &blk)
       @reactor_was_running = EM.reactor_running?
       unless (@reactor_was_running || blk)
-        raise(Error, "EM needs to be running when NATS.start called without a run block")        
+        raise(Error, "EM needs to be running when NATS.start called without a run block")
       end
       EM.run { @client = connect(*args, &blk) }
     end
-    
+
     def stop(&blk)
       client.close if (client and client.connected?)
       blk.call if blk
@@ -119,7 +117,7 @@ module NATS
       system("nats-server #{port_arg} #{user_arg} #{pass_arg} #{log_arg} #{pid_arg} -d 2> /dev/null")
       $? == 0
     end
-    
+
     def wait_for_server(uri)
       start = Time.now
       while (Time.now - start < 5) # Wait 5 seconds max
@@ -136,15 +134,14 @@ module NATS
     rescue
       return false
     end
-
   end
-  
+
   attr_reader :connect_cb, :err_cb, :err_cb_overridden, :connected, :closing, :reconnecting
-  
+
   alias :connected? :connected
   alias :closing? :closing
-  alias :reconnecting? :reconnecting  
-  
+  alias :reconnecting? :reconnecting
+
   def initialize(options)
     @uri = options[:uri]
     @debug = options[:debug]
@@ -152,17 +149,17 @@ module NATS
     @err_cb = NATS.err_cb
     send_connect_command
   end
-  
+
   def publish(subject, data=EMPTY_MSG, opt_reply=nil, &blk)
     return unless subject
     data = data.to_s
     send_command("PUB #{subject} #{opt_reply} #{data.bytesize}#{CR_LF}#{data}#{CR_LF}")
     queue_server_rt(&blk) if blk
   end
-    
+
   def subscribe(subject, &callback)
     return unless subject
-    @ssid += 1    
+    @ssid += 1
     @subs[@ssid] = { :subject => subject, :callback => callback }
     send_command("SUB #{subject} #{@ssid}#{CR_LF}")
     @ssid
@@ -172,7 +169,7 @@ module NATS
     @subs.delete(sid)
     send_command("UNSUB #{sid}#{CR_LF}")
   end
-    
+
   def request(subject, data=nil, opts={}, &cb)
     return unless subject
     inbox = NATS.create_inbox
@@ -217,12 +214,12 @@ module NATS
   def user_err_cb?
     err_cb_overridden || NATS.err_cb_overridden
   end
-  
+
   def close
     @closing = true
     close_connection_after_writing
   end
-  
+
   def on_msg(subject, sid, reply, msg)
     return unless subscriber = @subs[sid]
     if cb = subscriber[:callback]
@@ -236,18 +233,18 @@ module NATS
   end
 
   def flush_pending
-    return unless @pending      
+    return unless @pending
     @pending.each { |p| send_data(p) }
     @pending = nil
   end
-  
+
   def receive_data(data)
     (@buf ||= '') << data
     while (@buf && !@buf.empty?)
       if (@needed && @buf.bytesize >= @needed + CR_LF_SIZE)
         payload = @buf.slice(0, @needed)
-        on_msg(@sub, @sid, @reply, payload)    
-        @buf = @buf.slice((@needed + CR_LF_SIZE), @buf.bytesize)          
+        on_msg(@sub, @sid, @reply, payload)
+        @buf = @buf.slice((@needed + CR_LF_SIZE), @buf.bytesize)
         @sub = @sid = @reply = @needed = nil
       elsif @buf =~ /^(.*)\r\n/ # Process a control line
         @buf = $'
@@ -307,29 +304,29 @@ module NATS
       process_disconnect unless reconnecting?
     end
   end
-    
+
   def process_disconnect
     if not closing? and @err_cb
       err_string = @connected ? "Client disconnected from server on #{@uri}." : "Could not connect to server on #{@uri}"
       err_cb.call(err_string)
     end
   ensure
-    EM.cancel_timer(@reconnect_timer) if @reconnect_timer    
+    EM.cancel_timer(@reconnect_timer) if @reconnect_timer
     EM.stop if (NATS.client == self and connected? and closing? and not NATS.reactor_was_running?)
-    @connected = @reconnecting = false    
+    @connected = @reconnecting = false
     true # Chaining
   end
-  
+
   def attempt_reconnect
     process_disconnect and return if (@reconnect_attempts += 1) > MAX_RECONNECT_ATTEMPTS
     EM.reconnect(@uri.host, @uri.port, self)
   end
-  
+
   def send_command(command)
     queue_command(command) and return unless connected?
     send_data(command)
   end
-    
+
   def queue_command(command)
     (@pending ||= []) << command
     true
@@ -338,6 +335,5 @@ module NATS
   def inspect
     "<nats client v#{NATS::VERSION}>"
   end
-  
 end
 
