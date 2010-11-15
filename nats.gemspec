@@ -1,8 +1,6 @@
-require './lib/nats/server/const.rb'
-
 spec = Gem::Specification.new do |s|
   s.name = 'nats'
-  s.version = NATSD::VERSION
+  s.version = "0.3.11"
   s.date = '2010-11-1'
   s.summary = 'Simple Publish-Subscribe Messaging System'
   s.homepage = "http://github.com/derekcollison/nats"
@@ -18,21 +16,23 @@ spec = Gem::Specification.new do |s|
 
   s.require_paths = ['lib']
   s.bindir = 'bin'
-  s.executables = [NATSD::APP_NAME, 'nats-pub', 'nats-sub']
+  s.executables = %w[nats-server nats-pub nats-sub]
 
-  s.files = [
-    "COPYING",
-    "nats.gemspec",
-    "Rakefile",
-    "bin/nats-server",
-    "lib/nats.rb",
-    "lib/nats/client.rb",
-    "lib/nats/ext/bytesize.rb",
-    "lib/nats/ext/em.rb",
-    "lib/nats/ext/json.rb",
-    "lib/nats/server.rb",
-    "lib/nats/server/options.rb",
-    "lib/nats/server/sublist.rb",
-    "lib/nats/server/const.rb"
+  s.files = %w[
+    COPYING
+    nats.gemspec
+    Rakefile
+    bin/nats-server
+    bin/nats-pub
+    bin/nats-sub
+    lib/nats.rb
+    lib/nats/client.rb
+    lib/nats/ext/bytesize.rb
+    lib/nats/ext/em.rb
+    lib/nats/ext/json.rb
+    lib/nats/server/const.rb
+    lib/nats/server/options.rb
+    lib/nats/server/sublist.rb
+    lib/nats/server.rb
   ]
 end
