@@ -14,7 +14,9 @@ class NatsServerControl
   end
 
   def server_pid
-    @pid ||= File.read(@pid_file).chomp.to_i
+    @pid ||= if File.exists?(@pid_file)
+               File.read(@pid_file).chomp.to_i
+             end
   end
 
   def server_mem_mb
@@ -29,7 +31,7 @@ class NatsServerControl
 
   def kill_server
     if File.exists? @pid_file
-      %x[kill -9 #{server_pid}]
+      %x[kill -9 $(< #{@pid_file}) 2> /dev/null]
       %x[rm #{@pid_file}]
     end
   end
