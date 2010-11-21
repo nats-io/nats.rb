@@ -1,8 +1,10 @@
 
-- do client blowup detection from sending in tight loop
 - clustering/routing
-- balance receive perf with send perf
 - queues? Prefer, request for help, then pick first one back.
+- Request timeout option.
+- balance receive perf with send perf
+- do client blowup detection from sending in tight loop
+
 
 - [DONE]proper flow control, EM and PING/PONG
 - [DONE] request/response automated, just use UUID now.

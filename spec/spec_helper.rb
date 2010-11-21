@@ -1,5 +1,6 @@
 
-require './lib/nats/client'
+$LOAD_PATH.unshift('./lib')
+require 'nats/client'
 require 'pp'
 
 def timeout_nats_on_failure(to=0.25)

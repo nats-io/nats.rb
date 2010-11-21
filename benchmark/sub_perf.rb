@@ -1,6 +1,8 @@
 
 require 'optparse'
-require File.dirname(__FILE__) + '/../lib/nats/client'
+
+$LOAD_PATH << File.expand_path('../../lib', __FILE__)
+require 'nats/client'
 
 $expected = 100000
 $hash = 10000
@@ -14,8 +16,8 @@ parser = OptionParser.new do |opts|
   opts.separator ""
   opts.separator "options:"
 
-  opts.on("-n ITERATIONS", "iterations to expect (default: #{$expected})")    { |iter| $expected = iter.to_i }
-  opts.on("-s SUBJECT", "Send subject (default: #{$sub})")                    { |nsub| $sub = nsub }
+  opts.on("-n ITERATIONS", "iterations to expect (default: #{$expected})") { |iter| $expected = iter.to_i }
+  opts.on("-s SUBJECT", "Send subject (default: #{$sub})")                 { |nsub| $sub = nsub }
 end
 
 parser.parse(ARGV)

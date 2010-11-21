@@ -12,12 +12,18 @@ This gem currently works on the following Ruby platforms:
 
 ## Getting Started
 
-    rake geminstall
-    cd ./examples
-    pub foo 'Hello World!'
+    [sudo] gem install nats
+
+     or
+
+    git clone
+    [sudo] rake geminstall
+
+    nats-sub foo &
+    nats-pub foo "Hello World!'
 
 ## Usage
-   
+
     require "nats/client"
 
     NATS.start do
@@ -30,7 +36,7 @@ This gem currently works on the following Ruby platforms:
 
       # Publish with closure, callback fires when server has processed the message
       NATS.publish('foo', 'You done?') { puts 'msg processed!' }
-      
+
       # Unsubscribing
       s = NATS.subscribe('bar') { |msg| puts "Msg received : '#{msg}'" }
       NATS.unsubscribe(s)
@@ -85,5 +91,5 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-IN THE SOFTWARE. 
+IN THE SOFTWARE.
 

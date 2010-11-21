@@ -1,7 +1,7 @@
 
 require 'rubygems'
 require 'nats/client'
-  
+
 def usage
   puts "Usage: pub.rb <user> <pass> <subject> <msg>"; exit
 end

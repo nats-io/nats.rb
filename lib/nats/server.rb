@@ -10,20 +10,21 @@ require 'socket'
 require 'fileutils'
 require 'pp'
 
-module NATSD
+
+module NATSD #:nodoc: all
 
   # Subscriber
   Subscriber = Struct.new(:conn, :subject, :sid)
 
   class Server
-    
+
     class << self
       attr_reader :id, :info, :log_time, :auth_required, :debug_flag, :trace_flag
 
       alias auth_required? :auth_required
       alias debug_flag?    :debug_flag
       alias trace_flag?    :trace_flag
- 
+
       def version; "nats server version #{NATSD::VERSION}" end
 
       def host; @options[:addr]  end
@@ -58,7 +59,7 @@ module NATSD
 
         setup_logs
 
-        # Setup optimized select versions 
+        # Setup optimized select versions
         EM.epoll unless @options[:noepoll]
         EM.kqueue unless @options[:nokqueue]
 
@@ -66,7 +67,7 @@ module NATSD
         File.open(@options[:pid_file], 'w') { |f| f.puts "#{Process.pid}" } if @options[:pid_file]
 
       end
-      
+
       def subscribe(subscriber)
         @sublist.insert(subscriber.subject, subscriber)
       end
@@ -74,14 +75,14 @@ module NATSD
       def unsubscribe(subscriber)
         @sublist.remove(subscriber.subject, subscriber)
       end
-      
+
       def route_to_subscribers(subject, reply, msg)
         @sublist.match(subject).each do |subscriber|
           # Skip anyone in the closing state
           next if subscriber.conn.closing
-          
+
           trace "Matched subscriber", subscriber[:subject], subscriber[:sid], subscriber.conn.client_info
-          subscriber.conn.send_data("MSG #{subject} #{subscriber.sid} #{reply} #{msg.bytesize}#{CR_LF}") 
+          subscriber.conn.send_data("MSG #{subject} #{subscriber.sid} #{reply} #{msg.bytesize}#{CR_LF}")
           subscriber.conn.send_data(msg)
           subscriber.conn.send_data(CR_LF)
 
@@ -105,13 +106,13 @@ module NATSD
         @info.to_json
       end
 
-    end    
+    end
   end
-  
-  module Connection
+
+  module Connection #:nodoc:
 
     attr_reader :cid, :closing
-    
+
     def client_info
       @client_info ||= Socket.unpack_sockaddr_in(get_peername)
     end
@@ -145,9 +146,9 @@ module NATSD
           else # Waiting for additional msg data
             return
           end
-        # Waiting on control line 
+        # Waiting on control line
         elsif @buf =~ /^(.*)\r\n/
-          @buf = $'          
+          @buf = $'
           process_op($1)
         else # Waiting for additional data for control line
           # This is not normal. Close immediately
@@ -161,7 +162,7 @@ module NATSD
       end
       # Nothing should be here.
     end
-      
+
     def process_op(op)
       case op
         when PUB_OP
@@ -173,8 +174,8 @@ module NATSD
         when SUB_OP
           ctrace 'SUB OP', op
           return if @auth_pending
-          sub, sid = $1, $2          
-          send_data INVALID_SUBJECT and return if !($1 =~ SUB)          
+          sub, sid = $1, $2
+          send_data INVALID_SUBJECT and return if !($1 =~ SUB)
           send_data INVALID_SID_TAKEN and return if @subscriptions[sid]
           subscriber = Subscriber.new(self, sub, sid)
           @subscriptions[sid] = subscriber
@@ -210,7 +211,7 @@ module NATSD
     end
 
     def send_info
-      send_data "INFO #{Server.info_string}#{CR_LF}"          
+      send_data "INFO #{Server.info_string}#{CR_LF}"
     end
 
     def process_msg(body)
@@ -220,7 +221,7 @@ module NATSD
       @pub_sub = @msg_size = @reply = nil
       true
     end
-    
+
     def process_connect_config(config)
       @verbose  = config[:verbose] if config[:verbose] != nil
       @pedantic = config[:pedantic] if config[:pedantic] != nil
@@ -236,13 +237,13 @@ module NATSD
         debug "Authorization failed for connection", cid
       end
     end
-    
+
     def error_close(msg)
       send_data msg
       close_connection_after_writing
       @closing = true
     end
-    
+
     def unbind
       debug "Client connection closed", client_info, cid
       ctrace "Receive_Data called #{@receive_data_calls} times." if @receive_data_calls > 0
@@ -258,30 +259,30 @@ module NATSD
 
 end
 
-def fast_uuid
+def fast_uuid #:nodoc:
   v = [rand(0x0010000),rand(0x0010000),rand(0x0010000),
        rand(0x0010000),rand(0x0010000),rand(0x1000000)]
   "%04x%04x%04x%04x%04x%06x" % v
 end
 
-def log(*args)
+def log(*args) #:nodoc:
   args.unshift(Time.now) if NATSD::Server.log_time
   pp args.compact
 end
 
-def debug(*args)
+def debug(*args) #:nodoc:
   log *args if NATSD::Server.debug_flag?
 end
 
-def trace(*args)
+def trace(*args) #:nodoc:
   log *args if NATSD::Server.trace_flag?
 end
 
-def log_error(e=$!)
+def log_error(e=$!) #:nodoc:
   debug e, e.backtrace
 end
 
-def shutdown
+def shutdown #:nodoc:
   puts
   log 'Server exiting..'
   EM.stop
@@ -301,7 +302,7 @@ EM.run {
   log "Starting #{NATSD::APP_NAME} version #{NATSD::VERSION} on port #{NATSD::Server.port}"
 
   begin
-    EM.set_descriptor_table_size(32768) # Requires Root privileges    
+    EM.set_descriptor_table_size(32768) # Requires Root privileges
     EventMachine::start_server(NATSD::Server.host, NATSD::Server.port, NATSD::Connection)
   rescue => e
     log "Could not start server on port #{NATSD::Server.port}"

@@ -10,7 +10,7 @@
 # See included test for example usage:
 ##
 
-class Sublist
+class Sublist #:nodoc:
   PWC = '*'.freeze
   FWC = '>'.freeze
   CACHE_SIZE = 4096

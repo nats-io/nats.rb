@@ -1,15 +1,15 @@
-module NATSD
-  
-  VERSION  = "0.3.11"
+module NATSD #:nodoc:
+
+  VERSION  = '0.3.12'
   APP_NAME = 'nats-server'
- 
+
   DEFAULT_PORT = 4222
- 
+
   # Ops
   INFO = /^INFO$/i
   PUB_OP = /^PUB\s+(\S+)\s+((\S+)\s+)?(\d+)$/i
   SUB_OP = /^SUB\s+(\S+)\s+(\S+)$/i
-  UNSUB_OP = /^UNSUB\s+(\S+)$/i  
+  UNSUB_OP = /^UNSUB\s+(\S+)$/i
   PING = /^PING$/i
   CONNECT = /^CONNECT\s+(.+)$/i
 
@@ -21,11 +21,11 @@ module NATSD
 
   # Maximum outbound size per client
   MAX_OUTBOUND_SIZE = (10*1024*1024)
-  
+
   # RESPONSES
   CR_LF = "\r\n".freeze
   CR_LF_SIZE = CR_LF.bytesize
-  OK = "+OK #{CR_LF}".freeze  
+  OK = "+OK #{CR_LF}".freeze
   PONG_RESPONSE = "PONG#{CR_LF}".freeze
 
   INFO_RESPONSE = "#{CR_LF}".freeze
@@ -40,7 +40,7 @@ module NATSD
   AUTH_FAILED         = "-ERR 'Authorization failed'#{CR_LF}".freeze
   UNKNOWN_OP          = "-ERR 'Unkown Protocol Operation'#{CR_LF}".freeze
   SLOW_CONSUMER       = "-ERR 'Slow consumer detected, connection dropped'#{CR_LF}".freeze
-  
+
   # Pedantic Mode
   SUB = /^([^\.\*>\s]+|>$|\*)(\.([^\.\*>\s]+|>$|\*))*$/
   SUB_NO_WC = /^([^\.\*>\s]+)(\.([^\.\*>\s]+))*$/

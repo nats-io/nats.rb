@@ -1,23 +1,21 @@
-
-require './lib/nats/server/sublist'
+require 'spec_helper'
+require 'nats/server/sublist'
 
 describe Sublist do
   before do
-    @sublist = Sublist.new()    
+    @sublist = Sublist.new
   end
 
   it 'should be empty on start' do
     @sublist.count.should == 0
-    m = @sublist.match('a')
-    m.empty?.should be_true
-    m = @sublist.match('a.b')
-    m.empty?.should be_true
+    @sublist.match('a').should be_empty
+    @sublist.match('a.b').should be_empty
   end
 
   it 'should match and return proper closure for subjects' do
     @sublist.insert('a', 'foo')
     m = @sublist.match('a')
-    m.empty?.should be_false
+    m.should_not be_empty
     m.size.should == 1
     m[0].should == 'foo'
   end
@@ -25,32 +23,31 @@ describe Sublist do
   it 'should not match after the item has been removed' do
     @sublist.insert('a', 'foo')
     @sublist.remove('a', 'foo')
-    m = @sublist.match('a')
-    m.empty?.should be_true
+    @sublist.match('a').should be_empty
   end
 
   it 'should match simple multiple tokens' do
     @sublist.insert('a.b.c', 'foo')
     m = @sublist.match('a.b.c')
-    m.empty?.should be_false
+    m.should_not be_empty
     m.size.should == 1
     m[0].should == 'foo'
     m = @sublist.match('a.b.z')
-    m.empty?.should be_true
+    m.should be_empty
   end
 
   it 'should match full wildcards on any proper subject' do
     @sublist.insert('a.b.>', 'foo')
     m = @sublist.match('a.b.c')
-    m.empty?.should be_false
+    m.should_not be_empty
     m.size.should == 1
     m[0].should == 'foo'
     m = @sublist.match('a.b.z')
-    m.empty?.should be_false
+    m.should_not be_empty
     m.size.should == 1
     m[0].should == 'foo'
     m = @sublist.match('a.b.c.d.e.f')
-    m.empty?.should be_false
+    m.should_not be_empty
     m.size.should == 1
     m[0].should == 'foo'
   end
@@ -58,13 +55,13 @@ describe Sublist do
   it 'should match positional wildcards on any proper subject' do
     @sublist.insert('a.*.c', 'foo')
     m = @sublist.match('a.b.c')
-    m.empty?.should be_false
+    m.should_not be_empty
     m.size.should == 1
     m[0].should == 'foo'
     m = @sublist.match('a.b.z')
-    m.empty?.should be_true
+    m.should be_empty
     m = @sublist.match('a.z.c')
-    m.empty?.should be_false
+    m.should_not be_empty
     m.size.should == 1
     m[0].should == 'foo'
   end

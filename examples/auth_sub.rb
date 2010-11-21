@@ -4,7 +4,7 @@ require 'nats/client'
 
 trap("TERM") { puts 'TERM!'; NATS.stop }
 trap("INT")  { NATS.stop }
-  
+
 def usage
   puts "Usage: auth_sub <user> <pass> <subject>"; exit
 end

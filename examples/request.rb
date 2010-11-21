@@ -8,7 +8,7 @@ trap("INT")  { NATS.stop }
 NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
 NATS.start {
-  
+
   # The helper
   NATS.subscribe('help') do |msg, reply|
     NATS.publish(reply, "I'll help!")

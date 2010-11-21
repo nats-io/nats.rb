@@ -1,13 +1,18 @@
-require './lib/nats/server/const.rb'
+
+
+lib = File.expand_path('../lib/', __FILE__)
+$:.unshift lib unless $:.include?(lib)
+
+require 'nats/server/const.rb'
 
 spec = Gem::Specification.new do |s|
   s.name = 'nats'
   s.version = NATSD::VERSION
-  s.date = '2010-11-1'
+  s.date = '2010-11-20'
   s.summary = 'Simple Publish-Subscribe Messaging System'
   s.homepage = "http://github.com/derekcollison/nats"
   s.description = "A lightweight, fast, publish-subscribe messaging system."
-  s.has_rdoc = false
+  s.has_rdoc = true
 
   s.authors = ["Derek Collison"]
   s.email = ["derek.collison@gmail.com"]
@@ -20,19 +25,22 @@ spec = Gem::Specification.new do |s|
   s.bindir = 'bin'
   s.executables = [NATSD::APP_NAME, 'nats-pub', 'nats-sub']
 
-  s.files = [
-    "COPYING",
-    "nats.gemspec",
-    "Rakefile",
-    "bin/nats-server",
-    "lib/nats/client.rb",
-    "lib/nats/ext/bytesize.rb",
-    "lib/nats/ext/em.rb",
-    "lib/nats/ext/json.rb",
-    "lib/nats/server.rb",
-    "lib/nats/server/options.rb",
-    "lib/nats/server/sublist.rb",
-    "lib/nats/server/const.rb"
+  s.files = %w[
+    COPYING
+    README.md
+    nats.gemspec
+    Rakefile
+    bin/nats-server
+    bin/nats-sub
+    bin/nats-pub
+    lib/nats/client.rb
+    lib/nats/ext/bytesize.rb
+    lib/nats/ext/em.rb
+    lib/nats/ext/json.rb
+    lib/nats/server.rb
+    lib/nats/server/options.rb
+    lib/nats/server/sublist.rb
+    lib/nats/server/const.rb
   ]
 
 end
