@@ -34,6 +34,3 @@ DEPENDENCIES
   nats!
   rspec
   yajl-ruby (>= 0.7.8)
-
-METADATA
-  version: 1.0.6
