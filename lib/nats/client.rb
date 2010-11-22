@@ -207,13 +207,14 @@ module NATS
   # Callback can take any number of the supplied arguments as defined by the list: msg, reply, sub.
   # Returns subscription id which can be passed to #unsubscribe.
   # @param [String] subject, optionally with wilcards.
+  # @param [String] opt_queue_group, optional queue group.  
   # @param [Block] callback, called when a message is delivered.
   # @return [Object] sid, Subject Identifier
-  def subscribe(subject, &callback)
+  def subscribe(subject, opt_queue_group=nil, &callback)
     return unless subject
     @ssid += 1
     @subs[@ssid] = { :subject => subject, :callback => callback }
-    send_command("SUB #{subject} #{@ssid}#{CR_LF}")
+    send_command("SUB #{subject} #{opt_queue_group} #{@ssid}#{CR_LF}")
     @ssid
   end
 

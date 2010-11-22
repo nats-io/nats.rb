@@ -14,7 +14,7 @@ require 'pp'
 module NATSD #:nodoc: all
 
   # Subscriber
-  Subscriber = Struct.new(:conn, :subject, :sid)
+  Subscriber = Struct.new(:conn, :subject, :sid, :qgroup)
 
   class Server
 
@@ -76,22 +76,43 @@ module NATSD #:nodoc: all
         @sublist.remove(subscriber.subject, subscriber)
       end
 
+      def deliver_to_subscriber(subscriber, subject, reply, msg)
+        subscriber.conn.send_data("MSG #{subject} #{subscriber.sid} #{reply} #{msg.bytesize}#{CR_LF}")
+        subscriber.conn.send_data(msg)
+        subscriber.conn.send_data(CR_LF)
+        # Check the outbound queue here and react if need be..
+        if subscriber.conn.get_outbound_data_size > MAX_OUTBOUND_SIZE
+          subscriber.conn.error_close SLOW_CONSUMER
+          log "Slow consumer dropped", subscriber.conn.client_info
+        end
+      end
+      
       def route_to_subscribers(subject, reply, msg)
+        qsubs = nil          
+
         @sublist.match(subject).each do |subscriber|
           # Skip anyone in the closing state
           next if subscriber.conn.closing
-
-          trace "Matched subscriber", subscriber[:subject], subscriber[:sid], subscriber.conn.client_info
-          subscriber.conn.send_data("MSG #{subject} #{subscriber.sid} #{reply} #{msg.bytesize}#{CR_LF}")
-          subscriber.conn.send_data(msg)
-          subscriber.conn.send_data(CR_LF)
-
-          # Check the outbound queue here and react if need be..
-          if subscriber.conn.get_outbound_data_size > MAX_OUTBOUND_SIZE
-            subscriber.conn.error_close SLOW_CONSUMER
-            log "Slow consumer dropped", subscriber.conn.client_info
+          
+          unless subscriber[:qgroup]
+            deliver_to_subscriber(subscriber, subject, reply, msg)
+          else
+            trace "Matched queue subscriber", subscriber[:subject], subscriber[:qgroup], subscriber[:sid], subscriber.conn.client_info
+            # Queue this for post processing
+            qsubs ||= Hash.new([])
+            qsubs[subscriber[:qgroup]] = qsubs[subscriber[:qgroup]] << subscriber
           end
         end
+        
+        return unless qsubs
+
+        qsubs.each_value do |subs|
+          # Randomly pick a subscriber from the group
+          subscriber = subs[rand*subs.size]
+          trace "Selected queue subscriber", subscriber[:subject], subscriber[:qgroup], subscriber[:sid], subscriber.conn.client_info
+          deliver_to_subscriber(subscriber, subject, reply, msg)
+        end        
+
       end
 
       def auth_ok?(user, pass)
@@ -174,10 +195,10 @@ module NATSD #:nodoc: all
         when SUB_OP
           ctrace 'SUB OP', op
           return if @auth_pending
-          sub, sid = $1, $2
+          sub, qgroup, sid = $1, $3, $4
           send_data INVALID_SUBJECT and return if !($1 =~ SUB)
           send_data INVALID_SID_TAKEN and return if @subscriptions[sid]
-          subscriber = Subscriber.new(self, sub, sid)
+          subscriber = Subscriber.new(self, sub, sid, qgroup)
           @subscriptions[sid] = subscriber
           Server.subscribe(subscriber)
           send_data OK if @verbose

@@ -8,7 +8,7 @@ module NATSD #:nodoc:
   # Ops
   INFO = /^INFO$/i
   PUB_OP = /^PUB\s+(\S+)\s+((\S+)\s+)?(\d+)$/i
-  SUB_OP = /^SUB\s+(\S+)\s+(\S+)$/i
+  SUB_OP = /^SUB\s+(\S+)\s+((\S+)\s+)?(\S+)$/i
   UNSUB_OP = /^UNSUB\s+(\S+)$/i
   PING = /^PING$/i
   CONNECT = /^CONNECT\s+(.+)$/i
