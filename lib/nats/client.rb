@@ -6,7 +6,7 @@ require File.dirname(__FILE__) + '/ext/json'
 
 module NATS
 
-  VERSION = "0.3.12".freeze
+  VERSION = "0.3.2".freeze
 
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
