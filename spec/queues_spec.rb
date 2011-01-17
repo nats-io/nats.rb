@@ -53,7 +53,7 @@ describe NATS do
     received.each_value { |count| (AVG - count).abs.should < ALLOWED_V }
     total.should == TOTAL
   end
-  
+
   it "should deliver a message to only one subscriber in a queue group, regardless of wildcard subjects" do
     received = 0
     NATS.start do

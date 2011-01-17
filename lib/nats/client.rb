@@ -55,7 +55,7 @@ module NATS
     # @option opts [Boolean] :debug Boolean that can be used to output additional debug information.
     # @param [Block] &blk called when the connection is completed. Connection will be passed as an arg to the block.
     # @return [NATS] connection to the server.
-    
+
     def connect(opts = {}, &blk)
       opts[:uri] ||= ENV['NATS_URI'] || DEFAULT_URI
       opts[:debug] ||= ENV['NATS_DEBUG']
@@ -70,7 +70,7 @@ module NATS
 
     # Create a default client connection to the server.
     # @see NATS::connect
-    
+
     def start(*args, &blk)
       @reactor_was_running = EM.reactor_running?
       unless (@reactor_was_running || blk)
@@ -81,7 +81,7 @@ module NATS
 
     # Close the default client connection and optionally call the associated block.
     # @param [Block] &blk called when the connection is closed.
-    
+
     def stop(&blk)
       client.close if (client and client.connected?)
       blk.call if blk
@@ -89,28 +89,28 @@ module NATS
 
     # Set the default on_error callback.
     # @param [Block] &callback called when an error has been detected.
-    
+
     def on_error(&callback)
       @err_cb, @err_cb_overridden = callback, true
     end
 
     # Publish a message using the default client connection.
     # @see NATS#publish
-    
+
     def publish(*args, &blk)
       (@client ||= connect).publish(*args, &blk)
     end
 
     # Subscribe using the default client connection.
     # @see NATS#subscribe
-    
+
     def subscribe(*args, &blk)
       (@client ||= connect).subscribe(*args, &blk)
     end
 
     # Cancel a subscription on the default client connection.
     # @see NATS#unsubscribe
-    
+
     def unsubscribe(*args)
       (@client ||= connect).unsubscribe(*args)
     end
@@ -124,7 +124,7 @@ module NATS
 
     # Returns a subject that can be used for "directed" communications.
     # @return [String]
-    
+
     def create_inbox
       v = [rand(0x0010000),rand(0x0010000),rand(0x0010000),
            rand(0x0010000),rand(0x0010000),rand(0x1000000)]
@@ -132,7 +132,7 @@ module NATS
     end
 
     private
-    
+
     def check_autostart(uri)
       return if uri_is_remote?(uri) || @@tried_autostart[uri]
       @@tried_autostart[uri] = true
@@ -207,7 +207,7 @@ module NATS
   # Callback can take any number of the supplied arguments as defined by the list: msg, reply, sub.
   # Returns subscription id which can be passed to #unsubscribe.
   # @param [String] subject, optionally with wilcards.
-  # @param [String] opt_queue_group, optional queue group.  
+  # @param [String] opt_queue_group, optional queue group.
   # @param [Block] callback, called when a message is delivered.
   # @return [Object] sid, Subject Identifier
   def subscribe(subject, opt_queue_group=nil, &callback)

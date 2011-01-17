@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    nats (0.3.12)
+    nats (0.4.0)
       daemons (>= 1.1.0)
       eventmachine (>= 0.12.10)
       yajl-ruby (>= 0.7.8)
@@ -12,17 +12,15 @@ GEM
     daemons (1.1.0)
     diff-lcs (1.1.2)
     eventmachine (0.12.10)
-    rspec (2.0.1)
-      rspec-core (~> 2.0.1)
-      rspec-expectations (~> 2.0.1)
-      rspec-mocks (~> 2.0.1)
-    rspec-core (2.0.1)
-    rspec-expectations (2.0.1)
-      diff-lcs (>= 1.1.2)
-    rspec-mocks (2.0.1)
-      rspec-core (~> 2.0.1)
-      rspec-expectations (~> 2.0.1)
-    yajl-ruby (0.7.8)
+    rspec (2.4.0)
+      rspec-core (~> 2.4.0)
+      rspec-expectations (~> 2.4.0)
+      rspec-mocks (~> 2.4.0)
+    rspec-core (2.4.0)
+    rspec-expectations (2.4.0)
+      diff-lcs (~> 1.1.2)
+    rspec-mocks (2.4.0)
+    yajl-ruby (0.7.9)
 
 PLATFORMS
   ruby

@@ -1,9 +1,9 @@
 #--
 #
 # Sublist implementation for a publish-subscribe system.
-# This container class holds subscriptions and matches 
+# This container class holds subscriptions and matches
 # candidate subjects to those subscriptions.
-# Certain wildcards are supported for subscriptions. 
+# Certain wildcards are supported for subscriptions.
 # '*' will match any given token at any level.
 # '>' will match all subsequent tokens.
 #--
@@ -14,12 +14,12 @@ class Sublist #:nodoc:
   PWC = '*'.freeze
   FWC = '>'.freeze
   CACHE_SIZE = 4096
-  
+
   attr_reader :count
 
   SublistNode  = Struct.new(:leaf_nodes, :next_level)
   SublistLevel = Struct.new(:nodes, :pwc, :fwc)
-  
+
   def initialize(options = {})
     @count = 0
     @results = []
@@ -36,7 +36,7 @@ class Sublist #:nodoc:
   # does not need to completely go away when a remove happens..
   #
   # front end caching is on by default, but we can turn it off here if needed
-  
+
   def disable_cache; @cache = nil; end
   def enable_cache;  @cache ||= {};  end
   def clear_cache; @cache = {} if @cache; end
@@ -71,16 +71,16 @@ class Sublist #:nodoc:
         when PWC then node = level.pwc
         else node  = level.nodes[token]
       end
-      level = node.next_level      
+      level = node.next_level
     end
     # This could be expensize if a large number of subscribers exist.
-    node.leaf_nodes.delete(subscriber) if (node && node.leaf_nodes) 
+    node.leaf_nodes.delete(subscriber) if (node && node.leaf_nodes)
     clear_cache # Clear the cache
   end
-  
+
   # Match a subject to all subscribers, return the array of matches.
   def match(subject)
-    return @cache[subject] if (@cache && @cache[subject])    
+    return @cache[subject] if (@cache && @cache[subject])
     tokens = subject.split('.')
     @results.clear
     matchAll(@root, tokens)
@@ -93,24 +93,24 @@ class Sublist #:nodoc:
   end
 
   private
-  
+
   def matchAll(level, tokens)
     node, pwc = nil, nil # Define for scope
     i, ts = 0, tokens.size
     while (i < ts) do
       return if level == nil
       # Handle a full wildcard here by adding all of the subscribers.
-      @results.concat(level.fwc.leaf_nodes) if level.fwc      
+      @results.concat(level.fwc.leaf_nodes) if level.fwc
       # Handle an internal partial wildcard by branching recursively
       lpwc = level.pwc
       matchAll(lpwc.next_level, tokens[i+1, ts]) if lpwc
       node, pwc = level.nodes[tokens[i]], lpwc
       #level = node.next_level if node
-      level = node ? node.next_level : nil    
+      level = node ? node.next_level : nil
       i += 1
     end
-    @results.concat(pwc.leaf_nodes) if pwc    
+    @results.concat(pwc.leaf_nodes) if pwc
     @results.concat(node.leaf_nodes) if node
-  end  
+  end
 
 end
