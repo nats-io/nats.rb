@@ -6,7 +6,7 @@ require File.dirname(__FILE__) + '/ext/json'
 
 module NATS
 
-  VERSION = "0.3.2".freeze
+  VERSION = "0.4.0".freeze
 
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
@@ -207,22 +207,28 @@ module NATS
   # Callback can take any number of the supplied arguments as defined by the list: msg, reply, sub.
   # Returns subscription id which can be passed to #unsubscribe.
   # @param [String] subject, optionally with wilcards.
-  # @param [String] opt_queue_group, optional queue group.
+  # @param [Hash] opts, optional options hash, e.g. :queue, :max, :timeout.
   # @param [Block] callback, called when a message is delivered.
   # @return [Object] sid, Subject Identifier
-  def subscribe(subject, opt_queue_group=nil, &callback)
+  def subscribe(subject, opts={}, &callback)
     return unless subject
     @ssid += 1
-    @subs[@ssid] = { :subject => subject, :callback => callback }
-    send_command("SUB #{subject} #{opt_queue_group} #{@ssid}#{CR_LF}")
+    @subs[@ssid] = { :subject => subject, :callback => callback, :received => 0 }
+    @subs[@ssid][:queue] = opts[:queue] if opts[:queue]
+    @subs[@ssid][:max] = opts[:max] if opts[:max]
+    send_command("SUB #{subject} #{opts[:queue]} #{@ssid}#{CR_LF}")
+    unsubscribe(@ssid, opts[:max]) if opts[:max] # Setup server support for auto-unsubscribe
     @ssid
   end
 
   # Cancel a subscription.
   # @param [Object] sid
-  def unsubscribe(sid)
-    @subs.delete(sid)
-    send_command("UNSUB #{sid}#{CR_LF}")
+  # @param [Number] opt_max, optional number of responses to receive before auto-unsubscribing
+  def unsubscribe(sid, opt_max=nil)
+    send_command("UNSUB #{sid} #{opt_max}#{CR_LF}")
+    return unless subscriber = @subs[sid]
+    subscriber[:max] = opt_max
+    @subs.delete(sid) unless (subscriber[:max] && (subscriber[:received] < subscriber[:max]))
   end
 
   # Send a request and have the response delivered to the supplied callback.
@@ -289,6 +295,16 @@ module NATS
 
   def on_msg(subject, sid, reply, msg) #:nodoc:
     return unless subscriber = @subs[sid]
+
+    # Check for auto_unsubscribe
+    subscriber[:received] += 1
+
+#require 'pp'
+#pp subscriber
+#pp (subscriber[:max] && (subscriber[:received] > subscriber[:max]))
+
+    return unsubscribe(sid) if (subscriber[:max] && (subscriber[:received] > subscriber[:max]))
+
     if cb = subscriber[:callback]
       case cb.arity
         when 0 then cb.call
@@ -297,6 +313,7 @@ module NATS
         else cb.call(msg, reply, subject)
       end
     end
+
   end
 
   def flush_pending #:nodoc:

@@ -8,7 +8,7 @@ module NATSD
     class << self
       def parser
         @parser ||= OptionParser.new do |opts|
-          opts.banner = "Usage: nats [options]"
+          opts.banner = "Usage: nats-server [options]"
 
           opts.separator ""
           opts.separator "Server options:"

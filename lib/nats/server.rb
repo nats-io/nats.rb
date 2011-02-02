@@ -14,7 +14,7 @@ require 'pp'
 module NATSD #:nodoc: all
 
   # Subscriber
-  Subscriber = Struct.new(:conn, :subject, :sid, :qgroup)
+  Subscriber = Struct.new(:conn, :subject, :sid, :qgroup, :num_responses, :max_responses)
 
   class Server
 
@@ -41,7 +41,7 @@ module NATSD #:nodoc: all
         @id, @cid = fast_uuid, 1
         @sublist = Sublist.new
         @info = {
-          :nats_server_id => Server.id,
+          :server_id => Server.id,
           :version => VERSION,
           :auth_required => auth_required?,
           :max_payload => MAX_PAYLOAD_SIZE
@@ -65,7 +65,6 @@ module NATSD #:nodoc: all
 
         # Write pid file if need be.
         File.open(@options[:pid_file], 'w') { |f| f.puts "#{Process.pid}" } if @options[:pid_file]
-
       end
 
       def subscribe(subscriber)
@@ -77,9 +76,18 @@ module NATSD #:nodoc: all
       end
 
       def deliver_to_subscriber(subscriber, subject, reply, msg)
-        subscriber.conn.send_data("MSG #{subject} #{subscriber.sid} #{reply} #{msg.bytesize}#{CR_LF}")
+
+        # Allows nil reply to not have extra space
+        reply = reply + ' ' if reply
+
+        subscriber.conn.send_data("MSG #{subject} #{subscriber.sid} #{reply}#{msg.bytesize}#{CR_LF}")
         subscriber.conn.send_data(msg)
         subscriber.conn.send_data(CR_LF)
+
+        # Account for the response and check for auto-unsubscribe (pruning interest graph)
+        subscriber.num_responses += 1
+        subscriber.conn.delete_subscriber(subscriber) if (subscriber.max_responses && subscriber.num_responses >= subscriber.max_responses)
+
         # Check the outbound queue here and react if need be..
         if subscriber.conn.get_outbound_data_size > MAX_OUTBOUND_SIZE
           subscriber.conn.error_close SLOW_CONSUMER
@@ -120,7 +128,7 @@ module NATSD #:nodoc: all
       end
 
       def cid
-        @cid+=1
+        @cid += 1
       end
 
       def info_string
@@ -198,7 +206,7 @@ module NATSD #:nodoc: all
           sub, qgroup, sid = $1, $3, $4
           send_data INVALID_SUBJECT and return if !($1 =~ SUB)
           send_data INVALID_SID_TAKEN and return if @subscriptions[sid]
-          subscriber = Subscriber.new(self, sub, sid, qgroup)
+          subscriber = Subscriber.new(self, sub, sid, qgroup, 0)
           @subscriptions[sid] = subscriber
           Server.subscribe(subscriber)
           send_data OK if @verbose
@@ -207,8 +215,11 @@ module NATSD #:nodoc: all
           return if @xsauth_pending
           sid, subscriber = $1, @subscriptions[$1]
           send_data INVALID_SID_NOEXIST and return unless subscriber
-          Server.unsubscribe(subscriber)
-          @subscriptions.delete(sid)
+
+          # If we have set max_responses, we will unsubscribe once we have received the appropriate
+          # amount of responses
+          subscriber.max_responses = ($2 && $3) ? $3.to_i : nil
+          delete_subscriber(subscriber) unless (subscriber.max_responses && (subscriber.num_responses < subscriber.max_responses))
           send_data OK if @verbose
         when PING
           ctrace 'PING OP', op
@@ -257,6 +268,12 @@ module NATSD #:nodoc: all
         error_close AUTH_FAILED
         debug "Authorization failed for connection", cid
       end
+    end
+
+    def delete_subscriber(subscriber)
+      ctrace 'DELSUB OP', subscriber.subject, subscriber.qgroup, subscriber.sid
+      Server.unsubscribe(subscriber)
+      @subscriptions.delete(subscriber.sid)
     end
 
     def error_close(msg)
