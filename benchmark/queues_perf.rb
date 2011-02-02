@@ -33,7 +33,7 @@ NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 NATS.start do
   received = 1
   (0...$qs).each do
-    NATS.subscribe($sub, $qgroup) do
+    NATS.subscribe($sub, :queue => $qgroup) do
       ($start = Time.now and puts "Started Receiving..") if (received == 1)
       if ((received+=1) == $expected)
         puts "\nTest completed : #{($expected/(Time.now-$start)).ceil} msgs/sec.\n"
