@@ -1,7 +1,8 @@
 require 'spec_helper'
 require 'nats/server/sublist'
 
-describe Sublist do
+describe 'sublist functionality' do
+
   before do
     @sublist = Sublist.new
   end

@@ -1,7 +1,7 @@
 
 require 'spec_helper'
 
-describe NATSD do
+describe 'server attacks' do
 
   before (:all) do
     TEST_SERVER = 'nats://localhost:8222'

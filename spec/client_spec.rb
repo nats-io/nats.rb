@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe NATS do
+describe 'client specification' do
 
   before(:all) do
     @s = NatsServerControl.new
@@ -83,7 +83,7 @@ describe NATS do
     received = false
     NATS.start { |nc|
       nc.subscribe('foo') { |msg|
-        received=true
+        received = true
         msg.should == 'xxx'
         NATS.stop
       }
@@ -97,7 +97,7 @@ describe NATS do
     received = false
     NATS.start { |nc|
       nc.subscribe('*') { |msg|
-        received=true
+        received = true
         msg.should == 'xxx'
         NATS.stop
       }
@@ -147,7 +147,7 @@ describe NATS do
         NATS.unsubscribe(s)
       }
       r = NATS.request('need_help', 'yyy') { |response|
-        received=true
+        received = true
         response.should == 'help'
         NATS.unsubscribe(r)
         NATS.stop
@@ -254,6 +254,20 @@ describe NATS do
       NATS.publish(nil, 'Hello!')
       NATS.stop
     }
+  end
+
+  it 'should allow proper unsubscribe from within blocks' do
+    received = 0
+    NATS.start do
+      sid = NATS.subscribe('foo') { |msg|
+        received += 1
+        sid.should_not be_nil
+        NATS.unsubscribe(sid)
+      }
+      NATS.publish('foo')
+      NATS.publish('foo') { NATS.stop }
+    end
+    received.should == 1
   end
 
 end
