@@ -34,6 +34,19 @@ describe 'max responses and auto-unsubscribe' do
     received.should == WANT
   end
 
+  it "should not complain when unsubscribing an auto-unsubscribed sid" do
+    received = 0
+    NATS.start do
+      sid = NATS.subscribe('foo', :max => 1) { received += 1 }
+      (0...SEND).each { NATS.publish('foo', 'hello') }
+      NATS.publish('done') {
+        NATS.unsubscribe(sid)
+        NATS.stop
+      }
+    end
+    received.should == 1
+  end
+
   it "should allow proper override of auto-unsubscribe max variables to lesser value" do
     received = 0
     NATS.start do
