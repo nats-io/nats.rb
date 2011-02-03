@@ -60,7 +60,7 @@ describe 'max responses and auto-unsubscribe' do
     received.should == WANT
   end
 
-  it "should only receive N msgs using request mode" do
+  it "should only receive N msgs using request mode with multiple helpers" do
     received = 0
     NATS.start do
       # Create 5 identical helpers
