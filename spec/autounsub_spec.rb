@@ -39,7 +39,7 @@ describe 'max responses and auto-unsubscribe' do
     NATS.start do
       sid = NATS.subscribe('foo') {
         received += 1
-      NATS.unsubscribe(sid, 1)
+        NATS.unsubscribe(sid, 1)
       }
       NATS.unsubscribe(sid, WANT)
       (0...SEND).each { NATS.publish('foo', 'hello') }
@@ -58,6 +58,17 @@ describe 'max responses and auto-unsubscribe' do
       NATS.publish('done') { NATS.stop }
     end
     received.should == WANT
+  end
+
+  it "should only receive N msgs using request mode" do
+    received = 0
+    NATS.start do
+      # Create 5 identical helpers
+      (0...5).each { NATS.subscribe('help') { |msg, reply| NATS.publish(reply, 'I can help!') } }
+      NATS.request('help', nil, :max => 1) { received += 1 }
+      EM.add_timer(0.1) { NATS.stop }
+    end
+    received.should == 1
   end
 
 end

@@ -56,7 +56,7 @@ module NATS
     # @param [Block] &blk called when the connection is completed. Connection will be passed as an arg to the block.
     # @return [NATS] connection to the server.
 
-    def connect(opts = {}, &blk)
+    def connect(opts={}, &blk)
       opts[:uri] ||= ENV['NATS_URI'] || DEFAULT_URI
       opts[:debug] ||= ENV['NATS_DEBUG']
       opts[:autostart] = (ENV['NATS_AUTO'] || true) unless opts[:autostart] != nil
@@ -236,10 +236,10 @@ module NATS
   # @param [Object] msg
   # @param [Block] callback
   # @return [Object] sid
-  def request(subject, data=nil, &cb)
+  def request(subject, data=nil, opts={}, &cb)
     return unless subject
     inbox = NATS.create_inbox
-    s = subscribe(inbox) { |msg, reply|
+    s = subscribe(inbox, opts) { |msg, reply|
       case cb.arity
         when 0 then cb.call
         when 1 then cb.call(msg)
@@ -298,11 +298,6 @@ module NATS
 
     # Check for auto_unsubscribe
     subscriber[:received] += 1
-
-#require 'pp'
-#pp subscriber
-#pp (subscriber[:max] && (subscriber[:received] > subscriber[:max]))
-
     return unsubscribe(sid) if (subscriber[:max] && (subscriber[:received] > subscriber[:max]))
 
     if cb = subscriber[:callback]
