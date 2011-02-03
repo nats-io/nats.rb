@@ -13,7 +13,7 @@ module NATSD #:nodoc:
   PING = /^PING$/i
   CONNECT = /^CONNECT\s+(.+)$/i
 
-  # 1k should be plenty since payloads sans connect are payload
+  # 1k should be plenty since payloads sans connect are separate
   MAX_CONTROL_LINE_SIZE = 1024
 
   # Should be using something different if > 1MB payload
@@ -45,7 +45,7 @@ module NATSD #:nodoc:
   SUB = /^([^\.\*>\s]+|>$|\*)(\.([^\.\*>\s]+|>$|\*))*$/
   SUB_NO_WC = /^([^\.\*>\s]+)(\.([^\.\*>\s]+))*$/
 
-  # Autorization wait time
+  # Authorization wait time
   AUTH_TIMEOUT = 5
 
 end
