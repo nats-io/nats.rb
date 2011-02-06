@@ -6,7 +6,7 @@ require File.dirname(__FILE__) + '/ext/json'
 
 module NATS
 
-  VERSION = "0.4.1".freeze
+  VERSION = "0.4.2".freeze
 
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
@@ -43,7 +43,9 @@ module NATS
   end
 
   class << self
-    attr_reader :client, :reactor_was_running, :err_cb, :err_cb_overridden #:nodoc:
+    attr_reader   :client, :reactor_was_running, :err_cb, :err_cb_overridden #:nodoc:
+    attr_accessor :timeout_cb #:nodoc
+
     alias :reactor_was_running? :reactor_was_running
 
     # Create and return a connection to the server with the given options. The server will be autostarted if needed if
@@ -55,7 +57,6 @@ module NATS
     # @option opts [Boolean] :debug Boolean that can be used to output additional debug information.
     # @param [Block] &blk called when the connection is completed. Connection will be passed as an arg to the block.
     # @return [NATS] connection to the server.
-
     def connect(opts={}, &blk)
       opts[:uri] ||= ENV['NATS_URI'] || DEFAULT_URI
       opts[:debug] ||= ENV['NATS_DEBUG']
@@ -70,7 +71,6 @@ module NATS
 
     # Create a default client connection to the server.
     # @see NATS::connect
-
     def start(*args, &blk)
       @reactor_was_running = EM.reactor_running?
       unless (@reactor_was_running || blk)
@@ -81,50 +81,51 @@ module NATS
 
     # Close the default client connection and optionally call the associated block.
     # @param [Block] &blk called when the connection is closed.
-
     def stop(&blk)
       client.close if (client and client.connected?)
       blk.call if blk
+      @@tried_autostart = {}
+      @err_cb = nil
     end
 
     # Set the default on_error callback.
     # @param [Block] &callback called when an error has been detected.
-
     def on_error(&callback)
       @err_cb, @err_cb_overridden = callback, true
     end
 
     # Publish a message using the default client connection.
     # @see NATS#publish
-
     def publish(*args, &blk)
       (@client ||= connect).publish(*args, &blk)
     end
 
     # Subscribe using the default client connection.
     # @see NATS#subscribe
-
     def subscribe(*args, &blk)
       (@client ||= connect).subscribe(*args, &blk)
     end
 
     # Cancel a subscription on the default client connection.
     # @see NATS#unsubscribe
-
     def unsubscribe(*args)
       (@client ||= connect).unsubscribe(*args)
     end
 
+    # Set a timeout for receiving messages for the subscription.
+    # @see NATS#timeout
+    def timeout(*args, &blk)
+      (@client ||= connect).timeout(*args, &blk)
+    end
+
     # Publish a message and wait for a response on the default client connection.
     # @see NATS#request
-
     def request(*args, &blk)
       (@client ||= connect).request(*args, &blk)
     end
 
     # Returns a subject that can be used for "directed" communications.
     # @return [String]
-
     def create_inbox
       v = [rand(0x0010000),rand(0x0010000),rand(0x0010000),
            rand(0x0010000),rand(0x0010000),rand(0x1000000)]
@@ -175,7 +176,8 @@ module NATS
 
   end
 
-  attr_reader :connect_cb, :err_cb, :err_cb_overridden, :connected, :closing, :reconnecting #:nodoc:
+  attr_reader :connected, :connect_cb, :err_cb, :err_cb_overridden #:nodoc:
+  attr_reader :closing, :reconnecting #:nodoc
 
   alias :connected? :connected
   alias :closing? :closing
@@ -203,22 +205,24 @@ module NATS
     queue_server_rt(&blk) if blk
   end
 
-  # Subscribe to a subject with optional wildcards. Messages will be delivered to the supplied callback.
+  # Subscribe to a subject with optional wildcards.
+  # Messages will be delivered to the supplied callback.
   # Callback can take any number of the supplied arguments as defined by the list: msg, reply, sub.
   # Returns subscription id which can be passed to #unsubscribe.
   # @param [String] subject, optionally with wilcards.
-  # @param [Hash] opts, optional options hash, e.g. :queue, :max, :timeout.
+  # @param [Hash] opts, optional options hash, e.g. :queue, :max.
   # @param [Block] callback, called when a message is delivered.
   # @return [Object] sid, Subject Identifier
   def subscribe(subject, opts={}, &callback)
     return unless subject
-    @ssid += 1
-    @subs[@ssid] = { :subject => subject, :callback => callback, :received => 0 }
-    @subs[@ssid][:queue] = opts[:queue] if opts[:queue]
-    @subs[@ssid][:max] = opts[:max] if opts[:max]
-    send_command("SUB #{subject} #{opts[:queue]} #{@ssid}#{CR_LF}")
-    unsubscribe(@ssid, opts[:max]) if opts[:max] # Setup server support for auto-unsubscribe
-    @ssid
+    sid = (@ssid += 1)
+    sub = @subs[sid] = { :subject => subject, :callback => callback, :received => 0 }
+    sub[:queue] = opts[:queue] if opts[:queue]
+    sub[:max] = opts[:max] if opts[:max]
+    send_command("SUB #{subject} #{opts[:queue]} #{sid}#{CR_LF}")
+    # Setup server support for auto-unsubscribe
+    unsubscribe(sid, opts[:max]) if opts[:max]
+    sid
   end
 
   # Cancel a subscription.
@@ -226,9 +230,30 @@ module NATS
   # @param [Number] opt_max, optional number of responses to receive before auto-unsubscribing
   def unsubscribe(sid, opt_max=nil)
     send_command("UNSUB #{sid} #{opt_max}#{CR_LF}")
-    return unless subscriber = @subs[sid]
-    subscriber[:max] = opt_max
-    @subs.delete(sid) unless (subscriber[:max] && (subscriber[:received] < subscriber[:max]))
+    return unless sub = @subs[sid]
+    sub[:max] = opt_max
+    @subs.delete(sid) unless (sub[:max] && (sub[:received] < sub[:max]))
+  end
+
+  # Setup a timeout for receiving messages for the subscription.
+  # @param [Object] sid
+  # @param [Number] timeout, float in seconds
+  # @param [Hash] opts, options, :auto_unsubscribe(true), :expected(1)
+  def timeout(sid, timeout, opts={}, &callback)
+    # Setup a timeout if requested
+    return unless sub = @subs[sid]
+
+    auto_unsubscribe, expected = true, 1
+    auto_unsubscribe = opts[:auto_unsubscribe] if opts.key?(:auto_unsubscribe)
+    expected = opts[:expected] if opts.key?(:expected)
+
+    EM.cancel_timer(sub[:timeout]) if sub[:timeout]
+
+    sub[:timeout] = EM.add_timer(timeout) do
+      unsubscribe(sid) if auto_unsubscribe
+      callback.call(sid) if callback
+    end
+    sub[:expected] = expected
   end
 
   # Send a request and have the response delivered to the supplied callback.
@@ -294,13 +319,13 @@ module NATS
   end
 
   def on_msg(subject, sid, reply, msg) #:nodoc:
-    return unless subscriber = @subs[sid]
+    return unless sub = @subs[sid]
 
     # Check for auto_unsubscribe
-    subscriber[:received] += 1
-    return unsubscribe(sid) if (subscriber[:max] && (subscriber[:received] > subscriber[:max]))
+    sub[:received] += 1
+    return unsubscribe(sid) if (sub[:max] && (sub[:received] > sub[:max]))
 
-    if cb = subscriber[:callback]
+    if cb = sub[:callback]
       case cb.arity
         when 0 then cb.call
         when 1 then cb.call(msg)
@@ -309,6 +334,11 @@ module NATS
       end
     end
 
+    # Check for a timeout, and cancel if received >= expected
+    if (sub[:timeout] && sub[:received] >= sub[:expected])
+      EM.cancel_timer(sub[:timeout])
+      sub[:timeout] = nil
+    end
   end
 
   def flush_pending #:nodoc:
@@ -391,7 +421,9 @@ module NATS
     end
   ensure
     EM.cancel_timer(@reconnect_timer) if @reconnect_timer
-    EM.stop if (NATS.client == self and connected? and closing? and not NATS.reactor_was_running?)
+    if (NATS.client == self and connected? and closing? and not NATS.reactor_was_running?)
+      EM.stop
+    end
     @connected = @reconnecting = false
     true # Chaining
   end

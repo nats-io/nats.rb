@@ -37,6 +37,14 @@ describe 'client specification' do
     NATS.start { NATS.stop }
   end
 
+  it 'should have err_cb cleared after stop' do
+    NATS.start do
+      NATS.on_error { puts 'err' }
+      NATS.stop
+    end
+    NATS.err_cb.should be_nil
+  end
+
   it 'should raise and error when it cant connect to a remote host' do
     begin
       NATS.start(:uri => 'nats://192.168.0.254:32768')

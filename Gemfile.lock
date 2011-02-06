@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    nats (0.4.1)
+    nats (0.4.2)
       daemons (>= 1.1.0)
       eventmachine (>= 0.12.10)
       yajl-ruby (>= 0.8.0)
