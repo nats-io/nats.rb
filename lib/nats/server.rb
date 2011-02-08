@@ -10,7 +10,6 @@ require 'socket'
 require 'fileutils'
 require 'pp'
 
-
 module NATSD #:nodoc: all
 
   # Subscriber
@@ -89,9 +88,11 @@ module NATSD #:nodoc: all
         subscriber.conn.delete_subscriber(subscriber) if (subscriber.max_responses && subscriber.num_responses >= subscriber.max_responses)
 
         # Check the outbound queue here and react if need be..
-        if subscriber.conn.get_outbound_data_size > MAX_OUTBOUND_SIZE
-          subscriber.conn.error_close SLOW_CONSUMER
-          log "Slow consumer dropped", subscriber.conn.client_info
+        if subscriber.conn.respond_to? :get_outbound_data_size
+          if subscriber.conn.get_outbound_data_size > MAX_OUTBOUND_SIZE
+            subscriber.conn.error_close SLOW_CONSUMER
+            log "Slow consumer dropped", subscriber.conn.client_info
+          end
         end
       end
       
@@ -164,7 +165,7 @@ module NATSD #:nodoc: all
     def receive_data(data)
       @receive_data_calls += 1
       (@buf ||= '') << data
-      close_connection and return if @buf =~ /(\006|\004)/ # ctrl+c or ctrl+d for telnet friendly
+      return close_connection if @buf =~ /(\006|\004)/ # ctrl+c or ctrl+d for telnet friendly
       while (@buf && !@buf.empty? && !@closing)
         # Waiting on msg payload
         if @msg_size
@@ -198,23 +199,23 @@ module NATSD #:nodoc: all
           ctrace 'PUB OP', op
           return if @auth_pending
           @pub_sub, @reply, @msg_size, = $1, $3, $4.to_i
-          send_data PAYLOAD_TOO_BIG and return if (@msg_size > MAX_PAYLOAD_SIZE)
-          send_data INVALID_SUBJECT and return if @pedantic && !(@pub_sub =~ SUB_NO_WC)
+          return send_data PAYLOAD_TOO_BIG if (@msg_size > MAX_PAYLOAD_SIZE)
+          return send_data INVALID_SUBJECT if @pedantic && !(@pub_sub =~ SUB_NO_WC)
         when SUB_OP
           ctrace 'SUB OP', op
           return if @auth_pending
           sub, qgroup, sid = $1, $3, $4
-          send_data INVALID_SUBJECT and return if !($1 =~ SUB)
-          send_data INVALID_SID_TAKEN and return if @subscriptions[sid]
+          return send_data INVALID_SUBJECT if !($1 =~ SUB)
+          return send_data INVALID_SID_TAKEN if @subscriptions[sid]
           subscriber = Subscriber.new(self, sub, sid, qgroup, 0)
           @subscriptions[sid] = subscriber
           Server.subscribe(subscriber)
           send_data OK if @verbose
         when UNSUB_OP
           ctrace 'UNSUB OP', op
-          return if @xsauth_pending
+          return if @auth_pending
           sid, subscriber = $1, @subscriptions[$1]
-          send_data INVALID_SID_NOEXIST and return unless subscriber
+          return send_data INVALID_SID_NOEXIST unless subscriber
 
           # If we have set max_responses, we will unsubscribe once we have received the appropriate
           # amount of responses
@@ -258,7 +259,7 @@ module NATSD #:nodoc: all
       @verbose  = config[:verbose] if config[:verbose] != nil
       @pedantic = config[:pedantic] if config[:pedantic] != nil
 
-      send_data OK and return unless Server.auth_required?
+      return send_data OK unless Server.auth_required?
 
       EM.cancel_timer(@auth_pending)
       if Server.auth_ok?(config[:user], config[:pass])
