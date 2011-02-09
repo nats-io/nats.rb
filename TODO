@@ -1,0 +1,17 @@
+
+- clustering/routing
+
+- balance receive perf with send perf
+- do client blowup detection from sending in tight loop
+
+- [IN PROGRESS] tests!
+- [IN PROGRESS] JRuby support - works if you hand run servers for tests
+
+- [DONE] Fixed # of replies? sub foo [2], server closes subscription automatically, avoid overwhelming client connection?
+- [DONE] Request timeout option.
+- [DONE] proper flow control, EM and PING/PONG
+- [DONE] request/response automated, just use UUID now.
+- [DONE] better reply semantics in protocol.
+- [DONE] daemon mode
+- [DONE] autolaunch
+- [DONE] Queue groups
