@@ -54,7 +54,7 @@ describe 'max responses and auto-unsubscribe' do
         received += 1
         NATS.unsubscribe(sid, 1)
       }
-      NATS.unsubscribe(sid, WANT)
+      NATS.unsubscribe(sid, SEND+1)
       (0...SEND).each { NATS.publish('foo', 'hello') }
       NATS.publish('done') { NATS.stop }
     end

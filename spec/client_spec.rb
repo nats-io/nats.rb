@@ -76,7 +76,7 @@ describe 'client specification' do
       s = nc.subscribe('foo')
       s.should_not be_nil
       NATS.stop
-    }    
+    }
   end
 
   it 'should receive a sid when doing a request' do
@@ -174,7 +174,7 @@ describe 'client specification' do
       }
     timeout_nats_on_failure
     }
-    received_pub_closure.should be_true    
+    received_pub_closure.should be_true
   end
 
   it 'should return inside closure in ordered fashion when server received msg' do
@@ -184,7 +184,7 @@ describe 'client specification' do
     NATS.start {
       (1..100).each { |i|
         expected << i
-        NATS.publish('foo') { replies << i } 
+        NATS.publish('foo') { replies << i }
       }
       NATS.publish('foo') {
         received_pub_closure = true
@@ -246,7 +246,7 @@ describe 'client specification' do
     EM.run do
       begin
         NATS.start
-        NATS.stop { EM.stop }
+        EM.next_tick { NATS.stop { EM.stop } }
       rescue => e
         e.should_not be_instance_of NATS::Error
       end

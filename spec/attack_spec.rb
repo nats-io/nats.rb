@@ -6,8 +6,11 @@ describe 'server attacks' do
   before (:all) do
     TEST_SERVER = 'nats://localhost:8222'
     @s = NatsServerControl.new(TEST_SERVER, "/tmp/nats_attack.pid")
-    @s.kill_server # start fresh
     @s.start_server
+  end
+
+  after (:all) do
+    @s.kill_server
   end
 
   it "should complain if our test server is not running" do
@@ -21,11 +24,11 @@ describe 'server attacks' do
       s = TCPSocket.open(uri.host, uri.port)
       lambda { s.write(BAD_BUFFER) }.should raise_error
     ensure
-      s.close
+      s.close if s
     end
   end
 
-  it "should compain if we can't kill our server because of bad pid file" do
+  it "should complain if we can't kill our server because of bad pid file" do
     @s.kill_server
     received_error = false
     begin

@@ -1,7 +1,6 @@
 
-$LOAD_PATH.unshift('./lib')
+$:.unshift('./lib')
 require 'nats/client'
-require 'pp'
 
 def timeout_nats_on_failure(to=0.25)
   EM.add_timer(to) { NATS.stop }
@@ -25,7 +24,13 @@ class NatsServerControl
   end
 
   def start_server
-    %x[ruby -S bundle exec nats-server -p #{@uri.port} -P #{@pid_file} -d 2> /dev/null]
+    return if NATS.server_running? @uri
+    # This should work but is sketchy and slow under jruby, so use direct
+    # %x[ruby -S bundle exec nats-server -p #{@uri.port} -P #{@pid_file} -d 2> /dev/null]
+    server = File.expand_path(File.join(__FILE__, "../../lib/nats/server.rb"))
+    # daemonize really doesn't work on jruby, so should run servers manually to test on jruby
+    %x[ruby #{server} -p #{@uri.port} -P #{@pid_file} -d 2> /dev/null]
+    NATS.wait_for_server(@uri, 10) #jruby can be slow on startup
   end
 
   def kill_server
