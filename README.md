@@ -1,6 +1,6 @@
 # NATS
 
-EventMachine based Publish-Subscribe Messaging that just works.
+A lightweight EventMachine based publish-subscribe messaging system.
 
 ## Supported Platforms
 
@@ -8,15 +8,12 @@ This gem currently works on the following Ruby platforms:
 
 - MRI 1.8 and 1.9 (Performance is best on 1.9.2)
 - Rubinius
-- JRuby (not quite yet)
+- JRuby
 
 ## Getting Started
 
     [sudo] gem install nats
-
-     or
-
-    git clone
+     == or ==
     [sudo] rake geminstall
 
     nats-sub foo &
@@ -34,46 +31,53 @@ This gem currently works on the following Ruby platforms:
       # Simple Publisher
       NATS.publish('foo.bar.baz', 'Hello World!')
 
-      # Publish with closure, callback fires when server has processed the message
-      NATS.publish('foo', 'You done?') { puts 'msg processed!' }
-
       # Unsubscribing
-      s = NATS.subscribe('bar') { |msg| puts "Msg received : '#{msg}'" }
-      NATS.unsubscribe(s)
+      sid = NATS.subscribe('bar') { |msg| puts "Msg received : '#{msg}'" }
+      NATS.unsubscribe(sid)
 
-      # Request/Response
+      # Requests
+      NATS.request('help') { |response| puts "Got a response: '#{response}'" }
 
-      # The helper
-      NATS.subscribe('help') do |msg, reply|
-        NATS.publish(reply, "I'll help!")
-      end
-
-      # Help request
-      NATS.request('help') { |response|
-        puts "Got a response: '#{response}'"
-      }
-
-      # Wildcard Subscriptions
-
-      # '*" matches any token
-      NATS.subscribe('foo.*.baz') { |msg, _, sub| puts "Msg received on [#{sub}] : '#{msg}'" }
-
-      # '>" can only be last token, and matches to any depth
-      NATS.subscribe('foo.>') { |msg, _, sub| puts "Msg received on [#{sub}] : '#{msg}'" }
-
-
-      # Stop using NATS.stop, exits EM loop if NATS.start started it
+      # Stop using NATS.stop, exits EM loop if NATS.start started the loop.
       NATS.stop
 
     end
 
-See examples and benchmark for more..
+## Wildcard Subscriptions
+
+      # '*" matches any token
+      NATS.subscribe('foo.*.baz') { |msg, reply, sub| puts "Msg received on [#{sub}] : '#{msg}'" }
+
+      # '>" can only be last token, and matches to any depth
+      NATS.subscribe('foo.>') { |msg, reply, sub| puts "Msg received on [#{sub}] : '#{msg}'" }
+
+## Advanced Usage
+
+      # Publish with closure, callback fires when server has processed the message
+      NATS.publish('foo', 'You done?') { puts 'msg processed!' }
+
+      # Sending replies
+      NATS.subscribe('help') do |msg, reply|
+        NATS.publish(reply, "I'll help!")
+      end
+
+      # Timeouts for subscriptions
+      sid = NATS.subscribe('foo') { received += 1 }
+      NATS.timeout(sid, TIMEOUT_IN_SECS) { timeout_recvd = true }
+
+      # Timeout unless a certain number of messages have been received
+      NATS.timeout(sid, TIMEOUT_IN_SECS, :expected => 2) { timeout_recvd = true }
+
+      # Auto-unsunscribe after MAX_WANTED messages received
+      NATS.unsubscribe(sid, MAX_WANTED)
+
+See examples and benchmark for more information..
 
 ## License
 
 (The MIT License)
 
-Copyright (c) 2010 Derek Collison
+Copyright (c) 2010, 2011 Derek Collison
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to
