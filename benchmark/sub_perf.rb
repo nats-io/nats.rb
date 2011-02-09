@@ -5,7 +5,7 @@ $LOAD_PATH << File.expand_path('../../lib', __FILE__)
 require 'nats/client'
 
 $expected = 100000
-$hash = 10000
+$hash = 2500
 $sub  = 'test'
 
 STDOUT.sync = true
@@ -16,8 +16,8 @@ parser = OptionParser.new do |opts|
   opts.separator ""
   opts.separator "options:"
 
-  opts.on("-n ITERATIONS", "iterations to expect (default: #{$expected})") { |iter| $expected = iter.to_i }
-  opts.on("-s SUBJECT", "Send subject (default: #{$sub})")                 { |nsub| $sub = nsub }
+  opts.on("-n COUNT", "Messages to expect (default: #{$expected})") { |count| $expected = count.to_i }
+  opts.on("-s SUBJECT", "Send subject (default: #{$sub})")          { |sub| $sub = sub }
 end
 
 parser.parse(ARGV)
@@ -32,7 +32,7 @@ NATS.start do
   received = 1
   NATS.subscribe($sub) {
     ($start = Time.now and puts "Started Receiving..") if (received == 1)
-    if ((received+=1) == $expected)
+    if ((received += 1) == $expected)
       puts "\nTest completed : #{($expected/(Time.now-$start)).ceil} msgs/sec.\n"
       NATS.stop
     end
