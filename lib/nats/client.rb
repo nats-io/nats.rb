@@ -1,8 +1,10 @@
 require 'uri'
 
-require File.dirname(__FILE__) + '/ext/em'
-require File.dirname(__FILE__) + '/ext/bytesize'
-require File.dirname(__FILE__) + '/ext/json'
+ep = File.expand_path(File.dirname(__FILE__))
+
+require "#{ep}/ext/em"
+require "#{ep}/ext/bytesize"
+require "#{ep}/ext/json"
 
 module NATS
 
