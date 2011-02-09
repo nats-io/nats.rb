@@ -1,3 +1,4 @@
+
 module NATSD #:nodoc:
 
   VERSION  = '0.4.2'

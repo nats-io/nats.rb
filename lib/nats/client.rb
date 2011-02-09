@@ -132,6 +132,23 @@ module NATS
       "_INBOX.%04x%04x%04x%04x%04x%06x" % v
     end
 
+    def wait_for_server(uri, max_wait = 5) # :nodoc:
+      start = Time.now
+      while (Time.now - start < max_wait) # Wait max_wait seconds max
+        break if server_running?(uri)
+        sleep(0.1)
+      end
+    end
+
+    def server_running?(uri) # :nodoc:
+      require 'socket'
+      s = TCPSocket.new(uri.host, uri.port)
+      s.close
+      return true
+    rescue
+      return false
+    end
+
     private
 
     def check_autostart(uri)
@@ -155,23 +172,6 @@ module NATS
       # daemon mode to release client
       system("nats-server #{port_arg} #{user_arg} #{pass_arg} #{log_arg} #{pid_arg} -d 2> /dev/null")
       $? == 0
-    end
-
-    def wait_for_server(uri)
-      start = Time.now
-      while (Time.now - start < 5) # Wait 5 seconds max
-        break if server_running?(uri)
-        sleep(0.1)
-      end
-    end
-
-    def server_running?(uri)
-      require 'socket'
-      s = TCPSocket.new(uri.host, uri.port)
-      s.close
-      return true
-    rescue
-      return false
     end
 
   end

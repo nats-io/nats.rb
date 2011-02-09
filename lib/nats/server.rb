@@ -1,14 +1,16 @@
 
-require File.dirname(__FILE__) + '/ext/em'
-require File.dirname(__FILE__) + '/ext/bytesize'
-require File.dirname(__FILE__) + '/ext/json'
-require File.dirname(__FILE__) + '/server/sublist'
-require File.dirname(__FILE__) + '/server/options'
-require File.dirname(__FILE__) + '/server/const'
-
 require 'socket'
 require 'fileutils'
 require 'pp'
+
+ep = File.expand_path(File.dirname(__FILE__))
+
+require "#{ep}/ext/em"
+require "#{ep}/ext/bytesize"
+require "#{ep}/ext/json"
+require "#{ep}/server/sublist"
+require "#{ep}/server/options"
+require "#{ep}/server/const"
 
 module NATSD #:nodoc: all
 
@@ -79,30 +81,30 @@ module NATSD #:nodoc: all
         # Allows nil reply to not have extra space
         reply = reply + ' ' if reply
 
-        subscriber.conn.send_data("MSG #{subject} #{subscriber.sid} #{reply}#{msg.bytesize}#{CR_LF}")
-        subscriber.conn.send_data(msg)
-        subscriber.conn.send_data(CR_LF)
+        conn = subscriber.conn
+
+        conn.send_data("MSG #{subject} #{subscriber.sid} #{reply}#{msg.bytesize}#{CR_LF}")
+        conn.send_data(msg)
+        conn.send_data(CR_LF)
 
         # Account for the response and check for auto-unsubscribe (pruning interest graph)
         subscriber.num_responses += 1
-        subscriber.conn.delete_subscriber(subscriber) if (subscriber.max_responses && subscriber.num_responses >= subscriber.max_responses)
+        conn.delete_subscriber(subscriber) if (subscriber.max_responses && subscriber.num_responses >= subscriber.max_responses)
 
         # Check the outbound queue here and react if need be..
-        if subscriber.conn.respond_to? :get_outbound_data_size
-          if subscriber.conn.get_outbound_data_size > MAX_OUTBOUND_SIZE
-            subscriber.conn.error_close SLOW_CONSUMER
-            log "Slow consumer dropped", subscriber.conn.client_info
-          end
+        if conn.get_outbound_data_size > MAX_OUTBOUND_SIZE
+          conn.error_close SLOW_CONSUMER
+          log "Slow consumer dropped", conn.client_info
         end
       end
-      
+
       def route_to_subscribers(subject, reply, msg)
-        qsubs = nil          
+        qsubs = nil
 
         @sublist.match(subject).each do |subscriber|
           # Skip anyone in the closing state
           next if subscriber.conn.closing
-          
+
           unless subscriber[:qgroup]
             deliver_to_subscriber(subscriber, subject, reply, msg)
           else
@@ -112,7 +114,7 @@ module NATSD #:nodoc: all
             qsubs[subscriber[:qgroup]] = qsubs[subscriber[:qgroup]] << subscriber
           end
         end
-        
+
         return unless qsubs
 
         qsubs.each_value do |subs|
@@ -120,7 +122,7 @@ module NATSD #:nodoc: all
           subscriber = subs[rand*subs.size]
           trace "Selected queue subscriber", subscriber[:subject], subscriber[:qgroup], subscriber[:sid], subscriber.conn.client_info
           deliver_to_subscriber(subscriber, subject, reply, msg)
-        end        
+        end
 
       end
 
@@ -200,7 +202,7 @@ module NATSD #:nodoc: all
           return if @auth_pending
           @pub_sub, @reply, @msg_size, = $1, $3, $4.to_i
           return send_data PAYLOAD_TOO_BIG if (@msg_size > MAX_PAYLOAD_SIZE)
-          return send_data INVALID_SUBJECT if @pedantic && !(@pub_sub =~ SUB_NO_WC)
+          return send_data INVALID_SUBJECT if (@pedantic && !(@pub_sub =~ SUB_NO_WC))
         when SUB_OP
           ctrace 'SUB OP', op
           return if @auth_pending
