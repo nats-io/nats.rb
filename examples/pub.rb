@@ -1,5 +1,3 @@
-#!/usr/bin/env ruby
-
 require 'rubygems'
 require 'nats/client'
 
@@ -13,8 +11,6 @@ msg ||= 'Hello World'
 
 NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
-NATS.start do
-  NATS.publish(subject, msg) { NATS.stop }
-end
+NATS.start { NATS.publish(subject, msg) { NATS.stop } }
 
 puts "Published [#{subject}] : '#{msg}'"

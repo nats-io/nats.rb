@@ -1,4 +1,3 @@
-
 require 'rubygems'
 require 'nats/client'
 
@@ -19,5 +18,4 @@ NATS.start {
     puts "Got a response: '#{response}'"
     NATS.stop
   }
-
 }
