@@ -1,5 +1,6 @@
-$LOAD_PATH << File.expand_path('../../lib', __FILE__)
-require 'nats/client'
+
+$:.unshift File.expand_path('../../lib', __FILE__)
+require 'nats/server/sublist'
 
 class PerfSublist
   @@levels = 5
