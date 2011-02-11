@@ -12,5 +12,6 @@ NATS.start {
     NATS.stop
   end
 
-  NATS.publish('test', 'Hello World!')
+  # Form second connection to send message on
+  NATS.connect { NATS.publish('test', 'Hello World!') }
 }
