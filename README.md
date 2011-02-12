@@ -38,28 +38,37 @@ This gem currently works on the following Ruby platforms:
       # Requests
       NATS.request('help') { |response| puts "Got a response: '#{response}'" }
 
-      # Stop using NATS.stop, exits EM loop if NATS.start started the loop.
+      # Replies
+      NATS.subscribe('help') { |msg, reply| NATS.publish(reply, "I'll help!") }
+
+      # Stop using NATS.stop, exits EM loop if NATS.start started the loop
       NATS.stop
 
     end
 
 ## Wildcard Subscriptions
 
-      # '*" matches any token
+      # '*" matches any token, at any level of the subject.
       NATS.subscribe('foo.*.baz') { |msg, reply, sub| puts "Msg received on [#{sub}] : '#{msg}'" }
+      NATS.subscribe('foo.bar.*') { |msg, reply, sub| puts "Msg received on [#{sub}] : '#{msg}'" }
+      NATS.subscribe('*.bar.*') { |msg, reply, sub| puts "Msg received on [#{sub}] : '#{msg}'" }
 
-      # '>" can only be last token, and matches to any depth
+      # '>" matches any length of the tail of a subject and can only be last token
+      # E.g. 'foo.>' will match 'foo.bar', 'foo.bar.baz', 'foo.foo.bar.bax.22'
       NATS.subscribe('foo.>') { |msg, reply, sub| puts "Msg received on [#{sub}] : '#{msg}'" }
+
+## Queues Groups
+
+      # All subscriptions with the same queue name will form a queue group
+      # Each message will be delivered to only one subscriber per queue group, queuing semantics
+      # You can have as many queue groups as you wish
+      # Normal subscribers will continue to work as expected.
+      NATS.subscribe(subject, :queue => 'job.workers') { |msg| puts "Received '#{msg}'" }
 
 ## Advanced Usage
 
       # Publish with closure, callback fires when server has processed the message
       NATS.publish('foo', 'You done?') { puts 'msg processed!' }
-
-      # Sending replies
-      NATS.subscribe('help') do |msg, reply|
-        NATS.publish(reply, "I'll help!")
-      end
 
       # Timeouts for subscriptions
       sid = NATS.subscribe('foo') { received += 1 }
@@ -71,6 +80,16 @@ This gem currently works on the following Ruby platforms:
       # Auto-unsunscribe after MAX_WANTED messages received
       NATS.unsubscribe(sid, MAX_WANTED)
 
+      # Multiple connections
+      NATS.start do
+        NATS.subscribe('test') do |msg, reply, sub|
+	  puts "received data on sub:#{sub} - #{msg}"
+	  NATS.stop
+        end
+        # Form second connection to send message on
+        NATS.connect { NATS.publish('test', 'Hello World!') }
+      end
+      
 See examples and benchmark for more information..
 
 ## License
