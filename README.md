@@ -83,8 +83,8 @@ This gem currently works on the following Ruby platforms:
       # Multiple connections
       NATS.start do
         NATS.subscribe('test') do |msg, reply, sub|
-	  puts "received data on sub:#{sub} - #{msg}"
-	  NATS.stop
+          puts "received data on sub:#{sub} - #{msg}"
+          NATS.stop
         end
         # Form second connection to send message on
         NATS.connect { NATS.publish('test', 'Hello World!') }
