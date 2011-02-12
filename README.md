@@ -77,7 +77,7 @@ This gem currently works on the following Ruby platforms:
       # Timeout unless a certain number of messages have been received
       NATS.timeout(sid, TIMEOUT_IN_SECS, :expected => 2) { timeout_recvd = true }
 
-      # Auto-unsunscribe after MAX_WANTED messages received
+      # Auto-unsubscribe after MAX_WANTED messages received
       NATS.unsubscribe(sid, MAX_WANTED)
 
       # Multiple connections
