@@ -81,14 +81,12 @@ This gem currently works on the following Ruby platforms:
       NATS.unsubscribe(sid, MAX_WANTED)
 
       # Multiple connections
-      NATS.start do
-        NATS.subscribe('test') do |msg, reply, sub|
-          puts "received data on sub:#{sub} - #{msg}"
-          NATS.stop
-        end
-        # Form second connection to send message on
-        NATS.connect { NATS.publish('test', 'Hello World!') }
+      NATS.subscribe('test') do |msg|
+        puts "received msg"
+        NATS.stop
       end
+      # Form second connection to send message on
+      NATS.connect { NATS.publish('test', 'Hello World!') }
       
 See examples and benchmark for more information..
 
