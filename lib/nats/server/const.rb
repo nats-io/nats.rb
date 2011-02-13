@@ -26,7 +26,7 @@ module NATSD #:nodoc:
   # RESPONSES
   CR_LF = "\r\n".freeze
   CR_LF_SIZE = CR_LF.bytesize
-  OK = "+OK #{CR_LF}".freeze
+  OK = "+OK#{CR_LF}".freeze
   PONG_RESPONSE = "PONG#{CR_LF}".freeze
 
   INFO_RESPONSE = "#{CR_LF}".freeze
