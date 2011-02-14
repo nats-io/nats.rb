@@ -68,28 +68,28 @@ module NATSD #:nodoc: all
         File.open(@options[:pid_file], 'w') { |f| f.puts "#{Process.pid}" } if @options[:pid_file]
       end
 
-      def subscribe(subscriber)
-        @sublist.insert(subscriber.subject, subscriber)
+      def subscribe(sub)
+        @sublist.insert(sub.subject, sub)
       end
 
-      def unsubscribe(subscriber)
-        @sublist.remove(subscriber.subject, subscriber)
+      def unsubscribe(sub)
+        @sublist.remove(sub.subject, sub)
       end
 
-      def deliver_to_subscriber(subscriber, subject, reply, msg)
+      def deliver_to_subscriber(sub, subject, reply, msg)
 
         # Allows nil reply to not have extra space
         reply = reply + ' ' if reply
 
-        conn = subscriber.conn
-
-        conn.send_data("MSG #{subject} #{subscriber.sid} #{reply}#{msg.bytesize}#{CR_LF}")
+        conn = sub.conn
+        
+        conn.send_data("MSG #{subject} #{sub.sid} #{reply}#{msg.bytesize}#{CR_LF}")
         conn.send_data(msg)
         conn.send_data(CR_LF)
 
         # Account for the response and check for auto-unsubscribe (pruning interest graph)
-        subscriber.num_responses += 1
-        conn.delete_subscriber(subscriber) if (subscriber.max_responses && subscriber.num_responses >= subscriber.max_responses)
+        sub.num_responses += 1
+        conn.delete_subscriber(sub) if (sub.max_responses && sub.num_responses >= sub.max_responses)
 
         # Check the outbound queue here and react if need be..
         if conn.get_outbound_data_size > MAX_OUTBOUND_SIZE
@@ -101,17 +101,17 @@ module NATSD #:nodoc: all
       def route_to_subscribers(subject, reply, msg)
         qsubs = nil
 
-        @sublist.match(subject).each do |subscriber|
+        @sublist.match(subject).each do |sub|
           # Skip anyone in the closing state
-          next if subscriber.conn.closing
+          next if sub.conn.closing
 
-          unless subscriber[:qgroup]
-            deliver_to_subscriber(subscriber, subject, reply, msg)
+          unless sub[:qgroup]
+            deliver_to_subscriber(sub, subject, reply, msg)
           else
-            trace "Matched queue subscriber", subscriber[:subject], subscriber[:qgroup], subscriber[:sid], subscriber.conn.client_info
+            trace "Matched queue subscriber", sub[:subject], sub[:qgroup], sub[:sid], sub.conn.client_info
             # Queue this for post processing
             qsubs ||= Hash.new([])
-            qsubs[subscriber[:qgroup]] = qsubs[subscriber[:qgroup]] << subscriber
+            qsubs[sub[:qgroup]] = qsubs[sub[:qgroup]] << sub
           end
         end
 
@@ -119,9 +119,9 @@ module NATSD #:nodoc: all
 
         qsubs.each_value do |subs|
           # Randomly pick a subscriber from the group
-          subscriber = subs[rand*subs.size]
-          trace "Selected queue subscriber", subscriber[:subject], subscriber[:qgroup], subscriber[:sid], subscriber.conn.client_info
-          deliver_to_subscriber(subscriber, subject, reply, msg)
+          sub = subs[rand*subs.size]
+          trace "Selected queue subscriber", sub[:subject], sub[:qgroup], sub[:sid], sub.conn.client_info
+          deliver_to_subscriber(sub, subject, reply, msg)
         end
 
       end
@@ -209,20 +209,20 @@ module NATSD #:nodoc: all
           sub, qgroup, sid = $1, $3, $4
           return send_data INVALID_SUBJECT if !($1 =~ SUB)
           return send_data INVALID_SID_TAKEN if @subscriptions[sid]
-          subscriber = Subscriber.new(self, sub, sid, qgroup, 0)
-          @subscriptions[sid] = subscriber
-          Server.subscribe(subscriber)
+          sub = Subscriber.new(self, sub, sid, qgroup, 0)
+          @subscriptions[sid] = sub
+          Server.subscribe(sub)
           send_data OK if @verbose
         when UNSUB_OP
           ctrace 'UNSUB OP', op
           return if @auth_pending
-          sid, subscriber = $1, @subscriptions[$1]
-          return send_data INVALID_SID_NOEXIST unless subscriber
+          sid, sub = $1, @subscriptions[$1]
+          return send_data INVALID_SID_NOEXIST unless sub
 
           # If we have set max_responses, we will unsubscribe once we have received the appropriate
           # amount of responses
-          subscriber.max_responses = ($2 && $3) ? $3.to_i : nil
-          delete_subscriber(subscriber) unless (subscriber.max_responses && (subscriber.num_responses < subscriber.max_responses))
+          sub.max_responses = ($2 && $3) ? $3.to_i : nil
+          delete_subscriber(sub) unless (sub.max_responses && (sub.num_responses < sub.max_responses))
           send_data OK if @verbose
         when PING
           ctrace 'PING OP', op
@@ -273,10 +273,10 @@ module NATSD #:nodoc: all
       end
     end
 
-    def delete_subscriber(subscriber)
-      ctrace 'DELSUB OP', subscriber.subject, subscriber.qgroup, subscriber.sid
-      Server.unsubscribe(subscriber)
-      @subscriptions.delete(subscriber.sid)
+    def delete_subscriber(sub)
+      ctrace 'DELSUB OP', sub.subject, sub.qgroup, sub.sid
+      Server.unsubscribe(sub)
+      @subscriptions.delete(sub.sid)
     end
 
     def error_close(msg)
@@ -288,7 +288,7 @@ module NATSD #:nodoc: all
     def unbind
       debug "Client connection closed", client_info, cid
       ctrace "Receive_Data called #{@receive_data_calls} times." if @receive_data_calls > 0
-      @subscriptions.each_value { |subscriber| Server.unsubscribe(subscriber) }
+      @subscriptions.each_value { |sub| Server.unsubscribe(sub) }
       EM.cancel_timer(@auth_pending) if @auth_pending
       @auth_pending = nil
     end
