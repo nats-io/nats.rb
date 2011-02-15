@@ -19,7 +19,7 @@ module NATS
   # Protocol
   # @private
   MSG      = /\AMSG\s+([^\s\r\n]+)\s+([^\s\r\n]+)\s+(([^\s\r\n]+)[^\S\r\n]+)?(\d+)\r\n/i #:nodoc:
-  OK       = /\A\+OK\r\n/i #:nodoc:
+  OK       = /\A\+OK\s*\r\n/i #:nodoc:
   ERR      = /\A-ERR\s+('.+')?\r\n/i #:nodoc:
   PING     = /\APING\r\n/i #:nodoc:
   PONG     = /\APONG\r\n/i #:nodoc:
