@@ -85,9 +85,11 @@ This gem currently works on the following Ruby platforms:
         puts "received msg"
         NATS.stop
       end
+
       # Form second connection to send message on
       NATS.connect { NATS.publish('test', 'Hello World!') }
-      
+
+
 See examples and benchmark for more information..
 
 ## License
