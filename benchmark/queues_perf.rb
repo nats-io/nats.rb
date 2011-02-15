@@ -1,7 +1,7 @@
 
 require 'optparse'
 
-$LOAD_PATH << File.expand_path('../../lib', __FILE__)
+$:.unshift File.expand_path('../../lib', __FILE__)
 require 'nats/client'
 
 $expected = 100000
@@ -39,8 +39,8 @@ NATS.start do
         puts "\nTest completed : #{($expected/(Time.now-$start)).ceil} msgs/sec.\n"
         NATS.stop
       end
-      printf('+') if received.modulo($hash) == 0      
+      printf('+') if received.modulo($hash) == 0
     end
   end
-  puts "Waiting for #{$expected} messages on [#{$sub}] on #{$qs} queue receivers on group: [#{$qgroup}]"  
+  puts "Waiting for #{$expected} messages on [#{$sub}] on #{$qs} queue receivers on group: [#{$qgroup}]"
 end

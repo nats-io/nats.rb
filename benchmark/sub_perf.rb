@@ -1,7 +1,7 @@
 
 require 'optparse'
 
-$LOAD_PATH << File.expand_path('../../lib', __FILE__)
+$:.unshift File.expand_path('../../lib', __FILE__)
 require 'nats/client'
 
 $expected = 100000
