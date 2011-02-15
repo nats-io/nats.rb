@@ -6,13 +6,18 @@ module NATSD #:nodoc:
 
   DEFAULT_PORT = 4222
 
+  # Parser
+  AWAITING_CONTROL_LINE = 1
+  AWAITING_MSG_PAYLOAD  = 2
+
   # Ops - See protocol.txt for more info
-  INFO = /^INFO$/i
-  PUB_OP = /^PUB\s+(\S+)\s+((\S+)\s+)?(\d+)$/i
-  SUB_OP = /^SUB\s+(\S+)\s+((\S+)\s+)?(\S+)$/i
-  UNSUB_OP = /^UNSUB\s+(\S+)\s*(\s+(\d+))?$/i
-  PING = /^PING$/i
-  CONNECT = /^CONNECT\s+(.+)$/i
+  INFO     = /\AINFO\r\n/i
+  PUB_OP   = /\APUB\s+([^\s\r\n]+)\s+(([^\s\r\n]+)[^\S\r\n]+)?(\d+)\r\n/i
+  SUB_OP   = /\ASUB\s+([^\s\r\n]+)\s+(([^\s\r\n]+)[^\S\r\n]+)?([^\s\r\n]+)\r\n/i
+  UNSUB_OP = /\AUNSUB\s+([^\s\r\n]+)\s*(\s+(\d+))?\r\n/i
+  PING     = /\APING\r\n/i
+  CONNECT  = /\ACONNECT\s+([^\r\n]+)\r\n/i
+  UNKNOWN  = /\A(.*)\r\n/
 
   # 1k should be plenty since payloads sans connect are separate
   MAX_CONTROL_LINE_SIZE = 1024
@@ -26,13 +31,14 @@ module NATSD #:nodoc:
   # RESPONSES
   CR_LF = "\r\n".freeze
   CR_LF_SIZE = CR_LF.bytesize
+  EMPTY = ''.freeze
   OK = "+OK#{CR_LF}".freeze
   PONG_RESPONSE = "PONG#{CR_LF}".freeze
-
   INFO_RESPONSE = "#{CR_LF}".freeze
 
   # ERR responses
   PAYLOAD_TOO_BIG     = "-ERR 'Payload size exceeded, max is #{MAX_PAYLOAD_SIZE} bytes'#{CR_LF}".freeze
+  PROTOCOL_OP_TOO_BIG = "-ERR 'Protocol Operation size exceeded'#{CR_LF}".freeze
   INVALID_SUBJECT     = "-ERR 'Invalid Subject'#{CR_LF}".freeze
   INVALID_SID_TAKEN   = "-ERR 'Invalid Subject Identifier (sid), already taken'#{CR_LF}".freeze
   INVALID_SID_NOEXIST = "-ERR 'Invalid Subject-Identifier (sid), no subscriber registered'#{CR_LF}".freeze

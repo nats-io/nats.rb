@@ -82,12 +82,12 @@ module NATSD #:nodoc: all
         reply = reply + ' ' if reply
 
         conn = sub.conn
-        
+
         conn.send_data("MSG #{subject} #{sub.sid} #{reply}#{msg.bytesize}#{CR_LF}")
         conn.send_data(msg)
         conn.send_data(CR_LF)
 
-        # Account for the response and check for auto-unsubscribe (pruning interest graph)
+        # Account for these response and check for auto-unsubscribe (pruning interest graph)
         sub.num_responses += 1
         conn.delete_subscriber(sub) if (sub.max_responses && sub.num_responses >= sub.max_responses)
 
@@ -108,7 +108,9 @@ module NATSD #:nodoc: all
           unless sub[:qgroup]
             deliver_to_subscriber(sub, subject, reply, msg)
           else
-            trace "Matched queue subscriber", sub[:subject], sub[:qgroup], sub[:sid], sub.conn.client_info
+            if NATSD::Server.trace_flag?
+              trace("Matched queue subscriber", sub[:subject], sub[:qgroup], sub[:sid], sub.conn.client_info)
+            end
             # Queue this for post processing
             qsubs ||= Hash.new([])
             qsubs[sub[:qgroup]] = qsubs[sub[:qgroup]] << sub
@@ -120,10 +122,11 @@ module NATSD #:nodoc: all
         qsubs.each_value do |subs|
           # Randomly pick a subscriber from the group
           sub = subs[rand*subs.size]
-          trace "Selected queue subscriber", sub[:subject], sub[:qgroup], sub[:sid], sub.conn.client_info
+          if NATSD::Server.trace_flag?
+            trace("Selected queue subscriber", sub[:subject], sub[:qgroup], sub[:sid], sub.conn.client_info)
+          end
           deliver_to_subscriber(sub, subject, reply, msg)
         end
-
       end
 
       def auth_ok?(user, pass)
@@ -154,6 +157,7 @@ module NATSD #:nodoc: all
       @subscriptions = {}
       @verbose = @pedantic = true # suppressed by most clients, but allows friendly telnet
       @receive_data_calls = 0
+      @parse_state = AWAITING_CONTROL_LINE
       send_info
       @auth_pending = EM.add_timer(AUTH_TIMEOUT) { connect_auth_timeout } if Server.auth_required?
       debug "Client connection created", client_info, cid
@@ -166,106 +170,108 @@ module NATSD #:nodoc: all
 
     def receive_data(data)
       @receive_data_calls += 1
-      (@buf ||= '') << data
+      @buf = @buf ? @buf << data : data
       return close_connection if @buf =~ /(\006|\004)/ # ctrl+c or ctrl+d for telnet friendly
-      while (@buf && !@buf.empty? && !@closing)
-        # Waiting on msg payload
-        if @msg_size
-          if (@buf.bytesize >= (@msg_size + CR_LF_SIZE))
-              msg = @buf.slice(0, @msg_size)
-              process_msg(msg)
-              @buf = @buf.slice((msg.bytesize + CR_LF_SIZE), @buf.bytesize)
-          else # Waiting for additional msg data
-            return
-          end
-        # Waiting on control line
-        elsif @buf =~ /^(.*)\r\n/
-          @buf = $'
-          process_op($1)
-        else # Waiting for additional data for control line
-          # This is not normal. Close immediately
-          if @buf.bytesize > MAX_CONTROL_LINE_SIZE
-            debug "MAX_CONTROL_LINE exceeded, closing connection.."
-            @closing = true
-            close_connection
-          end
-          return
-        end
-      end
-      # Nothing should be here.
-    end
 
-    def process_op(op)
-      case op
-        when PUB_OP
-          ctrace 'PUB OP', op
-          return if @auth_pending
-          @pub_sub, @reply, @msg_size, = $1, $3, $4.to_i
-          return send_data PAYLOAD_TOO_BIG if (@msg_size > MAX_PAYLOAD_SIZE)
-          return send_data INVALID_SUBJECT if (@pedantic && !(@pub_sub =~ SUB_NO_WC))
-        when SUB_OP
-          ctrace 'SUB OP', op
-          return if @auth_pending
-          sub, qgroup, sid = $1, $3, $4
-          return send_data INVALID_SUBJECT if !($1 =~ SUB)
-          return send_data INVALID_SID_TAKEN if @subscriptions[sid]
-          sub = Subscriber.new(self, sub, sid, qgroup, 0)
-          @subscriptions[sid] = sub
-          Server.subscribe(sub)
-          send_data OK if @verbose
-        when UNSUB_OP
-          ctrace 'UNSUB OP', op
-          return if @auth_pending
-          sid, sub = $1, @subscriptions[$1]
-          return send_data INVALID_SID_NOEXIST unless sub
+      # while (@buf && !@buf.empty? && !@closing)
+      while (@buf && !@closing)
+        case @parse_state
 
-          # If we have set max_responses, we will unsubscribe once we have received the appropriate
-          # amount of responses
-          sub.max_responses = ($2 && $3) ? $3.to_i : nil
-          delete_subscriber(sub) unless (sub.max_responses && (sub.num_responses < sub.max_responses))
-          send_data OK if @verbose
-        when PING
-          ctrace 'PING OP', op
-          send_data PONG_RESPONSE
-        when CONNECT
-          ctrace 'CONNECT OP', op
-          begin
-            config = JSON.parse($1, :symbolize_keys => true)
-            process_connect_config(config)
-          rescue => e
-            send_data INVALID_CONFIG
-            log_error
+          when AWAITING_CONTROL_LINE
+            case @buf
+              when PUB_OP
+                ctrace('PUB OP', strip_op($&)) if NATSD::Server.trace_flag?
+                return connect_auth_timeout if @auth_pending
+                @buf = $'
+                @parse_state = AWAITING_MSG_PAYLOAD
+                @msg_sub, @msg_reply, @msg_size = $1, $3, $4.to_i
+                send_data(PAYLOAD_TOO_BIG) if (@msg_size > MAX_PAYLOAD_SIZE)
+                send_data(INVALID_SUBJECT) if (@pedantic && !(@msg_sub =~ SUB_NO_WC))
+              when SUB_OP
+                ctrace('SUB OP', strip_op($&)) if NATSD::Server.trace_flag?
+                return connect_auth_timeout if @auth_pending
+                @buf = $'
+                sub, qgroup, sid = $1, $3, $4
+                return send_data(INVALID_SUBJECT) if !($1 =~ SUB)
+                return send_data(INVALID_SID_TAKEN) if @subscriptions[sid]
+                sub = Subscriber.new(self, sub, sid, qgroup, 0)
+                @subscriptions[sid] = sub
+                Server.subscribe(sub)
+                send_data(OK) if @verbose
+              when UNSUB_OP
+                ctrace('UNSUB OP', strip_op($&)) if NATSD::Server.trace_flag?
+                return connect_auth_timeout if @auth_pending
+                @buf = $'
+                sid, sub = $1, @subscriptions[$1]
+                return send_data(INVALID_SID_NOEXIST) unless sub
+                # If we have set max_responses, we will unsubscribe once we have received the appropriate
+                # amount of responses
+                sub.max_responses = ($2 && $3) ? $3.to_i : nil
+                delete_subscriber(sub) unless (sub.max_responses && (sub.num_responses < sub.max_responses))
+                send_data(OK) if @verbose
+              when PING
+                ctrace('PING OP', strip_op($&)) if NATSD::Server.trace_flag?
+                @buf = $'
+                send_data(PONG_RESPONSE)
+              when CONNECT
+                ctrace('CONNECT OP', strip_op($&)) if NATSD::Server.trace_flag?
+                @buf = $'
+                begin
+                  config = JSON.parse($1, :symbolize_keys => true, :symbolize_names => true)
+                  process_connect_config(config)
+                rescue => e
+                  send_data(INVALID_CONFIG)
+                  log_error
+                end
+              when INFO
+                ctrace('INFO OP', strip_op($&)) if NATSD::Server.trace_flag?
+                return connect_auth_timeout if @auth_pending
+                @buf = $'
+                send_info
+              when UNKNOWN
+                ctrace('Unknown Op', strip_op($&)) if NATSD::Server.trace_flag?
+                return connect_auth_timeout if @auth_pending
+                @buf = $'
+                send_data(UNKNOWN_OP)
+              else
+                # If we are here we do not have a complete line yet that we understand.
+                # If too big, cut the connection off.
+                if @buf.bytesize > MAX_CONTROL_LINE_SIZE
+                  debug "MAX_CONTROL_LINE exceeded, closing connection.."
+                  @closing = true
+                  error_close PROTOCOL_OP_TOO_BIG
+                end
+                return
+            end
+            @buf = nil if (@buf && @buf.empty?)
+
+          when AWAITING_MSG_PAYLOAD
+            return unless (@buf.bytesize >= (@msg_size + CR_LF_SIZE))
+            msg = @buf.slice(0, @msg_size)
+            ctrace('Processing msg', @msg_sub, @msg_reply, msg) if NATSD::Server.trace_flag?
+            send_data(OK) if @verbose
+            Server.route_to_subscribers(@msg_sub, @msg_reply, msg)
+            @buf = @buf.slice((@msg_size + CR_LF_SIZE), @buf.bytesize)
+            @msg_sub = @msg_size = @reply = nil
+            @parse_state = AWAITING_CONTROL_LINE
+            @buf = nil if (@buf && @buf.empty?)
           end
-        when INFO
-          ctrace 'INFO OP', op
-          send_info
-        else
-          ctrace 'Unknown Op', op
-          send_data UNKNOWN_OP
       end
+
     end
 
     def send_info
-      send_data "INFO #{Server.info_string}#{CR_LF}"
-    end
-
-    def process_msg(body)
-      ctrace 'Processing msg', @pub_sub, @reply, body
-      send_data OK if @verbose
-      Server.route_to_subscribers(@pub_sub, @reply, body)
-      @pub_sub = @msg_size = @reply = nil
-      true
+      send_data("INFO #{Server.info_string}#{CR_LF}")
     end
 
     def process_connect_config(config)
-      @verbose  = config[:verbose] if config[:verbose] != nil
-      @pedantic = config[:pedantic] if config[:pedantic] != nil
-
-      return send_data OK unless Server.auth_required?
+      @verbose  = config[:verbose] unless config[:verbose].nil?
+      @pedantic = config[:pedantic] unless config[:pedantic].nil?
+      return send_data(OK) unless Server.auth_required?
 
       EM.cancel_timer(@auth_pending)
       if Server.auth_ok?(config[:user], config[:pass])
-        send_data OK
+        send_data(OK) if @verbose
         @auth_pending = nil
       else
         error_close AUTH_FAILED
@@ -274,20 +280,20 @@ module NATSD #:nodoc: all
     end
 
     def delete_subscriber(sub)
-      ctrace 'DELSUB OP', sub.subject, sub.qgroup, sub.sid
+      ctrace('DELSUB OP', sub.subject, sub.qgroup, sub.sid) if NATSD::Server.trace_flag?
       Server.unsubscribe(sub)
       @subscriptions.delete(sub.sid)
     end
 
     def error_close(msg)
-      send_data msg
+      send_data(msg)
       close_connection_after_writing
       @closing = true
     end
 
     def unbind
       debug "Client connection closed", client_info, cid
-      ctrace "Receive_Data called #{@receive_data_calls} times." if @receive_data_calls > 0
+      # ctrace "Receive_Data called #{@receive_data_calls} times." if @receive_data_calls > 0
       @subscriptions.each_value { |sub| Server.unsubscribe(sub) }
       EM.cancel_timer(@auth_pending) if @auth_pending
       @auth_pending = nil
@@ -295,6 +301,10 @@ module NATSD #:nodoc: all
 
     def ctrace(*args)
       trace(args, "c: #{cid}")
+    end
+
+    def strip_op(op='')
+      op.dup.sub(CR_LF, EMPTY)
     end
   end
 

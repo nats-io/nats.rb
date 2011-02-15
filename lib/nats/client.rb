@@ -18,12 +18,13 @@ module NATS
 
   # Protocol
   # @private
-  MSG  = /^MSG\s+(\S+)\s+(\S+)\s+((\S+)\s+)?(\d+)$/i #:nodoc:
-  OK   = /^\+OK/i #:nodoc:
-  ERR  = /^-ERR\s+('.+')?/i #:nodoc:
-  PING = /^PING/i #:nodoc:
-  PONG = /^PONG/i #:nodoc:
-  INFO = /^INFO\s+(.+)/i #:nodoc:
+  MSG      = /\AMSG\s+([^\s\r\n]+)\s+([^\s\r\n]+)\s+(([^\s\r\n]+)[^\S\r\n]+)?(\d+)\r\n/i #:nodoc:
+  OK       = /\A\+OK\r\n/i #:nodoc:
+  ERR      = /\A-ERR\s+('.+')?\r\n/i #:nodoc:
+  PING     = /\APING\r\n/i #:nodoc:
+  PONG     = /\APONG\r\n/i #:nodoc:
+  INFO     = /\AINFO\s+([^\r\n]+)\r\n/i  #:nodoc:
+  UNKNOWN  = /\A(.*)\r\n/  #:nodoc:
 
   # Responses
   CR_LF = ("\r\n".freeze) #:nodoc:
@@ -38,6 +39,10 @@ module NATS
   SUB = /^([^\.\*>\s]+|>$|\*)(\.([^\.\*>\s]+|>$|\*))*$/ #:nodoc:
   SUB_NO_WC = /^([^\.\*>\s]+)(\.([^\.\*>\s]+))*$/ #:nodoc:
 
+  # Parser
+  AWAITING_CONTROL_LINE = 1 #:nodoc:
+  AWAITING_MSG_PAYLOAD  = 2 #:nodoc:
+
   # Duplicate autostart protection
   @@tried_autostart = {}
 
@@ -50,14 +55,15 @@ module NATS
 
     alias :reactor_was_running? :reactor_was_running
 
-    # Create and return a connection to the server with the given options. The server will be autostarted if needed if
-    # the <b>uri</b> is determined to be local. The optional block will be called when the connection has been completed.
+    # Create and return a connection to the server with the given options.
+    # The server will be autostarted if needed if the <b>uri</b> is determined to be local.
+    # The optional block will be called when the connection has been completed.
     #
     # @param [Hash] opts
     # @option opts [String] :uri The URI to connect to, example nats://localhost:4222
     # @option opts [Boolean] :autostart Boolean that can be used to suppress autostart functionality.
     # @option opts [Boolean] :debug Boolean that can be used to output additional debug information.
-    # @param [Block] &blk called when the connection is completed. Connection will be passed as an arg to the block.
+    # @param [Block] &blk called when the connection is completed. Connection will be passed to the block.
     # @return [NATS] connection to the server.
     def connect(opts={}, &blk)
       opts[:uri] ||= ENV['NATS_URI'] || DEFAULT_URI
@@ -78,6 +84,8 @@ module NATS
       unless (@reactor_was_running || blk)
         raise(Error, "EM needs to be running when NATS.start called without a run block")
       end
+      # Setup optimized select versions
+      EM.epoll; EM.kqueue
       EM.run { @client = connect(*args, &blk) }
     end
 
@@ -350,39 +358,55 @@ module NATS
   end
 
   def receive_data(data) #:nodoc:
-    (@buf ||= '') << data
-    while (@buf && !@buf.empty?)
-      if (@needed && @buf.bytesize >= @needed + CR_LF_SIZE)
-        payload = @buf.slice(0, @needed)
-        on_msg(@sub, @sid, @reply, payload)
-        @buf = @buf.slice((@needed + CR_LF_SIZE), @buf.bytesize)
-        @sub = @sid = @reply = @needed = nil
-      elsif @buf =~ /^(.*)\r\n/ # Process a control line
-        @buf = $'
-        op = $1
-        case op
-          when MSG
-            @sub, @sid, @reply, @needed = $1, $2.to_i, $4, $5.to_i
-          when OK # No-op right now
-          when ERR
-            @err_cb = proc { raise Error, "Error received from server :#{$1}."} unless user_err_cb?
-            err_cb.call($1)
-          when PING
-            send_command(PONG_RESPONSE)
-          when PONG
-            cb = @pongs.shift
-            cb.call if cb
-          when INFO
-            process_info($1)
+    @buf = @buf ? @buf << data : data
+    while (@buf)
+        case @parse_state
+
+          when AWAITING_CONTROL_LINE
+            case @buf
+              when MSG
+                @buf = $'
+                @sub, @sid, @reply, @needed = $1, $2.to_i, $4, $5.to_i
+                @parse_state = AWAITING_MSG_PAYLOAD
+              when OK # No-op right now
+                @buf = $'
+              when ERR
+                @buf = $'
+                @err_cb = proc { raise Error, "Error received from server :#{$1}."} unless user_err_cb?
+                err_cb.call($1)
+              when PING
+                @buf = $'
+                send_command(PONG_RESPONSE)
+              when PONG
+                @buf = $'
+                cb = @pongs.shift
+                cb.call if cb
+              when INFO
+                @buf = $'
+                process_info($1)
+              when UNKNOWN
+                @buf = $'
+                @err_cb = proc { raise Error, "Error: Ukknown Protocol."} unless user_err_cb?
+                err_cb.call($1)
+              else
+                # If we are here we do not have a complete line yet that we understand.
+                return
+            end
+            @buf = nil if (@buf && @buf.empty?)
+
+          when AWAITING_MSG_PAYLOAD
+            return unless (@needed && @buf.bytesize >= (@needed + CR_LF_SIZE))
+            on_msg(@sub, @sid, @reply, @buf.slice(0, @needed))
+            @buf = @buf.slice((@needed + CR_LF_SIZE), @buf.bytesize)
+            @sub = @sid = @reply = @needed = nil
+            @parse_state = AWAITING_CONTROL_LINE
+            @buf = nil if (@buf && @buf.empty?)
         end
-      else # Waiting for additional data
-        return
-      end
     end
   end
 
   def process_info(info) #:nodoc:
-    @server_info = JSON.parse(info, :symbolize_keys => true)
+    @server_info = JSON.parse(info, :symbolize_keys => true, :symbolize_names => true)
   end
 
   def connection_completed #:nodoc:
@@ -393,13 +417,16 @@ module NATS
       @subs.each_pair { |k, v| send_command("SUB #{v[:subject]} #{k}#{CR_LF}") }
     end
     flush_pending if @pending
-    @err_cb = proc { raise Error, "Client disconnected from server on #{@uri}."} unless user_err_cb? or reconnecting?
+    unless user_err_cb? or reconnecting?
+      @err_cb = proc { raise Error, "Client disconnected from server on #{@uri}."}
+    end
     if (connect_cb and not reconnecting?)
       # We will round trip the server here to make sure all state from any pending commands
       # has been processed before calling the connect callback.
       queue_server_rt { connect_cb.call(self) }
     end
     @reconnecting = false
+    @parse_state = AWAITING_CONTROL_LINE
   end
 
   def schedule_reconnect(wait=RECONNECT_TIME_WAIT) #:nodoc:
