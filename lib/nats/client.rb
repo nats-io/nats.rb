@@ -239,7 +239,8 @@ module NATS
   # @param [Object] sid
   # @param [Number] opt_max, optional number of responses to receive before auto-unsubscribing
   def unsubscribe(sid, opt_max=nil)
-    send_command("UNSUB #{sid} #{opt_max}#{CR_LF}")
+    opt_max_str = " #{opt_max}" unless opt_max.nil?
+    send_command("UNSUB #{sid}#{opt_max_str}#{CR_LF}")
     return unless sub = @subs[sid]
     sub[:max] = opt_max
     @subs.delete(sid) unless (sub[:max] && (sub[:received] < sub[:max]))
