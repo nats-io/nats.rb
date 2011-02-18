@@ -12,25 +12,14 @@ describe 'client specification' do
   end
 
   it "should complain if it can't connect to server when not running and not told to autostart" do
-    received_error = false
-    begin
-      NATS.start(:uri => 'nats://localhost:3222', :autostart => false) {
-        EM.add_timer(1) { NATS.stop }
-      }
-    rescue => e
-      e.should be_instance_of NATS::Error
-      received_error = true
-    end
-    received_error.should be_true
+    expect do
+      NATS.start(:uri => 'nats://localhost:3222', :autostart => false) { NATS.stop }
+    end.to raise_error(NATS::Error)
   end
 
   it 'should complain if NATS.start is called without EM running and no block was given' do
-    begin
-      EM.reactor_running?.should be_false
-      NATS.start
-    rescue => e
-      e.should be_instance_of NATS::Error
-    end
+    EM.reactor_running?.should be_false
+    expect { NATS.start }.to raise_error(NATS::Error)
   end
 
   it 'should perform basic block start and stop' do
@@ -43,15 +32,6 @@ describe 'client specification' do
       NATS.stop
     end
     NATS.err_cb.should be_nil
-  end
-
-  it 'should raise and error when it cant connect to a remote host' do
-    begin
-      NATS.start(:uri => 'nats://192.168.0.254:32768')
-      NATS.stop
-    rescue => e
-      e.should be_instance_of NATS::Error
-    end
   end
 
   it 'should do publish without payload and with opt_reply without error' do
@@ -234,22 +214,18 @@ describe 'client specification' do
   end
 
   it 'should complain if NATS.start called without a block when we would need to start EM' do
-    begin
+    expect do
       NATS.start
       NATS.stop
-    rescue => e
-      e.should be_instance_of NATS::Error
-    end
+    end.to raise_error(NATS::Error)
   end
 
   it 'should not complain if NATS.start called without a block when EM is running already' do
     EM.run do
-      begin
+      expect do
         NATS.start
         EM.next_tick { NATS.stop { EM.stop } }
-      rescue => e
-        e.should_not be_instance_of NATS::Error
-      end
+      end.to_not raise_error
     end
   end
 

@@ -67,8 +67,11 @@ module NATS
     # @return [NATS] connection to the server.
     def connect(opts={}, &blk)
       opts[:uri] ||= ENV['NATS_URI'] || DEFAULT_URI
-      opts[:debug] ||= ENV['NATS_DEBUG']
-      opts[:autostart] = (ENV['NATS_AUTO'] || true) unless opts[:autostart] != nil
+      opts[:verbose] = false if opts[:verbose].nil?
+      opts[:verbose] = ENV['NATS_VERBOSE'] unless ENV['NATS_VERBOSE'].nil?
+      opts[:pedantic] = ENV['NATS_PEDANTIC'] unless ENV['NATS_PEDANTIC'].nil?
+      opts[:debug] = ENV['NATS_DEBUG'] if !ENV['NATS_DEBUG'].nil?
+      opts[:autostart] = (ENV['NATS_AUTO'] || true) if opts[:autostart].nil?
       uri = opts[:uri] = URI.parse(opts[:uri])
       @err_cb = proc { raise Error, "Could not connect to server on #{uri}."} unless err_cb
       check_autostart(uri) if opts[:autostart]
@@ -96,6 +99,11 @@ module NATS
       blk.call if blk
       @@tried_autostart = {}
       @err_cb = nil
+    end
+
+    def options
+      return {} unless @client
+      @client.options
     end
 
     # Set the default on_error callback.
@@ -187,7 +195,7 @@ module NATS
   end
 
   attr_reader :connected, :connect_cb, :err_cb, :err_cb_overridden #:nodoc:
-  attr_reader :closing, :reconnecting #:nodoc
+  attr_reader :closing, :reconnecting, :options #:nodoc
 
   alias :connected? :connected
   alias :closing? :closing
@@ -195,7 +203,7 @@ module NATS
 
   def initialize(options)
     @uri = options[:uri]
-    @debug = options[:debug]
+    @options = options
     @ssid, @subs = 1, {}
     @err_cb = NATS.err_cb
     @reconnect_timer, @needed = nil, nil
@@ -315,7 +323,7 @@ module NATS
   end
 
   def send_connect_command #:nodoc:
-    cs = { :verbose => false, :pedantic => false }
+    cs = { :verbose => @options[:verbose], :pedantic => @options[:pedantic] }
     if @uri.user
       cs[:user] = @uri.user
       cs[:pass] = @uri.password
