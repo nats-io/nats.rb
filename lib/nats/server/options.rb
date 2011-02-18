@@ -14,38 +14,39 @@ module NATSD
           opts.separator "Server options:"
 
           opts.on("-a", "--addr HOST", "Bind to HOST address " +
-                                       "(default: #{@options[:addr]})")                 { |host| @options[:address] = host }
-          opts.on("-p", "--port PORT", "Use PORT (default: #{@options[:port]})")        { |port| @options[:port] = port.to_i }
-
-          opts.on("-d", "--daemonize", "Run daemonized in the background")              { @options[:daemonize] = true }
-          opts.on("-l", "--log FILE", "File to redirect output " +
-                                      "(default: #{@options[:log_file]})")              { |file| @options[:log_file] = file }
-          opts.on("-T", "--logtime", "Timestamp log entries")                           { @options[:log_time] = true }
-
-          opts.on("-P", "--pid FILE", "File to store PID " +
-                                      "(default: #{@options[:pid_file]})")              { |file| @options[:pid_file] = file }
+                                       "(default: #{DEFAULT_HOST})")           { |host| @options[:address] = host }
+          opts.on("-p", "--port PORT", "Use PORT (default: #{DEFAULT_PORT})")  { |port| @options[:port] = port.to_i }
+          opts.on("-d", "--daemonize", "Run daemonized in the background")     { @options[:daemonize] = true }
+          opts.on("-P", "--pid FILE", "File to store PID")                     { |file| @options[:pid_file] = file }
 
           opts.on("-C", "--config FILE", "Configuration File " +
-                                      "(default: #{@options[:config_file]})")           { |file| @options[:config_file] = file }
+                                      "(default: #{@options[:config_file]})")  { |file| @options[:config_file] = file }
 
           opts.separator ""
-          opts.separator "Authorization options: (Should be done in config file for production)"
+          opts.separator "Logging options:"
 
-          opts.on("--user user", "User required for connections")                       { |user| @options[:user] = user }
+          opts.on("-l", "--log FILE", "File to redirect log output")           { |file| @options[:log_file] = file }
+          opts.on("-T", "--logtime", "Timestamp log entries (default: false)") { @options[:log_time] = true }
+          opts.on("-D", "--debug", "Enable debugging output")                  { @options[:debug] = true }
+          opts.on("-V", "--trace", "Trace the raw protocol")                   { @options[:trace] = true }
 
-          opts.on("--pass password", "Password required for connections")               { |pass| @options[:pass] = pass }
-          opts.on("--password password", "Password required for connections")           { |pass| @options[:pass] = pass }
+          opts.separator ""
+          opts.separator "Authorization options:"
 
-          opts.on("--no_epoll", "Enable epoll (Linux)")                                 { @options[:noepoll] = true }
-          opts.on("--kqueue", "Enable kqueue (MacOSX and BSD)")                         { @options[:nokqueue] = true }
+          opts.on("--user user", "User required for connections")              { |user| @options[:user] = user }
+          opts.on("--pass password", "Password required for connections")      { |pass| @options[:pass] = pass }
+
+          opts.separator ""
+          opts.separator "Advanced IO options:"
+
+          opts.on("--no_epoll", "Disable epoll (Linux)")                       { @options[:noepoll] = true }
+          opts.on("--no_kqueue", "Disable kqueue (MacOSX and BSD)")            { @options[:nokqueue] = true }
 
           opts.separator ""
           opts.separator "Common options:"
 
-          opts.on_tail("-h", "--help", "Show this message")                             { puts opts; exit }
-          opts.on_tail('-v', '--version', "Show version")                               { puts NATSD::Server.version; exit }
-          opts.on_tail("-D", "--debug", "Set debugging on")                             { @options[:debug] = true }
-          opts.on_tail("-V", "--trace", "Set tracing on of raw protocol")               { @options[:trace] = true }
+          opts.on_tail("-h", "--help", "Show this message")                    { puts opts; exit }
+          opts.on_tail('-v', '--version', "Show version")                      { puts NATSD::Server.version; exit }
         end
       end
 
@@ -72,7 +73,7 @@ module NATSD
       def finalize_options
         # Addr/Port
         @options[:port] ||= DEFAULT_PORT
-        @options[:addr] ||= '0.0.0.0'
+        @options[:addr] ||= DEFAULT_HOST
 
         # Debug and Tracing
         @debug_flag = @options[:debug]
@@ -86,8 +87,19 @@ module NATSD
         debug "DEBUG is on"
         trace "TRACE is on"
 
-        # Auth
-        @auth_required = (@options[:user] != nil)
+        # Authorization
+        @auth_required = (not @options[:user].nil?)
+
+        # Thresholds
+        @options[:max_control_line] ||= MAX_CONTROL_LINE_SIZE
+        @max_control_line = @options[:max_control_line]
+
+        @options[:max_payload] ||= MAX_PAYLOAD_SIZE
+        @max_payload = @options[:max_payload]
+
+        @options[:max_pending] ||= MAX_PENDING_SIZE
+        @max_pending = @options[:max_pending]
+
       end
 
     end

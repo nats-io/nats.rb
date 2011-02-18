@@ -21,6 +21,7 @@ module NATSD #:nodoc: all
 
     class << self
       attr_reader :id, :info, :log_time, :auth_required, :debug_flag, :trace_flag
+      attr_reader :max_payload, :max_pending, :max_control_line
 
       alias auth_required? :auth_required
       alias debug_flag?    :debug_flag
@@ -35,6 +36,7 @@ module NATSD #:nodoc: all
       def setup(argv)
         @options = {}
 
+        # Allow command line to override config file, so do them first.
         parser.parse!(argv)
         read_config_file
         finalize_options
@@ -45,16 +47,18 @@ module NATSD #:nodoc: all
           :server_id => Server.id,
           :version => VERSION,
           :auth_required => auth_required?,
-          :max_payload => MAX_PAYLOAD_SIZE
+          :max_payload => @max_payload
         }
 
         # Check for daemon flag
         if @options[:daemonize]
           require 'rubygems'
           require 'daemons'
-          # These log messages visible to controlling TTY
-          log "Starting #{NATSD::APP_NAME} version #{NATSD::VERSION} on port #{NATSD::Server.port}"
-          log "Switching to daemon mode"
+          unless @options[:log_file]
+            # These log messages visible to controlling TTY
+            log "Starting #{NATSD::APP_NAME} version #{NATSD::VERSION} on port #{NATSD::Server.port}"
+            log "Switching to daemon mode"
+          end
           Daemons.daemonize(:app_name => APP_NAME, :mode => :exec)
         end
 
@@ -92,9 +96,9 @@ module NATSD #:nodoc: all
         conn.delete_subscriber(sub) if (sub.max_responses && sub.num_responses >= sub.max_responses)
 
         # Check the outbound queue here and react if need be..
-        if conn.get_outbound_data_size > MAX_OUTBOUND_SIZE
+        if conn.get_outbound_data_size > NATSD::Server.max_pending
           conn.error_close SLOW_CONSUMER
-          log "Slow consumer dropped", conn.client_info
+          log "Slow consumer dropped, exceeded #{NATSD::Server.max_pending} bytes pending", conn.client_info
         end
       end
 
@@ -185,7 +189,10 @@ module NATSD #:nodoc: all
                 @buf = $'
                 @parse_state = AWAITING_MSG_PAYLOAD
                 @msg_sub, @msg_reply, @msg_size = $1, $3, $4.to_i
-                send_data(PAYLOAD_TOO_BIG) if (@msg_size > MAX_PAYLOAD_SIZE)
+                if (@msg_size > NATSD::Server.max_payload)
+                  debug "Message payload size exceeded (#{@msg_size}/#{NATSD::Server.max_payload}), closing connection"
+                  error_close PAYLOAD_TOO_BIG
+                end
                 send_data(INVALID_SUBJECT) if (@pedantic && !(@msg_sub =~ SUB_NO_WC))
               when SUB_OP
                 ctrace('SUB OP', strip_op($&)) if NATSD::Server.trace_flag?
@@ -236,9 +243,8 @@ module NATSD #:nodoc: all
               else
                 # If we are here we do not have a complete line yet that we understand.
                 # If too big, cut the connection off.
-                if @buf.bytesize > MAX_CONTROL_LINE_SIZE
-                  debug "MAX_CONTROL_LINE exceeded, closing connection.."
-                  @closing = true
+                if @buf.bytesize > NATSD::Server.max_control_line
+                  debug "Control line size exceeded (#{@buf.bytesize}/#{NATSD::Server.max_control_line}), closing connection.."
                   error_close PROTOCOL_OP_TOO_BIG
                 end
                 return

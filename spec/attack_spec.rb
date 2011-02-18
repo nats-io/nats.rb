@@ -10,7 +10,7 @@ describe 'server attacks' do
   end
 
   after (:all) do
-    @s.kill_server
+    @s.kill_server unless @s.was_running?
   end
 
   it "should complain if our test server is not running" do
@@ -28,16 +28,23 @@ describe 'server attacks' do
     end
   end
 
-  it "should complain if we can't kill our server because of bad pid file" do
-    @s.kill_server
-    received_error = false
-    begin
-      NATS.start(:uri => TEST_SERVER, :autostart => false) { NATS.stop }
-    rescue => e
-      e.should be_instance_of NATS::Error
-      received_error = true
+  it "should not let us write large messages" do
+    BIG_MSG = 'a' * 10 * 1024 * 1024
+    expect do
+      NATS.start(:uri => TEST_SERVER, :autostart => false, :reconnect => false) do
+        NATS.publish('foo', BIG_MSG) { NATS.stop }
+      end
+    end.to raise_error NATS::Error
+    NATS.connected?.should be_false
+  end
+
+  it "should complain if we can't kill our server that we started" do
+    unless @s.was_running?
+      @s.kill_server
+      expect do
+        NATS.start(:uri => TEST_SERVER, :autostart => false) { NATS.stop }
+      end.to raise_error NATS::Error
     end
-    received_error.should be_true
   end
 
 end

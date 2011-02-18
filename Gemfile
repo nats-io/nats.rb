@@ -6,4 +6,5 @@ gem 'json_pure', :require => 'json'
 
 group :test do
   gem 'rspec'
+  gem 'nats', :path => '.'
 end

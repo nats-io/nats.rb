@@ -20,10 +20,18 @@ describe 'client specification' do
   it 'should complain if NATS.start is called without EM running and no block was given' do
     EM.reactor_running?.should be_false
     expect { NATS.start }.to raise_error(NATS::Error)
+    NATS.connected?.should be_false
   end
 
   it 'should perform basic block start and stop' do
     NATS.start { NATS.stop }
+  end
+
+  it 'should signal connected state' do
+    NATS.start {
+      NATS.connected?.should be_true
+      NATS.stop
+    }
   end
 
   it 'should have err_cb cleared after stop' do

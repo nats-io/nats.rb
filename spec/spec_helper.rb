@@ -8,6 +8,18 @@ end
 
 class NatsServerControl
 
+  attr_reader :was_running
+  alias :was_running? :was_running
+
+  class << self
+    def kill_autostart_server
+      pid ||= File.read(NATS::AUTOSTART_PID_FILE).chomp.to_i
+      %x[kill -9 #{pid}] if pid
+      %x[rm #{NATS::AUTOSTART_PID_FILE}]
+      %x[rm #{NATS::AUTOSTART_LOG_FILE}]
+    end
+  end
+
   def initialize(uri="nats://localhost:4222", pid_file='/tmp/nats.pid')
     @uri = URI.parse(uri)
     @pid_file = pid_file
@@ -24,12 +36,20 @@ class NatsServerControl
   end
 
   def start_server
-    return if NATS.server_running? @uri
+
+    if NATS.server_running? @uri
+      @was_running = true
+      return
+    end
+
     # This should work but is sketchy and slow under jruby, so use direct
     # %x[ruby -S bundle exec nats-server -p #{@uri.port} -P #{@pid_file} -d 2> /dev/null]
     server = File.expand_path(File.join(__FILE__, "../../lib/nats/server.rb"))
     # daemonize really doesn't work on jruby, so should run servers manually to test on jruby
-    %x[ruby #{server} -p #{@uri.port} -P #{@pid_file} -d 2> /dev/null]
+    args = "-p #{@uri.port} -P #{@pid_file} -d"
+    args += " --user #{@uri.user}" if @uri.user
+    args += " --pass #{@uri.password}" if @uri.password
+    %x[ruby #{server} #{args} 2> /dev/null]
     NATS.wait_for_server(@uri, 10) #jruby can be slow on startup
   end
 

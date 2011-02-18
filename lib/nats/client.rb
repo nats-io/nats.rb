@@ -16,6 +16,9 @@ module NATS
   MAX_RECONNECT_ATTEMPTS = 10
   RECONNECT_TIME_WAIT = 2
 
+  AUTOSTART_PID_FILE = '/tmp/nats-server.pid'
+  AUTOSTART_LOG_FILE = '/tmp/nats-server.log'
+
   # Protocol
   # @private
   MSG      = /\AMSG\s+([^\s\r\n]+)\s+([^\s\r\n]+)\s+(([^\s\r\n]+)[^\S\r\n]+)?(\d+)\r\n/i #:nodoc:
@@ -62,20 +65,29 @@ module NATS
     # @param [Hash] opts
     # @option opts [String] :uri The URI to connect to, example nats://localhost:4222
     # @option opts [Boolean] :autostart Boolean that can be used to suppress autostart functionality.
+    # @option opts [Boolean] :reconnect Boolean that can be used to suppress reconnect functionality.
     # @option opts [Boolean] :debug Boolean that can be used to output additional debug information.
+    # @option opts [Boolean] :verbose Boolean that is sent to server for setting verbose protocol mode.
+    # @option opts [Boolean] :pedantic Boolean that is sent to server for setting pedantic mode.
     # @param [Block] &blk called when the connection is completed. Connection will be passed to the block.
     # @return [NATS] connection to the server.
     def connect(opts={}, &blk)
-      opts[:uri] ||= ENV['NATS_URI'] || DEFAULT_URI
+      # Defaults
       opts[:verbose] = false if opts[:verbose].nil?
+      opts[:pedantic] = false if opts[:pedantic].nil?
+      opts[:reconnect] = true if opts[:reconnect].nil?
+
+      # Override with ENV
+      opts[:uri] ||= ENV['NATS_URI'] || DEFAULT_URI
       opts[:verbose] = ENV['NATS_VERBOSE'] unless ENV['NATS_VERBOSE'].nil?
       opts[:pedantic] = ENV['NATS_PEDANTIC'] unless ENV['NATS_PEDANTIC'].nil?
       opts[:debug] = ENV['NATS_DEBUG'] if !ENV['NATS_DEBUG'].nil?
       opts[:autostart] = (ENV['NATS_AUTO'] || true) if opts[:autostart].nil?
-      uri = opts[:uri] = URI.parse(opts[:uri])
-      @err_cb = proc { raise Error, "Could not connect to server on #{uri}."} unless err_cb
-      check_autostart(uri) if opts[:autostart]
-      client = EM.connect(uri.host, uri.port, self, opts)
+
+      @uri = opts[:uri] = URI.parse(opts[:uri])
+      @err_cb = proc { raise Error, "Could not connect to server on #{@uri}."} unless err_cb
+      check_autostart(@uri) if opts[:autostart]
+      client = EM.connect(@uri.host, @uri.port, self, opts)
       client.on_connect(&blk) if blk
       return client
     end
@@ -101,9 +113,16 @@ module NATS
       @err_cb = nil
     end
 
+    # @return [Boolean] Connected state
+    def connected?
+      return false unless client
+      client.connected?
+    end
+
+    # @return [Hash] Options
     def options
-      return {} unless @client
-      @client.options
+      return {} unless client
+      client.options
     end
 
     # Set the default on_error callback.
@@ -185,8 +204,8 @@ module NATS
       port_arg = "-p #{uri.port}"
       user_arg = "--user #{uri.user}" if uri.user
       pass_arg = "--pass #{uri.password}" if uri.password
-      log_arg  = '-l /tmp/nats-server.log'
-      pid_arg  = '-P /tmp/nats-server.pid'
+      log_arg  = "-l #{AUTOSTART_LOG_FILE}"
+      pid_arg  = "-P #{AUTOSTART_PID_FILE}"
       # daemon mode to release client
       system("nats-server #{port_arg} #{user_arg} #{pass_arg} #{log_arg} #{pid_arg} -d 2> /dev/null")
       $? == 0
@@ -203,6 +222,8 @@ module NATS
 
   def initialize(options)
     @uri = options[:uri]
+    @uri.user = options[:user] if options[:user]
+    @uri.password = options[:pass] if options[:pass]
     @options = options
     @ssid, @subs = 1, {}
     @err_cb = NATS.err_cb
@@ -445,7 +466,7 @@ module NATS
   end
 
   def unbind #:nodoc:
-    if connected? and not closing? and not reconnecting?
+    if connected? and not closing? and not reconnecting? and @options[:reconnect]
       schedule_reconnect
     else
       process_disconnect unless reconnecting?
