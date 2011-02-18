@@ -1,0 +1,67 @@
+require 'spec_helper'
+require 'nats/server/server'
+require "nats/server/sublist"
+require "nats/server/options"
+require "nats/server/const"
+require "nats/server/util"
+require 'logger'
+
+describe "server configuration" do
+
+  it 'should return default options with no command line arguments' do
+    NATSD::Server.process_options
+    opts = NATSD::Server.options
+
+    opts.should be_an_instance_of Hash
+    opts.should have_key :port
+    opts.should have_key :addr
+    opts.should have_key :max_control_line
+    opts.should have_key :max_payload
+    opts.should have_key :max_pending
+
+    opts[:port].should == NATSD::DEFAULT_PORT
+    opts[:addr].should == NATSD::DEFAULT_HOST
+  end
+
+  it 'should allow an override with command line arguments' do
+    NATSD::Server.process_options('-a localhost -p 5222 --user derek --pass foo'.split)
+    opts = NATSD::Server.options
+
+    opts[:addr].should == 'localhost'
+    opts[:port].should == 5222
+    opts[:user].should == 'derek'
+    opts[:pass].should == 'foo'
+  end
+
+  it 'should properly parse a config file' do
+    config_file = File.dirname(__FILE__) + '/resources/config.yml'
+    config = File.open(config_file) { |f| YAML.load(f) }
+    NATSD::Server.process_options("-c #{config_file}".split)
+    opts = NATSD::Server.options
+    opts[:config_file].should == config_file
+    opts[:port].should == config['port']
+    opts[:addr].should == config['net']
+    opts[:user].should == config['authorization']['user']
+    opts[:pass].should == config['authorization']['password']
+    opts[:token].should == config['authorization']['token']
+    opts[:pid_file].should == config['pid_file']
+    opts[:log_file].should == config['log_file']
+    opts[:logtime].should == config['logtime']
+    opts[:debug].should == config['debug']
+    opts[:trace].should == config['trace']
+    opts[:max_control_line].should == config['max_control_line']
+    opts[:max_payload].should == config['max_payload']
+    opts[:max_pending].should == config['max_pending']
+  end
+
+  it 'should allow command line arguments to override config file' do
+    config_file = File.dirname(__FILE__) + '/resources/config.yml'
+    config = File.open(config_file) { |f| YAML.load(f) }
+    NATSD::Server.process_options("-c #{config_file} -p 8122 -l /tmp/foo.log".split)
+    opts = NATSD::Server.options
+
+    opts[:port].should == 8122
+    opts[:log_file].should == '/tmp/foo.log'
+  end
+
+end

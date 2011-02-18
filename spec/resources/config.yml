@@ -1,7 +1,7 @@
 
 ---
 
-port: 4222
+port: 4242
 net: localhost
 
 authorization:
@@ -17,12 +17,12 @@ log_file: '/tmp/nats_test.log'
 
 logtime: true
 debug:   false
-trace:   true
+trace:   false
 
 # Protocol/Limits
 max_control_line: 512
-max_payload:  512*1024
-max_pending: 2*1024*1024
+max_payload:  512000
+max_pending: 2000000
 
 # EM/IO
 no_epoll:  false

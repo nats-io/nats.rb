@@ -22,7 +22,7 @@ describe 'server attacks' do
     begin
       uri = URI.parse(TEST_SERVER)
       s = TCPSocket.open(uri.host, uri.port)
-      lambda { s.write(BAD_BUFFER) }.should raise_error
+      expect { s.write(BAD_BUFFER) }.to raise_error
     ensure
       s.close if s
     end

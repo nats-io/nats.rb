@@ -14,7 +14,7 @@ module NATSD
           opts.separator "Server options:"
 
           opts.on("-a", "--addr HOST", "Bind to HOST address " +
-                                       "(default: #{DEFAULT_HOST})")           { |host| @options[:address] = host }
+                                       "(default: #{DEFAULT_HOST})")           { |host| @options[:addr] = host }
           opts.on("-p", "--port PORT", "Use PORT (default: #{DEFAULT_PORT})")  { |port| @options[:port] = port.to_i }
           opts.on("-d", "--daemonize", "Run daemonized in the background")     { @options[:daemonize] = true }
           opts.on("-P", "--pid FILE", "File to store PID")                     { |file| @options[:pid_file] = file }
@@ -54,13 +54,32 @@ module NATSD
         return unless config_file = @options[:config_file]
         config = File.open(config_file) { |f| YAML.load(f) }
         # Command lines args, parsed first, will override these.
-        [:addr, :port, :log_file, :pid_file, :user, :pass, :log_time, :debug].each do |p|
-          c = config[p.to_s]
-          @options[p] = c if c and not @options[p]
+        @options[:port] = config['port'] if @options[:port].nil?
+        @options[:addr] = config['net'] if @options[:addr].nil?
+        if auth = config['authorization']
+          @options[:user] = auth['user'] if @options[:user].nil?
+          @options[:pass] = auth['password'] if @options[:pass].nil?
+          @options[:token] = auth['token'] if @options[:token].nil?
+          @options[:auth_timeout] = auth['timeout'] if @options[:auth_timeout].nil?
         end
-        rescue => e
-          log "Could not read configuration file:  #{e}"
-          exit
+        @options[:pid_file] = config['pid_file'] if @options[:pid_file].nil?
+        @options[:log_file] = config['log_file'] if @options[:log_file].nil?
+        @options[:logtime] = config['logtime'] if @options[:logtime].nil?
+        @options[:debug] = config['debug'] if @options[:debug].nil?
+        @options[:trace] = config['trace'] if @options[:trace].nil?
+
+        # these just override if present
+        @options[:max_control_line] = config['max_control_line'] if config['max_control_line']
+        @options[:max_payload] = config['max_payload'] if config['max_payload']
+        @options[:max_pending] = config['max_pending'] if config['max_pending']
+
+        # just set
+        @options[:noepoll] = config['no_epoll'] if config['no_epoll']
+        @options[:nokqueue] = config['no_kqueue'] if config['no_kqueue']
+
+      rescue => e
+        log "Could not read configuration file:  #{e}"
+        exit
       end
 
       def setup_logs
@@ -81,7 +100,6 @@ module NATSD
 
         # Log timestamps
         @log_time = @options[:log_time]
-        # setup_logs
 
         debug @options # Block pass?
         debug "DEBUG is on"
@@ -100,6 +118,8 @@ module NATSD
         @options[:max_pending] ||= MAX_PENDING_SIZE
         @max_pending = @options[:max_pending]
 
+        @options[:auth_timeout] ||= AUTH_TIMEOUT
+        @auth_timeout = @options[:auth_timeout]
       end
 
     end

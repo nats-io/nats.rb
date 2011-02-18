@@ -27,7 +27,7 @@ describe 'authorization' do
     end.to raise_error NATS::Error
   end
 
-  it 'should autostart an auth based server correctly' do
+  it 'should autostart an authorized server correctly' do
     expect do
       NATS.start(:uri => TEST_AUTH_AUTOSTART_SERVER) { NATS.stop }
     end.to_not raise_error

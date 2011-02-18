@@ -39,9 +39,11 @@ spec = Gem::Specification.new do |s|
     lib/nats/ext/em.rb
     lib/nats/ext/json.rb
     lib/nats/server.rb
+    lib/nats/server/server.rb
     lib/nats/server/options.rb
     lib/nats/server/sublist.rb
     lib/nats/server/const.rb
+    lib/nats/server/util.rb
   ]
 
 end
