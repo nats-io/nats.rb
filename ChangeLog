@@ -1,0 +1,11 @@
+2011-02-21, version 0.4.2
+  * queue group support
+  * auto-unsubscribe support
+  * time expiration on subscriptions
+  * jruby initial support (1.5.6, 1.6.0-RC1)
+  * performance enhancements
+  * complete config file support
+
+2010-11-20, version 0.3.12
+  * original upload to RubyGems
+
