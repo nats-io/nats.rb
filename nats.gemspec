@@ -28,6 +28,7 @@ spec = Gem::Specification.new do |s|
   s.files = %w[
     COPYING
     README.md
+    ChangeLog
     nats.gemspec
     Rakefile
     bin/nats-server
