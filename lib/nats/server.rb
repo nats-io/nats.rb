@@ -26,6 +26,6 @@ EM.run {
   rescue => e
     log "Could not start server on port #{NATSD::Server.port}"
     log_error
-    exit
+    exit(1)
   end
 }
