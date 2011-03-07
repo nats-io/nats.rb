@@ -11,11 +11,11 @@ def log(*args) #:nodoc:
 end
 
 def debug(*args) #:nodoc:
-  log *args if NATSD::Server.debug_flag?
+  log(*args) if NATSD::Server.debug_flag?
 end
 
 def trace(*args) #:nodoc:
-  log *args if NATSD::Server.trace_flag?
+  log(*args) if NATSD::Server.trace_flag?
 end
 
 def log_error(e=$!) #:nodoc:
