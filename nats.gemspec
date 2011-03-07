@@ -8,7 +8,6 @@ require 'nats/server/const.rb'
 spec = Gem::Specification.new do |s|
   s.name = 'nats'
   s.version = NATSD::VERSION
-  s.date = '2011-02-09'
   s.summary = 'A lightweight publish-subscribe messaging system.'
   s.homepage = 'http://github.com/derekcollison/nats'
   s.description = 'A lightweight publish-subscribe messaging system.'
