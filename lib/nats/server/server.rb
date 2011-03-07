@@ -24,8 +24,11 @@ module NATSD #:nodoc: all
 
         # Allow command line to override config file, so do them first.
         parser.parse!(argv)
-        read_config_file
+        read_config_file if @options[:config_file]
         finalize_options
+      rescue OptionParser::InvalidOption => e
+        log_error "Error parsing options: #{e}"
+        exit(1)
       end
 
       def setup(argv)
@@ -58,7 +61,7 @@ module NATSD #:nodoc: all
         EM.epoll unless @options[:noepoll]
         EM.kqueue unless @options[:nokqueue]
 
-        # Write pid file if need be.
+        # Write pid file if requested.
         File.open(@options[:pid_file], 'w') { |f| f.puts "#{Process.pid}" } if @options[:pid_file]
       end
 
@@ -170,90 +173,88 @@ module NATSD #:nodoc: all
       # while (@buf && !@buf.empty? && !@closing)
       while (@buf && !@closing)
         case @parse_state
-
-          when AWAITING_CONTROL_LINE
-            case @buf
-              when PUB_OP
-                ctrace('PUB OP', strip_op($&)) if NATSD::Server.trace_flag?
-                return connect_auth_timeout if @auth_pending
-                @buf = $'
-                @parse_state = AWAITING_MSG_PAYLOAD
-                @msg_sub, @msg_reply, @msg_size = $1, $3, $4.to_i
-                if (@msg_size > NATSD::Server.max_payload)
-                  debug "Message payload size exceeded (#{@msg_size}/#{NATSD::Server.max_payload}), closing connection"
-                  error_close PAYLOAD_TOO_BIG
-                end
-                send_data(INVALID_SUBJECT) if (@pedantic && !(@msg_sub =~ SUB_NO_WC))
-              when SUB_OP
-                ctrace('SUB OP', strip_op($&)) if NATSD::Server.trace_flag?
-                return connect_auth_timeout if @auth_pending
-                @buf = $'
-                sub, qgroup, sid = $1, $3, $4
-                return send_data(INVALID_SUBJECT) if !($1 =~ SUB)
-                return send_data(INVALID_SID_TAKEN) if @subscriptions[sid]
-                sub = Subscriber.new(self, sub, sid, qgroup, 0)
-                @subscriptions[sid] = sub
-                Server.subscribe(sub)
-                send_data(OK) if @verbose
-              when UNSUB_OP
-                ctrace('UNSUB OP', strip_op($&)) if NATSD::Server.trace_flag?
-                return connect_auth_timeout if @auth_pending
-                @buf = $'
-                sid, sub = $1, @subscriptions[$1]
-                return send_data(INVALID_SID_NOEXIST) unless sub
-                # If we have set max_responses, we will unsubscribe once we have received the appropriate
-                # amount of responses
-                sub.max_responses = ($2 && $3) ? $3.to_i : nil
-                delete_subscriber(sub) unless (sub.max_responses && (sub.num_responses < sub.max_responses))
-                send_data(OK) if @verbose
-              when PING
-                ctrace('PING OP', strip_op($&)) if NATSD::Server.trace_flag?
-                @buf = $'
-                send_data(PONG_RESPONSE)
-              when CONNECT
-                ctrace('CONNECT OP', strip_op($&)) if NATSD::Server.trace_flag?
-                @buf = $'
-                begin
-                  config = JSON.parse($1, :symbolize_keys => true, :symbolize_names => true)
-                  process_connect_config(config)
-                rescue => e
-                  send_data(INVALID_CONFIG)
-                  log_error
-                end
-              when INFO
-                ctrace('INFO OP', strip_op($&)) if NATSD::Server.trace_flag?
-                return connect_auth_timeout if @auth_pending
-                @buf = $'
-                send_info
-              when UNKNOWN
-                ctrace('Unknown Op', strip_op($&)) if NATSD::Server.trace_flag?
-                return connect_auth_timeout if @auth_pending
-                @buf = $'
-                send_data(UNKNOWN_OP)
-              else
-                # If we are here we do not have a complete line yet that we understand.
-                # If too big, cut the connection off.
-                if @buf.bytesize > NATSD::Server.max_control_line
-                  debug "Control line size exceeded (#{@buf.bytesize}/#{NATSD::Server.max_control_line}), closing connection.."
-                  error_close PROTOCOL_OP_TOO_BIG
-                end
-                return
+        when AWAITING_CONTROL_LINE
+          case @buf
+          when PUB_OP
+            ctrace('PUB OP', strip_op($&)) if NATSD::Server.trace_flag?
+            return connect_auth_timeout if @auth_pending
+            @buf = $'
+            @parse_state = AWAITING_MSG_PAYLOAD
+            @msg_sub, @msg_reply, @msg_size = $1, $3, $4.to_i
+            if (@msg_size > NATSD::Server.max_payload)
+              debug "Message payload size exceeded (#{@msg_size}/#{NATSD::Server.max_payload}), closing connection"
+              error_close PAYLOAD_TOO_BIG
             end
-            @buf = nil if (@buf && @buf.empty?)
-
-          when AWAITING_MSG_PAYLOAD
-            return unless (@buf.bytesize >= (@msg_size + CR_LF_SIZE))
-            msg = @buf.slice(0, @msg_size)
-            ctrace('Processing msg', @msg_sub, @msg_reply, msg) if NATSD::Server.trace_flag?
+            send_data(INVALID_SUBJECT) if (@pedantic && !(@msg_sub =~ SUB_NO_WC))
+          when SUB_OP
+            ctrace('SUB OP', strip_op($&)) if NATSD::Server.trace_flag?
+            return connect_auth_timeout if @auth_pending
+            @buf = $'
+            sub, qgroup, sid = $1, $3, $4
+            return send_data(INVALID_SUBJECT) if !($1 =~ SUB)
+            return send_data(INVALID_SID_TAKEN) if @subscriptions[sid]
+            sub = Subscriber.new(self, sub, sid, qgroup, 0)
+            @subscriptions[sid] = sub
+            Server.subscribe(sub)
             send_data(OK) if @verbose
-            Server.route_to_subscribers(@msg_sub, @msg_reply, msg)
-            @buf = @buf.slice((@msg_size + CR_LF_SIZE), @buf.bytesize)
-            @msg_sub = @msg_size = @reply = nil
-            @parse_state = AWAITING_CONTROL_LINE
-            @buf = nil if (@buf && @buf.empty?)
+          when UNSUB_OP
+            ctrace('UNSUB OP', strip_op($&)) if NATSD::Server.trace_flag?
+            return connect_auth_timeout if @auth_pending
+            @buf = $'
+            sid, sub = $1, @subscriptions[$1]
+            return send_data(INVALID_SID_NOEXIST) unless sub
+            # If we have set max_responses, we will unsubscribe once we have received the appropriate
+            # amount of responses
+            sub.max_responses = ($2 && $3) ? $3.to_i : nil
+            delete_subscriber(sub) unless (sub.max_responses && (sub.num_responses < sub.max_responses))
+            send_data(OK) if @verbose
+          when PING
+            ctrace('PING OP', strip_op($&)) if NATSD::Server.trace_flag?
+            @buf = $'
+            send_data(PONG_RESPONSE)
+          when CONNECT
+            ctrace('CONNECT OP', strip_op($&)) if NATSD::Server.trace_flag?
+            @buf = $'
+            begin
+              config = JSON.parse($1, :symbolize_keys => true, :symbolize_names => true)
+              process_connect_config(config)
+            rescue => e
+              send_data(INVALID_CONFIG)
+              log_error
+            end
+          when INFO
+            ctrace('INFO OP', strip_op($&)) if NATSD::Server.trace_flag?
+            return connect_auth_timeout if @auth_pending
+            @buf = $'
+            send_info
+          when UNKNOWN
+            ctrace('Unknown Op', strip_op($&)) if NATSD::Server.trace_flag?
+            return connect_auth_timeout if @auth_pending
+            @buf = $'
+            send_data(UNKNOWN_OP)
+          else
+            # If we are here we do not have a complete line yet that we understand.
+            # If too big, cut the connection off.
+            if @buf.bytesize > NATSD::Server.max_control_line
+              debug "Control line size exceeded (#{@buf.bytesize}/#{NATSD::Server.max_control_line}), closing connection.."
+              error_close PROTOCOL_OP_TOO_BIG
+            end
+            return
           end
-      end
+          @buf = nil if (@buf && @buf.empty?)
 
+        when AWAITING_MSG_PAYLOAD
+          return unless (@buf.bytesize >= (@msg_size + CR_LF_SIZE))
+          msg = @buf.slice(0, @msg_size)
+          ctrace('Processing msg', @msg_sub, @msg_reply, msg) if NATSD::Server.trace_flag?
+          send_data(OK) if @verbose
+          Server.route_to_subscribers(@msg_sub, @msg_reply, msg)
+          @buf = @buf.slice((@msg_size + CR_LF_SIZE), @buf.bytesize)
+          @msg_sub = @msg_size = @reply = nil
+          @parse_state = AWAITING_CONTROL_LINE
+          @buf = nil if (@buf && @buf.empty?)
+        end
+      end
     end
 
     def send_info
