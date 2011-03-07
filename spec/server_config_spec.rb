@@ -46,7 +46,7 @@ describe "server configuration" do
     opts[:token].should == config['authorization']['token']
     opts[:pid_file].should == config['pid_file']
     opts[:log_file].should == config['log_file']
-    opts[:logtime].should == config['logtime']
+    opts[:log_time].should == config['logtime']
     opts[:debug].should == config['debug']
     opts[:trace].should == config['trace']
     opts[:max_control_line].should == config['max_control_line']
@@ -62,6 +62,14 @@ describe "server configuration" do
 
     opts[:port].should == 8122
     opts[:log_file].should == '/tmp/foo.log'
+  end
+
+  it 'should properly set logtime under server attributes' do
+    config_file = File.dirname(__FILE__) + '/resources/config.yml'
+    config = File.open(config_file) { |f| YAML.load(f) }
+    NATSD::Server.process_options("-c #{config_file}".split)
+    NATSD::Server.finalize_options
+    NATSD::Server.log_time.should be_true
   end
 
 end

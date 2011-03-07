@@ -19,8 +19,7 @@ module NATSD
           opts.on("-d", "--daemonize", "Run daemonized in the background")     { @options[:daemonize] = true }
           opts.on("-P", "--pid FILE", "File to store PID")                     { |file| @options[:pid_file] = file }
 
-          opts.on("-C", "--config FILE", "Configuration File " +
-                                      "(default: #{@options[:config_file]})")  { |file| @options[:config_file] = file }
+          opts.on("-c", "--config FILE", "Configuration File")                 { |file| @options[:config_file] = file }
 
           opts.separator ""
           opts.separator "Logging options:"
@@ -53,18 +52,21 @@ module NATSD
       def read_config_file
         return unless config_file = @options[:config_file]
         config = File.open(config_file) { |f| YAML.load(f) }
+
         # Command lines args, parsed first, will override these.
         @options[:port] = config['port'] if @options[:port].nil?
         @options[:addr] = config['net'] if @options[:addr].nil?
+
         if auth = config['authorization']
           @options[:user] = auth['user'] if @options[:user].nil?
           @options[:pass] = auth['password'] if @options[:pass].nil?
           @options[:token] = auth['token'] if @options[:token].nil?
           @options[:auth_timeout] = auth['timeout'] if @options[:auth_timeout].nil?
         end
+
         @options[:pid_file] = config['pid_file'] if @options[:pid_file].nil?
         @options[:log_file] = config['log_file'] if @options[:log_file].nil?
-        @options[:logtime] = config['logtime'] if @options[:logtime].nil?
+        @options[:log_time] = config['logtime'] if @options[:log_time].nil?
         @options[:debug] = config['debug'] if @options[:debug].nil?
         @options[:trace] = config['trace'] if @options[:trace].nil?
 
@@ -123,6 +125,5 @@ module NATSD
       end
 
     end
-
   end
 end
