@@ -37,12 +37,9 @@ describe 'NATS Protocol' do
       $4.should == '1'
     end
 
-    it 'should not care about extra spaces at end either' do
+    it 'should care about extra spaces at end' do
       str = "SUB    foo  bargroup   1   \r\n"
-      NATSD::SUB_OP =~ str
-      $1.should == 'foo'
-      $3.should == 'bargroup'
-      $4.should == '1'
+      (NATSD::SUB_OP =~ str).should be_false
     end
 
     it 'should properly match first one when multiple present' do
@@ -86,12 +83,6 @@ describe 'NATS Protocol' do
       $1.should == '1'
     end
 
-    it 'should not care about extra spaces at end either' do
-      str = "UNSUB   1 \r\n"
-      NATSD::UNSUB_OP =~ str
-      $1.should == '1'
-    end
-
     it 'should properly match first one when multiple present' do
       str = "UNSUB 1\r\nUNSUB 2\r\nSUB foo 2\r\n"
       NATSD::UNSUB_OP =~ str
@@ -108,7 +99,7 @@ describe 'NATS Protocol' do
     end
 
     it 'should properly parse auto-unsubscribe message count with extra spaces' do
-      str = "UNSUB 1 22 \r\n"
+      str = "UNSUB  1   22\r\n"
       NATSD::UNSUB_OP =~ str
       $1.should == '1'
       $2.should be
@@ -155,13 +146,9 @@ describe 'NATS Protocol' do
       $'.should == "ok\r\n"
     end
 
-    it 'should not care about extra spaces at end either' do
+    it 'should care about extra spaces at end' do
       str = "PUB  foo     bar  2   \r\nok\r\n"
-      NATSD::PUB_OP =~ str
-      $1.should == 'foo'
-      $3.should == 'bar'
-      $4.to_i.should == 2
-      $'.should == "ok\r\n"
+      (NATSD::PUB_OP =~ str).should be_false
     end
 
     it 'should properly match first one when multiple present' do
@@ -281,7 +268,7 @@ describe 'NATS Protocol' do
     end
 
     it 'should process messages with extra spaces' do
-      str = "MSG    foo  2     reply_to_me  11 \r\nHello World\r\n"
+      str = "MSG    foo  2     reply_to_me  11\r\nHello World\r\n"
       NATS::MSG =~ str
       $1.should == 'foo'
       $2.should == '2'
@@ -291,7 +278,7 @@ describe 'NATS Protocol' do
     end
 
     it 'should process multiple messages in a single read properly' do
-      str = "MSG foo 2 11\r\nHello World\r\nMSG foo  2 reply_to_me 2 \r\nok\r\n"
+      str = "MSG foo 2 11\r\nHello World\r\nMSG foo  2 reply_to_me 2\r\nok\r\n"
       NATS::MSG =~ str
       $1.should == 'foo'
       $2.should == '2'
