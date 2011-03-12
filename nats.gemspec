@@ -3,7 +3,7 @@
 lib = File.expand_path('../lib/', __FILE__)
 $:.unshift lib unless $:.include?(lib)
 
-require 'nats/server/const.rb'
+require 'nats/server/const'
 
 spec = Gem::Specification.new do |s|
   s.name = 'nats'
@@ -27,6 +27,7 @@ spec = Gem::Specification.new do |s|
   s.files = %w[
     COPYING
     README.md
+    ChangeLog
     nats.gemspec
     Rakefile
     bin/nats-server

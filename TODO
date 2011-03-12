@@ -1,5 +1,5 @@
 
-- clustering/routing
+- *clustering/routing*
 
 - balance receive perf with send perf
 - do client blowup detection from sending in tight loop
