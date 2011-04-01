@@ -262,4 +262,28 @@ describe 'client specification' do
     received.should == 1
   end
 
+  it 'should not call error handler for double unsubscribe unless in pedantic mode' do
+    got_error = false
+    NATS.on_error { got_error = true; NATS.stop }
+    NATS.start do
+      s = NATS.subscribe('foo')
+      NATS.unsubscribe(s)
+      NATS.unsubscribe(s)
+      NATS.publish('flush') { NATS.stop }
+    end
+    got_error.should be_false
+  end
+
+  it 'should call error handler for double unsubscribe if in pedantic mode' do
+    got_error = false
+    NATS.on_error { got_error = true; NATS.stop }
+    NATS.start(:pedantic => true) do
+      s = NATS.subscribe('foo')
+      NATS.unsubscribe(s)
+      NATS.unsubscribe(s)
+      NATS.publish('flush') { NATS.stop }
+    end
+    got_error.should be_true
+  end
+
 end

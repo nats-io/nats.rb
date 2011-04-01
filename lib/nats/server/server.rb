@@ -202,12 +202,15 @@ module NATSD #:nodoc: all
             return connect_auth_timeout if @auth_pending
             @buf = $'
             sid, sub = $1, @subscriptions[$1]
-            return send_data(INVALID_SID_NOEXIST) unless sub
-            # If we have set max_responses, we will unsubscribe once we have received the appropriate
-            # amount of responses
-            sub.max_responses = ($2 && $3) ? $3.to_i : nil
-            delete_subscriber(sub) unless (sub.max_responses && (sub.num_responses < sub.max_responses))
-            send_data(OK) if @verbose
+            if sub
+              # If we have set max_responses, we will unsubscribe once we have received
+              # the appropriate amount of responses.
+              sub.max_responses = ($2 && $3) ? $3.to_i : nil
+              delete_subscriber(sub) unless (sub.max_responses && (sub.num_responses < sub.max_responses))
+              send_data(OK) if @verbose
+            else
+              send_data(INVALID_SID_NOEXIST) if @pedantic
+            end
           when PING
             ctrace('PING OP', strip_op($&)) if NATSD::Server.trace_flag?
             @buf = $'
