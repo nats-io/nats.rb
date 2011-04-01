@@ -60,6 +60,7 @@ module NATSD
         if auth = config['authorization']
           @options[:user] = auth['user'] if @options[:user].nil?
           @options[:pass] = auth['password'] if @options[:pass].nil?
+          @options[:pass] = auth['pass'] if @options[:pass].nil?
           @options[:token] = auth['token'] if @options[:token].nil?
           @options[:auth_timeout] = auth['timeout'] if @options[:auth_timeout].nil?
         end

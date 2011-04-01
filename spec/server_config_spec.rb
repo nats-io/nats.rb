@@ -54,6 +54,15 @@ describe "server configuration" do
     opts[:max_pending].should == config['max_pending']
   end
 
+  it 'should allow pass and password for authorization config' do
+    config_file = File.dirname(__FILE__) + '/resources/auth.yml'
+    config = File.open(config_file) { |f| YAML.load(f) }
+    NATSD::Server.process_options("-c #{config_file}".split)
+    opts = NATSD::Server.options
+    opts[:user].should == config['authorization']['user']
+    opts[:pass].should == config['authorization']['pass']
+  end
+
   it 'should allow command line arguments to override config file' do
     config_file = File.dirname(__FILE__) + '/resources/config.yml'
     config = File.open(config_file) { |f| YAML.load(f) }
