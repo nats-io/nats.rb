@@ -82,8 +82,7 @@ module NATS
       opts[:verbose] = ENV['NATS_VERBOSE'] unless ENV['NATS_VERBOSE'].nil?
       opts[:pedantic] = ENV['NATS_PEDANTIC'] unless ENV['NATS_PEDANTIC'].nil?
       opts[:debug] = ENV['NATS_DEBUG'] if !ENV['NATS_DEBUG'].nil?
-      opts[:autostart] = (ENV['NATS_AUTO'] || true) if opts[:autostart].nil?
-
+      opts[:autostart] = (ENV['NATS_NO_AUTOSTART'] ? false : true) if opts[:autostart].nil?
       @uri = opts[:uri] = URI.parse(opts[:uri])
       @err_cb = proc { raise Error, "Could not connect to server on #{@uri}."} unless err_cb
       check_autostart(@uri) if opts[:autostart]

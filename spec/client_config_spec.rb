@@ -45,4 +45,36 @@ describe "client configuration" do
     end
   end
 
+  it 'should allow environment to override autostart if not set via initializer flag' do
+    # setup so we can kill, but do not start
+    uri = 'nats://localhost:42421'
+    ts = NatsServerControl.new(uri, NATS::AUTOSTART_PID_FILE)
+    begin
+      expect do
+        ENV['NATS_NO_AUTOSTART'] = 'true'
+        NATS.start(:uri => uri) do
+          NATS.publish('flush') { NATS.stop }
+        end
+      end.to raise_error
+    ensure
+      ts.kill_server
+    end
+  end
+
+  it 'should allow a direct flag to override an environment variable' do
+    # setup so we can kill, but do not start
+    uri = 'nats://localhost:42421'
+    ts = NatsServerControl.new(uri, NATS::AUTOSTART_PID_FILE)
+    begin
+      expect do
+        ENV['NATS_NO_AUTOSTART'] = 'true'
+        NATS.start(:uri => uri, :autostart => true) do
+          NATS.publish('flush') { NATS.stop }
+        end
+      end.to_not raise_error
+    ensure
+      ts.kill_server
+    end
+  end
+
 end
