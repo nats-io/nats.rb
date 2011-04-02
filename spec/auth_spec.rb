@@ -9,16 +9,18 @@ describe 'authorization' do
 
     TEST_AUTH_SERVER = "nats://#{USER}:#{PASS}@localhost:9222"
     TEST_AUTH_SERVER_NO_CRED = 'nats://localhost:9222'
+    TEST_AUTH_SERVER_PID = '/tmp/nats_authorization.pid'
 
     TEST_AUTH_AUTOSTART_SERVER = "nats://#{USER}:#{PASS}@localhost:11222"
     TEST_AUTOSTART_SERVER = "nats://localhost:11222"
 
-    @s = NatsServerControl.new(TEST_AUTH_SERVER, "/tmp/nats_authorization.pid")
+    @s = NatsServerControl.new(TEST_AUTH_SERVER, TEST_AUTH_SERVER_PID)
     @s.start_server
   end
 
   after (:all) do
     @s.kill_server if @s.was_running?
+    FileUtils.rm_f TEST_AUTH_SERVER_PID
   end
 
   it 'should fail to connect to an authorized server without proper credentials' do

@@ -20,7 +20,7 @@ class NatsServerControl
     end
   end
 
-  def initialize(uri="nats://localhost:4222", pid_file='/tmp/nats.pid')
+  def initialize(uri="nats://localhost:4222", pid_file='/tmp/test-nats.pid')
     @uri = URI.parse(uri)
     @pid_file = pid_file
   end
@@ -55,8 +55,9 @@ class NatsServerControl
 
   def kill_server
     if File.exists? @pid_file
-      %x[kill -9 #{server_pid}]
-      %x[rm #{@pid_file}]
+      %x[kill -9 #{server_pid} 2> /dev/null]
+      %x[rm #{@pid_file} 2> /dev/null]
+      %x[rm #{NATS::AUTOSTART_LOG_FILE} 2> /dev/null]
     end
   end
 end

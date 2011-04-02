@@ -8,7 +8,7 @@ require "#{ep}/ext/json"
 
 module NATS
 
-  VERSION = "0.4.4".freeze
+  VERSION = "0.4.6".freeze
 
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
@@ -85,7 +85,8 @@ module NATS
       opts[:debug] = ENV['NATS_DEBUG'] if !ENV['NATS_DEBUG'].nil?
       @uri = opts[:uri] = URI.parse(opts[:uri])
       @err_cb = proc { raise Error, "Could not connect to server on #{@uri}."} unless err_cb
-      check_autostart(@uri) if opts[:autostart]
+      check_autostart(@uri) if opts[:autostart] == true
+
       client = EM.connect(@uri.host, @uri.port, self, opts)
       client.on_connect(&blk) if blk
       return client
@@ -206,7 +207,7 @@ module NATS
       log_arg  = "-l #{AUTOSTART_LOG_FILE}"
       pid_arg  = "-P #{AUTOSTART_PID_FILE}"
       # daemon mode to release client
-      system("nats-server #{port_arg} #{user_arg} #{pass_arg} #{log_arg} #{pid_arg} -d 2> /dev/null")
+      `nats-server #{port_arg} #{user_arg} #{pass_arg} #{log_arg} #{pid_arg} -d 2> /dev/null`
       $? == 0
     end
 

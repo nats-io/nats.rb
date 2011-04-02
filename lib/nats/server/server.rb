@@ -13,7 +13,7 @@ module NATSD #:nodoc: all
       alias debug_flag?    :debug_flag
       alias trace_flag?    :trace_flag
 
-      def version; "nats server version #{NATSD::VERSION}" end
+      def version; "nats-server version #{NATSD::VERSION}" end
 
       def host; @options[:addr]  end
       def port; @options[:port]  end
