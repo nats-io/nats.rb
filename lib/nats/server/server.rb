@@ -219,7 +219,7 @@ module NATSD #:nodoc: all
             ctrace('CONNECT OP', strip_op($&)) if NATSD::Server.trace_flag?
             @buf = $'
             begin
-              config = JSON.parse($1, :symbolize_keys => true, :symbolize_names => true)
+              config = JSON.parse($1)
               process_connect_config(config)
             rescue => e
               send_data(INVALID_CONFIG)
@@ -265,12 +265,12 @@ module NATSD #:nodoc: all
     end
 
     def process_connect_config(config)
-      @verbose  = config[:verbose] unless config[:verbose].nil?
-      @pedantic = config[:pedantic] unless config[:pedantic].nil?
+      @verbose  = config['verbose'] unless config['verbose'].nil?
+      @pedantic = config['pedantic'] unless config['pedantic'].nil?
       return send_data(OK) unless Server.auth_required?
 
       EM.cancel_timer(@auth_pending)
-      if Server.auth_ok?(config[:user], config[:pass])
+      if Server.auth_ok?(config['user'], config['pass'])
         send_data(OK) if @verbose
         @auth_pending = nil
       else
