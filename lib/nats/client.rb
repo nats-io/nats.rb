@@ -16,9 +16,6 @@ module NATS
   MAX_RECONNECT_ATTEMPTS = 10
   RECONNECT_TIME_WAIT = 2
 
-  AUTOSTART_PID_FILE = '/tmp/nats-server.pid'
-  AUTOSTART_LOG_FILE = '/tmp/nats-server.log'
-
   # Protocol
   # @private
   MSG      = /\AMSG\s+([^\s]+)\s+([^\s]+)\s+(([^\s]+)[^\S\r\n]+)?(\d+)\r\n/i #:nodoc:
@@ -46,6 +43,10 @@ module NATS
   AWAITING_CONTROL_LINE = 1 #:nodoc:
   AWAITING_MSG_PAYLOAD  = 2 #:nodoc:
 
+  # Autostart properties
+  AUTOSTART_PID_FILE = '/tmp/nats-server.pid'
+  AUTOSTART_LOG_FILE = '/tmp/nats-server.log'
+
   # Duplicate autostart protection
   @@tried_autostart = {}
 
@@ -59,12 +60,12 @@ module NATS
     alias :reactor_was_running? :reactor_was_running
 
     # Create and return a connection to the server with the given options.
-    # The server will be autostarted if needed if the <b>uri</b> is determined to be local.
+    # The server will be autostarted if requested and the <b>uri</b> is determined to be local.
     # The optional block will be called when the connection has been completed.
     #
     # @param [Hash] opts
     # @option opts [String] :uri The URI to connect to, example nats://localhost:4222
-    # @option opts [Boolean] :autostart Boolean that can be used to suppress autostart functionality.
+    # @option opts [Boolean] :autostart Boolean that can be used to engage server autostart functionality.
     # @option opts [Boolean] :reconnect Boolean that can be used to suppress reconnect functionality.
     # @option opts [Boolean] :debug Boolean that can be used to output additional debug information.
     # @option opts [Boolean] :verbose Boolean that is sent to server for setting verbose protocol mode.
@@ -82,7 +83,6 @@ module NATS
       opts[:verbose] = ENV['NATS_VERBOSE'] unless ENV['NATS_VERBOSE'].nil?
       opts[:pedantic] = ENV['NATS_PEDANTIC'] unless ENV['NATS_PEDANTIC'].nil?
       opts[:debug] = ENV['NATS_DEBUG'] if !ENV['NATS_DEBUG'].nil?
-      opts[:autostart] = (ENV['NATS_NO_AUTOSTART'] ? false : true) if opts[:autostart].nil?
       @uri = opts[:uri] = URI.parse(opts[:uri])
       @err_cb = proc { raise Error, "Could not connect to server on #{@uri}."} unless err_cb
       check_autostart(@uri) if opts[:autostart]

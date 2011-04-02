@@ -3,6 +3,7 @@
 
 - balance receive perf with send perf
 - do client blowup detection from sending in tight loop
+- allow port to also be listen_port in config file
 
 - [IN PROGRESS] tests!
 - [IN PROGRESS] JRuby support - works if you hand run servers for tests

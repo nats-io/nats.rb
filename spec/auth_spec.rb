@@ -18,7 +18,7 @@ describe 'authorization' do
   end
 
   after (:all) do
-    @s.kill_server unless @s.was_running?
+    @s.kill_server if @s.was_running?
   end
 
   it 'should fail to connect to an authorized server without proper credentials' do
@@ -29,7 +29,7 @@ describe 'authorization' do
 
   it 'should autostart an authorized server correctly' do
     expect do
-      NATS.start(:uri => TEST_AUTH_AUTOSTART_SERVER) { NATS.stop }
+      NATS.start(:uri => TEST_AUTH_AUTOSTART_SERVER, :autostart => true) { NATS.stop }
     end.to_not raise_error
 
     expect do
