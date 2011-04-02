@@ -1,21 +1,40 @@
 #!/usr/bin/env ruby
 
+require 'optparse'
 require 'rubygems'
 require 'nats/client'
 
-trap("TERM") { NATS.stop }
-trap("INT")  { NATS.stop }
+['TERM', 'INT'].each { |s| trap(s) {  puts; exit! } }
 
 def usage
-  puts "Usage: nats-queue <subject> <queue name>"; exit
+  puts "Usage: nats-queue <subject> <queue name> [-s server] [-t]"; exit
 end
 
-subject, queue_group = ARGV
+args = ARGV.dup
+opts_parser = OptionParser.new do |opts|
+  opts.on('-s SERVER') { |server| $nats_server = server }
+  opts.on('-t') { $show_time = true }
+
+end
+args = opts_parser.parse!(args)
+
+subject, queue_group = args
 usage unless subject and queue_group
+
+def time_prefix
+  "[#{Time.now}] " if $show_time
+end
+
+def header
+  $i=0 unless $i
+  "#{time_prefix}[\##{$i+=1}]"
+end
 
 NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
-NATS.start do
+NATS.start(:uri => $nats_server) do
   puts "Listening on [#{subject}], queue group [#{queue_group}]"
-  NATS.subscribe(subject, queue_group) { |msg| puts "Received '#{msg}'" }
+  NATS.subscribe(subject, :queue => queue_group) { |msg, _, sub|
+    puts "#{header} Received on [#{sub}] : '#{msg}'"
+  }
 end
