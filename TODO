@@ -4,6 +4,7 @@
 - balance receive perf with send perf
 - do client blowup detection from sending in tight loop
 - allow port to also be listen_port in config file
+- queue groups allow selection, e.g. round robin vs random
 
 - [IN PROGRESS] tests!
 - [IN PROGRESS] JRuby support - works if you hand run servers for tests
