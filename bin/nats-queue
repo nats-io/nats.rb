@@ -32,7 +32,7 @@ end
 
 NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
-NATS.start(:uri => $nats_server) do
+NATS.start(:uri => $nats_server,  :autostart => true) do
   puts "Listening on [#{subject}], queue group [#{queue_group}]"
   NATS.subscribe(subject, :queue => queue_group) { |msg, _, sub|
     puts "#{header} Received on [#{sub}] : '#{msg}'"
