@@ -14,7 +14,7 @@ describe 'client specification' do
   it "should complain if it can't connect to server when not running and not told to autostart" do
     expect do
       NATS.start(:uri => 'nats://localhost:3222', :autostart => false) { NATS.stop }
-    end.to raise_error(NATS::Error)
+    end.to raise_error(NATS::ConnectError)
   end
 
   it 'should complain if NATS.start is called without EM running and no block was given' do
@@ -40,6 +40,15 @@ describe 'client specification' do
       NATS.stop
     end
     NATS.err_cb.should be_nil
+  end
+
+  it 'should raise NATS::ServerError on error replies from NATSD' do
+    expect do
+      NATS.start(:pedantic => true) do
+        NATS.unsubscribe(10000)
+        EM.add_timer(1) { NATS.stop }
+      end
+    end.to raise_error(NATS::ServerError)
   end
 
   it 'should do publish without payload and with opt_reply without error' do

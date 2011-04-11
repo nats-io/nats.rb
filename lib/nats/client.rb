@@ -53,6 +53,14 @@ module NATS
   class Error < StandardError #:nodoc:
   end
 
+  # When the NATS server sends us an ERROR message, this is raised/passed by default
+  class ServerError < Error #:nodoc:
+  end
+
+  # When we cannot connect to the server (either initially or after a reconnect), this is raised/passed
+  class ConnectError < Error #:nodoc:
+  end
+
   class << self
     attr_reader   :client, :reactor_was_running, :err_cb, :err_cb_overridden #:nodoc:
     attr_accessor :timeout_cb #:nodoc
@@ -84,7 +92,7 @@ module NATS
       opts[:pedantic] = ENV['NATS_PEDANTIC'] unless ENV['NATS_PEDANTIC'].nil?
       opts[:debug] = ENV['NATS_DEBUG'] if !ENV['NATS_DEBUG'].nil?
       @uri = opts[:uri] = URI.parse(opts[:uri])
-      @err_cb = proc { raise Error, "Could not connect to server on #{@uri}."} unless err_cb
+      @err_cb = proc {|e| raise e } unless err_cb
       check_autostart(@uri) if opts[:autostart] == true
 
       client = EM.connect(@uri.host, @uri.port, self, opts)
@@ -402,8 +410,7 @@ module NATS
                 @buf = $'
               when ERR
                 @buf = $'
-                @err_cb = proc { raise Error, "Error received from server :#{$1}."} unless user_err_cb?
-                err_cb.call($1)
+                err_cb.call(NATS::ServerError.new($1))
               when PING
                 @buf = $'
                 send_command(PONG_RESPONSE)
@@ -416,8 +423,7 @@ module NATS
                 process_info($1)
               when UNKNOWN
                 @buf = $'
-                @err_cb = proc { raise Error, "Error: Ukknown Protocol."} unless user_err_cb?
-                err_cb.call($1)
+                err_cb.call(NATS::Error.new("Unknown protocol: $1"))
               else
                 # If we are here we do not have a complete line yet that we understand.
                 return
@@ -448,7 +454,7 @@ module NATS
     end
     flush_pending if @pending
     unless user_err_cb? or reconnecting?
-      @err_cb = proc { raise Error, "Client disconnected from server on #{@uri}."}
+      @err_cb = proc {|e| raise e }
     end
     if (connect_cb and not reconnecting?)
       # We will round trip the server here to make sure all state from any pending commands
@@ -476,7 +482,7 @@ module NATS
   def process_disconnect #:nodoc:
     if not closing? and @err_cb
       err_string = @connected ? "Client disconnected from server on #{@uri}." : "Could not connect to server on #{@uri}"
-      err_cb.call(err_string)
+      err_cb.call(NATS::ConnectError.new(err_string))
     end
   ensure
     EM.cancel_timer(@reconnect_timer) if @reconnect_timer
