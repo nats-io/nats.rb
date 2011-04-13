@@ -46,7 +46,7 @@ describe 'client specification' do
     expect do
       NATS.start(:pedantic => true) do
         NATS.unsubscribe(10000)
-        EM.add_timer(1) { NATS.stop }
+        NATS.publish('done') { NATS.stop }
       end
     end.to raise_error(NATS::ServerError)
   end
