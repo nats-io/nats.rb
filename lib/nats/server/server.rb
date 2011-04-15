@@ -109,8 +109,9 @@ module NATSD #:nodoc: all
               trace("Matched queue subscriber", sub[:subject], sub[:qgroup], sub[:sid], sub.conn.client_info)
             end
             # Queue this for post processing
-            qsubs ||= Hash.new([])
-            qsubs[sub[:qgroup]] = qsubs[sub[:qgroup]] << sub
+            qsubs ||= Hash.new
+            qsubs[sub[:qgroup]] ||= []
+            qsubs[sub[:qgroup]] << sub
           end
         end
 

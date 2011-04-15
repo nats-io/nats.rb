@@ -65,4 +65,24 @@ describe "queue group support" do
     received.should == 1
   end
 
+  it "should deliver 1 message/group for each publish" do
+    received_g1 = 0
+    received_g2 = 0
+    NATS.start do
+      NATS.subscribe('foo.bar', :queue => 'g1') { received_g1 += 1 }
+      NATS.subscribe('foo.bar', :queue => 'g2') { received_g2 += 1 }
+      NATS.subscribe('foo.bar', :queue => 'g2') { received_g2 += 1 }
+      NATS.subscribe('foo.bar', :queue => 'g2') { received_g2 += 1 }
+      NATS.subscribe('foo.bar', :queue => 'g2') { received_g2 += 1 }
+      NATS.subscribe('foo.bar', :queue => 'g2') { received_g2 += 1 }
+      NATS.subscribe('foo.bar', :queue => 'g2') { received_g2 += 1 }
+      9.times do
+        NATS.publish('foo.bar', 'hello')
+      end
+      NATS.publish('foo.bar', 'hello') { NATS.stop }
+    end
+    received_g1.should == 10
+    received_g2.should == 10
+  end
+
 end
