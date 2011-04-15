@@ -70,16 +70,14 @@ describe "queue group support" do
     received_g2 = 0
     NATS.start do
       NATS.subscribe('foo.bar', :queue => 'g1') { received_g1 += 1 }
-      NATS.subscribe('foo.bar', :queue => 'g2') { received_g2 += 1 }
-      NATS.subscribe('foo.bar', :queue => 'g2') { received_g2 += 1 }
-      NATS.subscribe('foo.bar', :queue => 'g2') { received_g2 += 1 }
-      NATS.subscribe('foo.bar', :queue => 'g2') { received_g2 += 1 }
-      NATS.subscribe('foo.bar', :queue => 'g2') { received_g2 += 1 }
-      NATS.subscribe('foo.bar', :queue => 'g2') { received_g2 += 1 }
-      9.times do
+      5.times do
+        NATS.subscribe('foo.bar', :queue => 'g2') { received_g2 += 1 }
+      end
+
+      10.times do
         NATS.publish('foo.bar', 'hello')
       end
-      NATS.publish('foo.bar', 'hello') { NATS.stop }
+      NATS.publish('done') { NATS.stop }
     end
     received_g1.should == 10
     received_g2.should == 10
