@@ -13,6 +13,30 @@ describe 'sublist functionality' do
     @sublist.match('a.b').should be_empty
   end
 
+  it 'should have N items after N items inserted' do
+    5.times { |n| @sublist.insert("a.b.#{n}", 'foo') }
+    @sublist.count.should == 5
+  end
+
+  it 'should be safe to remove an non-existant subscription' do
+    @sublist.insert('a.b.c', 'foo')
+    @sublist.remove('a.b.x', 'foo')
+  end
+
+  it 'should have 0 items after N items inserted and removed' do
+    5.times { |n| @sublist.insert("a.b.#{n}", 'foo') }
+    @sublist.count.should == 5
+    5.times { |n| @sublist.remove("a.b.#{n}", 'foo') }
+    @sublist.count.should == 0
+  end
+
+  it 'should have N items after N items inserted and others removed' do
+    5.times { |n| @sublist.insert("a.b.#{n}", 'foo') }
+    @sublist.count.should == 5
+    @sublist.remove('a.b.c', 'foo')
+    @sublist.count.should == 5
+  end
+
   it 'should match and return proper closure for subjects' do
     @sublist.insert('a', 'foo')
     m = @sublist.match('a')
@@ -102,6 +126,35 @@ describe 'sublist functionality' do
     m = @sublist.match('a.b.z').sort
     m.count.should == 2
     m.should == ['fwc', 'pwc-last']
+  end
+
+  it 'should have N node_count after N items inserted' do
+    5.times { |n| @sublist.insert("a.b.#{n}", 'foo') }
+    nc = @sublist.send :node_count
+    nc.should == 7
+  end
+
+  it 'should have 0 node_count after N items inserted and removed' do
+    5.times { |n| @sublist.insert("#{n}", 'foo') }
+    5.times { |n| @sublist.remove("#{n}", 'foo') }
+    nc = @sublist.send :node_count
+    nc.should == 0
+  end
+
+  it 'should have 1 node_count after N items with 1 token prefix inserted and removed' do
+    5.times { |n| @sublist.insert("INBOX.#{n}", 'foo') }
+    5.times { |n| @sublist.remove("INBOX.#{n}", 'foo') }
+    nc = @sublist.send :node_count
+    nc.should == 1
+  end
+
+  it 'should have N-3 node_count after N items with 3 prefix and wildcards inserted and removed' do
+    5.times { |n| @sublist.insert("a.b.*.#{n}", 'foo') }
+    @sublist.insert('a.b.>', 'foo')
+    5.times { |n| @sublist.remove("a.b.*.#{n}", 'foo') }
+    @sublist.remove('a.b.>', 'foo')
+    nc = @sublist.send :node_count
+    nc.should == 3
   end
 
 end

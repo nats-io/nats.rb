@@ -20,6 +20,8 @@ class Sublist #:nodoc:
   SublistNode  = Struct.new(:leaf_nodes, :next_level)
   SublistLevel = Struct.new(:nodes, :pwc, :fwc)
 
+  EMPTY_LEVEL = SublistLevel.new({})
+
   def initialize(options = {})
     @count = 0
     @results = []
@@ -61,20 +63,22 @@ class Sublist #:nodoc:
 
   # Remove a given subscriber from the sublist for the given subject.
   def remove(subject, subscriber)
-    # TODO: implement (remember cache and count cleanup if applicable)
-    # Reference counts and GC for long empty tree.
     level, tokens = @root, subject.split('.')
     for token in tokens
-      next unless level
+      return unless level
       case token
         when FWC then node = level.fwc
         when PWC then node = level.pwc
-        else node  = level.nodes[token]
+        else node = level.nodes[token]
       end
-      level = node.next_level
+      return unless node
+      plevel, level = level, node.next_level
     end
-    # This could be expensize if a large number of subscribers exist.
-    node.leaf_nodes.delete(subscriber) if (node && node.leaf_nodes)
+    # This could be expensive if a large number of subscribers exist.
+    if (node && node.leaf_nodes && node.leaf_nodes.delete(subscriber))
+      @count -= 1
+      prune_nodes(plevel, node, token) if node.leaf_nodes.empty?
+    end
     clear_cache # Clear the cache
   end
 
@@ -111,6 +115,36 @@ class Sublist #:nodoc:
     end
     @results.concat(pwc.leaf_nodes) if pwc
     @results.concat(node.leaf_nodes) if node
+  end
+
+  def prune_nodes(level, node, token)
+    return unless level && node && token
+    return unless node.leaf_nodes.empty? && (node.next_level == EMPTY_LEVEL)
+    if node == level.fwc
+      level.fwc = nil
+    elsif node == level.pwc
+      level.pwc = nil
+    else
+      level.nodes.delete(token)
+    end
+  end
+
+  ################################################
+  # Used for tests on pruning subscription nodes.
+  ################################################
+
+  def node_count_level(level, nc)
+    return 0 unless level
+    nc += 1 if level.fwc
+    nc += node_count_level(level.pwc.next_level, nc+1) if level.pwc
+    level.nodes.each_value do |node|
+      nc += node_count_level(node.next_level, nc)
+    end
+    nc += level.nodes.length
+  end
+
+  def node_count
+    node_count_level(@root, 0)
   end
 
 end
