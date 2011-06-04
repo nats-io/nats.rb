@@ -59,27 +59,13 @@ class Sublist #:nodoc:
     node.leaf_nodes.push(subscriber)
     @count += 1
     clear_cache # Clear the cache
+    node.next_level = nil if node.next_level == EMPTY_LEVEL
   end
 
   # Remove a given subscriber from the sublist for the given subject.
   def remove(subject, subscriber)
-    level, tokens = @root, subject.split('.')
-    for token in tokens
-      return unless level
-      case token
-        when FWC then node = level.fwc
-        when PWC then node = level.pwc
-        else node = level.nodes[token]
-      end
-      return unless node
-      plevel, level = level, node.next_level
-    end
-    # This could be expensive if a large number of subscribers exist.
-    if (node && node.leaf_nodes && node.leaf_nodes.delete(subscriber))
-      @count -= 1
-      prune_nodes(plevel, node, token) if node.leaf_nodes.empty?
-    end
-    clear_cache # Clear the cache
+    return unless subject && subscriber
+    remove_level(@root, subject.split('.'), subscriber)
   end
 
   # Match a subject to all subscribers, return the array of matches.
@@ -117,15 +103,39 @@ class Sublist #:nodoc:
     @results.concat(node.leaf_nodes) if node
   end
 
-  def prune_nodes(level, node, token)
-    return unless level && node && token
-    return unless node.leaf_nodes.empty? && (node.next_level == EMPTY_LEVEL)
+  def prune_level(level, node, token)
+    # Prune here if needed.
+    return unless level && node
+    return unless node.leaf_nodes.empty? && (!node.next_level || node.next_level == EMPTY_LEVEL)
     if node == level.fwc
       level.fwc = nil
     elsif node == level.pwc
       level.pwc = nil
     else
       level.nodes.delete(token)
+    end
+  end
+
+  def remove_level(level, tokens, subscriber)
+    return unless level
+    token = tokens.shift
+    case token
+      when FWC then node = level.fwc
+      when PWC then node = level.pwc
+      else node = level.nodes[token]
+    end
+    return unless node
+
+    # This could be expensive if a large number of subscribers exist.
+    if tokens.empty?
+      if (node.leaf_nodes && node.leaf_nodes.delete(subscriber))
+        @count -= 1
+        prune_level(level, node, token)
+        clear_cache # Clear the cache
+      end
+    else
+      remove_level(node.next_level, tokens, subscriber)
+      prune_level(level, node, token)
     end
   end
 

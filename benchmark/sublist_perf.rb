@@ -3,14 +3,16 @@ $:.unshift File.expand_path('../../lib', __FILE__)
 require 'nats/server/sublist'
 
 class PerfSublist
-  @@levels = 5
+  @@levels  = 5
   @@targets = ['derek', 'ruth', 'sam', 'meg', 'brett', 'ben', 'miles', 'bella', 'rex', 'diamond']
   @@sublist = Sublist.new()
+  @@subs    = []
 
   def PerfSublist.subsInit(pre=nil)
     @@targets.each {|t|
         sub = pre ? (pre + "." + t) : t
         @@sublist.insert(sub, sub)
+        @@subs << sub
         subsInit(sub) if sub.split(".").size < @@levels
       }
   end
@@ -36,8 +38,18 @@ class PerfSublist
     @@sublist = Sublist.new()
   end
 
+  def PerfSublist.removeAll
+    @@subs.each do |sub|
+      @@sublist.remove(sub, sub)
+    end
+  end
+
   def PerfSublist.subscriptionCount
     @@sublist.count
+  end
+
+  def PerfSublist.totalCount
+    @@subs.count
   end
 
 end
@@ -89,6 +101,13 @@ PerfSublist.matchTest("derek.sam.meg.billybob", 50000) # worst case miss
   PerfSublist.matchTest("ruth.sam.meg.derek", 50000) # multiple returns w/ wc
   PerfSublist.matchTest("derek.sam.meg.billybob", 50000) # worst case miss
 end
+
+start = Time.now
+PerfSublist.removeAll
+stop = Time.now
+puts
+puts "Sublist now holding #{PerfSublist.subscriptionCount} subscriptions"
+puts "Removal rate of #{(PerfSublist.totalCount/(stop-start)).to_i}/sec"
 
 # Allows you to see memory usage, etc
 puts

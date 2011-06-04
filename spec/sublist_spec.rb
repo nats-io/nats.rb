@@ -141,20 +141,27 @@ describe 'sublist functionality' do
     nc.should == 0
   end
 
-  it 'should have 1 node_count after N items with 1 token prefix inserted and removed' do
+  it 'should have 0 node_count after N items with 1 token prefix inserted and removed' do
     5.times { |n| @sublist.insert("INBOX.#{n}", 'foo') }
     5.times { |n| @sublist.remove("INBOX.#{n}", 'foo') }
     nc = @sublist.send :node_count
-    nc.should == 1
+    nc.should == 0
   end
 
-  it 'should have N-3 node_count after N items with 3 prefix and wildcards inserted and removed' do
+  it 'should have 0 node_count after N items with 3 prefix and wildcards inserted and removed' do
     5.times { |n| @sublist.insert("a.b.*.#{n}", 'foo') }
     @sublist.insert('a.b.>', 'foo')
     5.times { |n| @sublist.remove("a.b.*.#{n}", 'foo') }
     @sublist.remove('a.b.>', 'foo')
     nc = @sublist.send :node_count
-    nc.should == 3
+    nc.should == 0
+  end
+
+  it 'should have 0 node_count after N items with large middle token range inserted and removed' do
+    5.times { |n| @sublist.insert("a.#{n}.c", 'foo') }
+    5.times { |n| @sublist.remove("a.#{n}.c", 'foo') }
+    nc = @sublist.send :node_count
+    nc.should == 0
   end
 
 end
