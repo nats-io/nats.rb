@@ -74,15 +74,9 @@ module NATSD #:nodoc: all
       end
 
       def deliver_to_subscriber(sub, subject, reply, msg)
-
-        # Allows nil reply to not have extra space
-        reply = reply + ' ' if reply
-
         conn = sub.conn
 
-        conn.send_data("MSG #{subject} #{sub.sid} #{reply}#{msg.bytesize}#{CR_LF}")
-        conn.send_data(msg)
-        conn.send_data(CR_LF)
+        conn.send_data("MSG #{subject} #{sub.sid} #{reply}#{msg.bytesize}#{CR_LF}#{msg}#{CR_LF}")
 
         # Account for these response and check for auto-unsubscribe (pruning interest graph)
         sub.num_responses += 1
@@ -97,6 +91,9 @@ module NATSD #:nodoc: all
 
       def route_to_subscribers(subject, reply, msg)
         qsubs = nil
+
+        # Allows nil reply to not have extra space
+        reply = reply + ' ' if reply
 
         @sublist.match(subject).each do |sub|
           # Skip anyone in the closing state
