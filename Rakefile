@@ -1,4 +1,3 @@
-
 desc "Run rspec"
 task :spec do
   sh('bundle install')
@@ -7,6 +6,7 @@ task :spec do
     t.rspec_opts = %w(-fs -c)
   end
 end
+task :default => :spec
 
 desc "Build the gem"
 task :gem do
