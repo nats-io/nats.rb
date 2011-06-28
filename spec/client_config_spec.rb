@@ -12,7 +12,7 @@ describe "client configuration" do
   end
 
   it 'should honor setting options' do
-    NATS.start(:debug => true, :pedantic => false, :verbose => true) do
+    NATS.start(:debug => true, :pedantic => false, :verbose => true, :reconnect => true, :max_reconnect_attempts => 100, :reconnect_time_wait => 5) do
       options = NATS.options
       options.should be_an_instance_of Hash
       options.should have_key :debug
@@ -21,6 +21,12 @@ describe "client configuration" do
       options[:pedantic].should be_false
       options.should have_key :verbose
       options[:verbose].should be_true
+      options.should have_key :reconnect
+      options[:reconnect].should be_true 
+      options.should have_key :max_reconnect_attempts
+      options[:max_reconnect_attempts].should == 100 
+      options.should have_key :reconnect_time_wait
+      options[:reconnect_time_wait].should == 5
       NATS.stop
     end
   end
@@ -43,6 +49,41 @@ describe "client configuration" do
     NATS.start(:debug => true, :pedantic => false, :verbose => true) do
       NATS.publish('foo') { NATS.stop }
     end
+  end
+
+  it 'should honor environment vars options' do
+    ENV['NATS_VERBOSE'] = 'true'
+    ENV['NATS_PEDANTIC'] = 'true'
+    ENV['NATS_DEBUG'] = 'true'
+    ENV['NATS_RECONNECT'] = 'true'
+    ENV['NATS_MAX_RECONNECT_ATTEMPTS'] = '100'
+    ENV['NATS_RECONNECT_TIME_WAIT'] = '5'
+ 
+    NATS.start do
+      options = NATS.options
+      options.should be_an_instance_of Hash
+      options.should have_key :debug
+      options[:debug].should be_true
+      options.should have_key :pedantic
+      options[:pedantic].should be_true
+      options.should have_key :verbose
+      options[:verbose].should be_true
+      options.should have_key :reconnect
+      options[:reconnect].should be_true 
+      options.should have_key :max_reconnect_attempts
+      options[:max_reconnect_attempts].should == 100 
+      options.should have_key :reconnect_time_wait
+      options[:reconnect_time_wait].should == 5
+      NATS.stop
+    end
+
+    # Restore environment to be without options!
+    ENV.delete 'NATS_VERBOSE'
+    ENV.delete 'NATS_PEDANTIC'
+    ENV.delete 'NATS_DEBUG'
+    ENV.delete 'NATS_RECONNECT'
+    ENV.delete 'NATS_MAX_RECONNECT_ATTEMPTS'
+    ENV.delete 'NATS_RECONNECT_TIME_WAIT'
   end
 
 end
