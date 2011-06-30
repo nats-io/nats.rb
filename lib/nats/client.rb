@@ -78,6 +78,8 @@ module NATS
     # @option opts [Boolean] :debug Boolean that can be used to output additional debug information.
     # @option opts [Boolean] :verbose Boolean that is sent to server for setting verbose protocol mode.
     # @option opts [Boolean] :pedantic Boolean that is sent to server for setting pedantic mode.
+    # @option opts [Integer] :max_reconnect_attempts Integer that can be used to set the max number of reconnect tries
+    # @option opts [Integer] :reconnect_time_wait Integer that can be used to set the number of seconds to wait between reconnect tries
     # @param [Block] &blk called when the connection is completed. Connection will be passed to the block.
     # @return [NATS] connection to the server.
     def connect(opts={}, &blk)
@@ -85,12 +87,17 @@ module NATS
       opts[:verbose] = false if opts[:verbose].nil?
       opts[:pedantic] = false if opts[:pedantic].nil?
       opts[:reconnect] = true if opts[:reconnect].nil?
+      opts[:max_reconnect_attempts] = MAX_RECONNECT_ATTEMPTS if opts[:max_reconnect_attempts].nil?
+      opts[:reconnect_time_wait] = RECONNECT_TIME_WAIT if opts[:reconnect_time_wait].nil?
 
       # Override with ENV
       opts[:uri] ||= ENV['NATS_URI'] || DEFAULT_URI
-      opts[:verbose] = ENV['NATS_VERBOSE'] unless ENV['NATS_VERBOSE'].nil?
-      opts[:pedantic] = ENV['NATS_PEDANTIC'] unless ENV['NATS_PEDANTIC'].nil?
-      opts[:debug] = ENV['NATS_DEBUG'] if !ENV['NATS_DEBUG'].nil?
+      opts[:verbose] = ENV['NATS_VERBOSE'].downcase == 'true' unless ENV['NATS_VERBOSE'].nil?
+      opts[:pedantic] = ENV['NATS_PEDANTIC'].downcase == 'true' unless ENV['NATS_PEDANTIC'].nil?
+      opts[:debug] = ENV['NATS_DEBUG'].downcase == 'true' unless ENV['NATS_DEBUG'].nil?
+      opts[:reconnect] = ENV['NATS_RECONNECT'].downcase == 'true' unless ENV['NATS_RECONNECT'].nil?
+      opts[:max_reconnect_attempts] = ENV['NATS_MAX_RECONNECT_ATTEMPTS'].to_i unless ENV['NATS_MAX_RECONNECT_ATTEMPTS'].nil?
+      opts[:reconnect_time_wait] = ENV['NATS_RECONNECT_TIME_WAIT'].to_i unless ENV['NATS_RECONNECT_TIME_WAIT'].nil?
       @uri = opts[:uri] = URI.parse(opts[:uri])
       @err_cb = proc {|e| raise e } unless err_cb
       check_autostart(@uri) if opts[:autostart] == true
@@ -473,7 +480,7 @@ module NATS
 
   def unbind #:nodoc:
     if connected? and not closing? and not reconnecting? and @options[:reconnect]
-      schedule_reconnect
+      schedule_reconnect(@options[:reconnect_time_wait])
     else
       process_disconnect unless reconnecting?
     end
@@ -494,7 +501,7 @@ module NATS
   end
 
   def attempt_reconnect #:nodoc:
-    process_disconnect and return if (@reconnect_attempts += 1) > MAX_RECONNECT_ATTEMPTS
+    process_disconnect and return if (@reconnect_attempts += 1) > @options[:max_reconnect_attempts]
     EM.reconnect(@uri.host, @uri.port, self)
   end
 
