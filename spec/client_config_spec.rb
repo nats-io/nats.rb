@@ -92,4 +92,27 @@ describe "client configuration" do
     ENV.delete 'NATS_URI'
   end
 
+  it 'should respect the reconnect parameters' do
+    expect do
+      NATS.start(:connect => true, :max_reconnect_attempts => 2, :reconnect_time_wait => 2) do
+        NATS.stop
+      end
+    end.to_not raise_error
+
+    # Stop the server, make sure it can't connect and see that the time to fail make sense
+    start_at = nil
+    expect do
+      NATS.start(:reconnect => true, :max_reconnect_attempts => 2, :reconnect_time_wait => 1) do
+        @s.kill_server
+        start_at = Time.now
+        NATS.publish('test', 'test'){ NATS.stop }
+      end
+    end.to raise_error
+    time_diff = Time.now - start_at
+
+    # Check if the reconnect took more than the expected 4 secs...
+    time_diff.should >= 3
+    time_diff.should < 5
+  end
+
 end
