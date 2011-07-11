@@ -12,7 +12,7 @@ describe "client configuration" do
   end
 
   it 'should honor setting options' do
-    NATS.start(:debug => true, :pedantic => false, :verbose => true, :reconnect => true, :max_reconnect_attempts => 100, :reconnect_time_wait => 5) do
+    NATS.start(:debug => true, :pedantic => false, :verbose => true, :reconnect => true, :max_reconnect_attempts => 100, :reconnect_time_wait => 5, :uri => 'nats://127.0.0.1:4222') do
       options = NATS.options
       options.should be_an_instance_of Hash
       options.should have_key :debug
@@ -27,6 +27,8 @@ describe "client configuration" do
       options[:max_reconnect_attempts].should == 100 
       options.should have_key :reconnect_time_wait
       options[:reconnect_time_wait].should == 5
+      options.should have_key :uri
+      options[:uri].should.to_s == 'nats://127.0.0.1:4222'
       NATS.stop
     end
   end
@@ -58,6 +60,7 @@ describe "client configuration" do
     ENV['NATS_RECONNECT'] = 'true'
     ENV['NATS_MAX_RECONNECT_ATTEMPTS'] = '100'
     ENV['NATS_RECONNECT_TIME_WAIT'] = '5'
+    ENV['NATS_URI'] = 'nats://127.0.0.1:4222'
  
     NATS.start do
       options = NATS.options
@@ -74,6 +77,8 @@ describe "client configuration" do
       options[:max_reconnect_attempts].should == 100 
       options.should have_key :reconnect_time_wait
       options[:reconnect_time_wait].should == 5
+      options.should have_key :uri
+      options[:uri].to_s.should == 'nats://127.0.0.1:4222'
       NATS.stop
     end
 
@@ -84,6 +89,7 @@ describe "client configuration" do
     ENV.delete 'NATS_RECONNECT'
     ENV.delete 'NATS_MAX_RECONNECT_ATTEMPTS'
     ENV.delete 'NATS_RECONNECT_TIME_WAIT'
+    ENV.delete 'NATS_URI'
   end
 
 end
