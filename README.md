@@ -17,7 +17,7 @@ This gem currently works on the following Ruby platforms:
     [sudo] rake geminstall
 
     nats-sub foo &
-    nats-pub foo "Hello World!'
+    nats-pub foo 'Hello World!'
 
 ## Usage
 
