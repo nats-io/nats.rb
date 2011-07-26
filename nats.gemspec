@@ -17,8 +17,9 @@ spec = Gem::Specification.new do |s|
   s.email = ['derek.collison@gmail.com']
 
   s.add_dependency('eventmachine', '>= 0.12.10')
-  s.add_dependency('json_pure', '>= 1.5.1')
-  s.add_dependency('daemons', '>= 1.1.0')
+  s.add_dependency('json_pure', '>= 1.5.3')
+  s.add_dependency('daemons', '>= 1.1.4')
+  s.add_dependency('thin', '>= 1.2.11')
 
   s.require_paths = ['lib']
   s.bindir = 'bin'

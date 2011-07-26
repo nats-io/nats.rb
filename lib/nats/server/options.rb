@@ -17,7 +17,9 @@ module NATSD
                                        "(default: #{DEFAULT_HOST})")           { |host| @options[:addr] = host }
           opts.on("-p", "--port PORT", "Use PORT (default: #{DEFAULT_PORT})")  { |port| @options[:port] = port.to_i }
           opts.on("-d", "--daemonize", "Run daemonized in the background")     { @options[:daemonize] = true }
-          opts.on("-P", "--pid FILE", "File to store PID")                     { |file| @options[:pid_file] = file }
+          opts.on("-P", "--pid FILE",  "File to store PID")                    { |file| @options[:pid_file] = file }
+
+          opts.on("-m", "--http_port PORT", "Use HTTP PORT ")                  { |port| @options[:http_port] = port.to_i }
 
           opts.on("-c", "--config FILE", "Configuration File")                 { |file| @options[:config_file] = file }
 
@@ -77,8 +79,14 @@ module NATSD
         @options[:max_pending] = config['max_pending'] if config['max_pending']
 
         # just set
-        @options[:noepoll] = config['no_epoll'] if config['no_epoll']
+        @options[:noepoll]  = config['no_epoll'] if config['no_epoll']
         @options[:nokqueue] = config['no_kqueue'] if config['no_kqueue']
+
+        if http = config['http']
+          @options[:http_port] = http['port'] if @options[:http_port].nil?
+          @options[:http_user] = http['user'] if @options[:http_user].nil?
+          @options[:http_password] = http['password'] if @options[:http_password].nil?
+        end
 
       rescue => e
         log "Could not read configuration file:  #{e}"

@@ -13,6 +13,7 @@ require "#{ep}/server/sublist"
 require "#{ep}/server/options"
 require "#{ep}/server/const"
 require "#{ep}/server/util"
+require "#{ep}/server/varz"
 
 # Do setup
 NATSD::Server.setup(ARGV.dup)
@@ -28,4 +29,7 @@ EM.run {
     log_error
     exit(1)
   end
+
+  # Check to see if we need to fire up the http monitor port and server
+  NATSD::Server.start_http_server if NATSD::Server.options[:http_port]
 }

@@ -1,0 +1,36 @@
+
+---
+
+port: 4242
+net: localhost
+
+http:
+  port: 4222
+  user: derek
+  password: foo
+
+authorization:
+  user: derek
+  password: bella
+  token: deadbeef
+  timeout: 1
+
+pid_file: '/tmp/nats_test.pid'
+log_file: '/tmp/nats_test.log'
+
+# Debug Options
+
+logtime: true
+debug:   false
+trace:   false
+
+# Protocol/Limits
+max_control_line: 512
+max_payload:  512000
+max_pending: 2000000
+
+# EM/IO
+no_epoll:  false
+no_kqueue: true
+
+

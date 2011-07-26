@@ -1,7 +1,7 @@
 
 module NATSD #:nodoc:
 
-  VERSION  = '0.4.12'
+  VERSION  = '0.4.14'
   APP_NAME = 'nats-server'
 
   DEFAULT_PORT = 4222
@@ -58,5 +58,9 @@ module NATSD #:nodoc:
 
   # Authorization wait time
   AUTH_TIMEOUT = 1
+
+  # HTTP
+  RACK_JSON_HDR = { 'Content-Type' => 'application/json' }
+  RACK_TEXT_HDR = { 'Content-Type' => 'text/plain' }
 
 end

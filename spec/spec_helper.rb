@@ -20,9 +20,10 @@ class NatsServerControl
     end
   end
 
-  def initialize(uri="nats://localhost:4222", pid_file='/tmp/test-nats.pid')
+  def initialize(uri="nats://localhost:4222", pid_file='/tmp/test-nats.pid', flags=nil)
     @uri = URI.parse(uri)
     @pid_file = pid_file
+    @flags = flags
   end
 
   def server_pid
@@ -46,9 +47,12 @@ class NatsServerControl
     # %x[ruby -S bundle exec nats-server -p #{@uri.port} -P #{@pid_file} -d 2> /dev/null]
     server = File.expand_path(File.join(__FILE__, "../../lib/nats/server.rb"))
     # daemonize really doesn't work on jruby, so should run servers manually to test on jruby
-    args = "-p #{@uri.port} -P #{@pid_file} -d"
+    args = "-p #{@uri.port} -P #{@pid_file}"
     args += " --user #{@uri.user}" if @uri.user
     args += " --pass #{@uri.password}" if @uri.password
+    args += " #{@flags}" if @flags
+    args += ' -d'
+
     %x[ruby #{server} #{args} 2> /dev/null]
     NATS.wait_for_server(@uri, 10) #jruby can be slow on startup
   end

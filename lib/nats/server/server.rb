@@ -8,6 +8,7 @@ module NATSD #:nodoc: all
     class << self
       attr_reader :id, :info, :log_time, :auth_required, :debug_flag, :trace_flag, :options
       attr_reader :max_payload, :max_pending, :max_control_line, :auth_timeout
+      attr_accessor :varz, :healthz, :num_connections, :in_msgs, :out_msgs, :in_bytes, :out_bytes
 
       alias auth_required? :auth_required
       alias debug_flag?    :debug_flag
@@ -15,8 +16,8 @@ module NATSD #:nodoc: all
 
       def version; "nats-server version #{NATSD::VERSION}" end
 
-      def host; @options[:addr]  end
-      def port; @options[:port]  end
+      def host; @options[:addr] end
+      def port; @options[:port] end
       def pid_file; @options[:pid_file] end
 
       def process_options(argv=[])
@@ -36,6 +37,11 @@ module NATSD #:nodoc: all
 
         @id, @cid = fast_uuid, 1
         @sublist = Sublist.new
+
+        @num_connections = 0
+        @in_msgs = @out_msgs = 0
+        @in_bytes = @out_bytes = 0
+
         @info = {
           :server_id => Server.id,
           :version => VERSION,
@@ -50,6 +56,7 @@ module NATSD #:nodoc: all
           unless @options[:log_file]
             # These log messages visible to controlling TTY
             log "Starting #{NATSD::APP_NAME} version #{NATSD::VERSION} on port #{NATSD::Server.port}"
+            log "Starting http monitor on port #{@options[:http_port]}" if @options[:http_port]
             log "Switching to daemon mode"
           end
           Daemons.daemonize(:app_name => APP_NAME, :mode => :exec)
@@ -76,6 +83,10 @@ module NATSD #:nodoc: all
       def deliver_to_subscriber(sub, subject, reply, msg)
         conn = sub.conn
 
+        # Accounting
+        @out_msgs += 1
+        @out_bytes += msg.bytesize unless msg.nil?
+
         conn.send_data("MSG #{subject} #{sub.sid} #{reply}#{msg.bytesize}#{CR_LF}#{msg}#{CR_LF}")
 
         # Account for these response and check for auto-unsubscribe (pruning interest graph)
@@ -94,6 +105,10 @@ module NATSD #:nodoc: all
 
         # Allows nil reply to not have extra space
         reply = reply + ' ' if reply
+
+        # Accounting
+        @in_msgs += 1
+        @in_bytes += msg.bytesize unless msg.nil?
 
         @sublist.match(subject).each do |sub|
           # Skip anyone in the closing state
@@ -136,6 +151,37 @@ module NATSD #:nodoc: all
         @info.to_json
       end
 
+      # Monitoring
+      def start_http_server
+        return unless port = @options[:http_port]
+
+        require 'thin'
+
+        log "Starting http monitor on port #{port}"
+
+        @healthz = 'ok\n'
+
+        @varz = {
+          :start => Time.now,
+          :options => @options,
+          :cores => num_cpu_cores
+        }
+
+        http_server = Thin::Server.new(NATSD::Server.host, port, :signals => false) do
+          Thin::Logging.silent = true
+          #use Rack::Auth::Basic do |username, password|
+          #  [username, password] == auth
+          #end
+          map '/healthz' do
+            run lambda { |env| [200, RACK_TEXT_HDR, NATSD::Server.healthz] }
+          end
+          map '/varz' do
+            run Varz.new
+          end
+        end
+        http_server.start!
+      end
+
     end
   end
 
@@ -155,6 +201,7 @@ module NATSD #:nodoc: all
       @parse_state = AWAITING_CONTROL_LINE
       send_info
       @auth_pending = EM.add_timer(NATSD::Server.auth_timeout) { connect_auth_timeout } if Server.auth_required?
+      Server.num_connections += 1
       debug "Client connection created", client_info, cid
     end
 
@@ -291,6 +338,7 @@ module NATSD #:nodoc: all
 
     def unbind
       debug "Client connection closed", client_info, cid
+      Server.num_connections -= 1
       # ctrace "Receive_Data called #{@receive_data_calls} times." if @receive_data_calls > 0
       @subscriptions.each_value { |sub| Server.unsubscribe(sub) }
       EM.cancel_timer(@auth_pending) if @auth_pending
