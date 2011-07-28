@@ -43,6 +43,13 @@ class Sublist #:nodoc:
   def enable_cache;  @cache ||= {};  end
   def clear_cache; @cache = {} if @cache; end
 
+  # Random removal
+  def prune_cache
+    return unless @cache
+    keys = @cache.keys
+    @cache.delete(keys[rand(keys.size)])
+  end
+
   # Insert a subscriber into the sublist for the given subject.
   def insert(subject, subscriber)
     # TODO - validate subject as correct.
@@ -76,7 +83,7 @@ class Sublist #:nodoc:
     matchAll(@root, tokens)
     # FIXME: This is too low tech, will revisit when needed.
     if @cache
-      clear_cache if @cache.size > CACHE_SIZE
+      prune_cache if @cache.size > CACHE_SIZE
       @cache[subject] = Array.new(@results).freeze # Avoid tampering of copy
     end
     @results
