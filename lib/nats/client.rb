@@ -193,6 +193,12 @@ module NATS
       "_INBOX.%04x%04x%04x%04x%04x%06x" % v
     end
 
+    # Flushes all messages and subscriptions in the default connection
+    # @see NATS#flush
+    def flush(*args, &blk)
+      (@client ||= connect).flush(*args, &blk)
+    end
+
     def wait_for_server(uri, max_wait = 5) # :nodoc:
       start = Time.now
       while (Time.now - start < max_wait) # Wait max_wait seconds max
@@ -335,6 +341,13 @@ module NATS
     }
     publish(subject, data, inbox)
     return s
+  end
+
+  # Flushes all messages and subscriptions for the connection.
+  # All messages and subscriptions have been processed by the server
+  # when the optional callback is called.
+  def flush(&blk)
+    queue_server_rt(&blk) if blk
   end
 
   # Define a callback to be called when the client connection has been established.
