@@ -22,13 +22,13 @@ describe "client configuration" do
       options.should have_key :verbose
       options[:verbose].should be_true
       options.should have_key :reconnect
-      options[:reconnect].should be_true 
+      options[:reconnect].should be_true
       options.should have_key :max_reconnect_attempts
-      options[:max_reconnect_attempts].should == 100 
+      options[:max_reconnect_attempts].should == 100
       options.should have_key :reconnect_time_wait
       options[:reconnect_time_wait].should == 5
       options.should have_key :uri
-      options[:uri].should.to_s == 'nats://127.0.0.1:4222'
+      options[:uri].to_s.should == 'nats://127.0.0.1:4222'
       NATS.stop
     end
   end
@@ -61,7 +61,7 @@ describe "client configuration" do
     ENV['NATS_MAX_RECONNECT_ATTEMPTS'] = '100'
     ENV['NATS_RECONNECT_TIME_WAIT'] = '5'
     ENV['NATS_URI'] = 'nats://127.0.0.1:4222'
- 
+
     NATS.start do
       options = NATS.options
       options.should be_an_instance_of Hash
@@ -72,9 +72,9 @@ describe "client configuration" do
       options.should have_key :verbose
       options[:verbose].should be_true
       options.should have_key :reconnect
-      options[:reconnect].should be_true 
+      options[:reconnect].should be_true
       options.should have_key :max_reconnect_attempts
-      options[:max_reconnect_attempts].should == 100 
+      options[:max_reconnect_attempts].should == 100
       options.should have_key :reconnect_time_wait
       options[:reconnect_time_wait].should == 5
       options.should have_key :uri

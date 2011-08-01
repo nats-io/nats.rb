@@ -8,7 +8,7 @@ require "#{ep}/ext/json"
 
 module NATS
 
-  VERSION = "0.4.10".freeze
+  VERSION = "0.5.0".freeze
 
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
@@ -98,7 +98,16 @@ module NATS
       opts[:reconnect] = ENV['NATS_RECONNECT'].downcase == 'true' unless ENV['NATS_RECONNECT'].nil?
       opts[:max_reconnect_attempts] = ENV['NATS_MAX_RECONNECT_ATTEMPTS'].to_i unless ENV['NATS_MAX_RECONNECT_ATTEMPTS'].nil?
       opts[:reconnect_time_wait] = ENV['NATS_RECONNECT_TIME_WAIT'].to_i unless ENV['NATS_RECONNECT_TIME_WAIT'].nil?
-      @uri = opts[:uri] = URI.parse(opts[:uri])
+
+      uri = opts[:uri] || opts[:uris] || opts[:servers]
+
+      # If they pass an array here just pass long to the real connection, and use first as the first attempt..
+      # Real connection will do proper walk throughs etc..
+      if not uri.nil?
+        u = uri.kind_of?(Array) ? uri.first : uri
+        @uri = URI.parse(u)
+      end
+
       @err_cb = proc {|e| raise e } unless err_cb
       check_autostart(@uri) if opts[:autostart] == true
 
@@ -229,17 +238,15 @@ module NATS
   end
 
   attr_reader :connected, :connect_cb, :err_cb, :err_cb_overridden #:nodoc:
-  attr_reader :closing, :reconnecting, :options #:nodoc
+  attr_reader :closing, :reconnecting, :server_pool, :options #:nodoc
 
   alias :connected? :connected
   alias :closing? :closing
   alias :reconnecting? :reconnecting
 
   def initialize(options)
-    @uri = options[:uri]
-    @uri.user = options[:user] if options[:user]
-    @uri.password = options[:pass] if options[:pass]
     @options = options
+    process_uri_options
     @ssid, @subs = 1, {}
     @err_cb = NATS.err_cb
     @reconnect_timer, @needed = nil, nil
@@ -479,10 +486,22 @@ module NATS
   end
 
   def unbind #:nodoc:
+puts "UNBIND!"
+puts "connected? = #{connected?}"
+puts "closing? = #{closing?}"
+puts "reconnecting? = #{reconnecting?}"
+puts "options[reconnect]? = #{@options[:reconnect]}"
+
     if connected? and not closing? and not reconnecting? and @options[:reconnect]
       schedule_reconnect(@options[:reconnect_time_wait])
+puts "RECONNECT!"
     else
-      process_disconnect unless reconnecting?
+      # We could be here because we have multiple servers and the first one failed
+      if (server_pool.size > 1 && (not closing?))
+        schedule_primary_and_connect
+      else
+        process_disconnect unless reconnecting?
+      end
     end
   end
 
@@ -513,6 +532,41 @@ module NATS
   def queue_command(command) #:nodoc:
     (@pending ||= []) << command
     true
+  end
+
+  # Parse out URIs which can now be an array of server choices
+  # The server pool will contain both explicit and implicit members.
+  def process_uri_options #:nodoc
+    @server_pool = []
+    uri = options[:uri] || options[:uris] || options[:servers]
+    if uri.kind_of?(Array)
+      server_pool.concat uri
+    else
+      server_pool << uri
+    end
+    bind_primary
+  end
+
+  def connected_server
+    connected ? @uri : nil
+  end
+
+  def bind_primary #:nodoc:
+    @uri = URI.parse(server_pool.first)
+    @uri.user = options[:user] if options[:user]
+    @uri.password = options[:pass] if options[:pass]
+  end
+
+  # We have failed on an attempt at the primary (first) server, rotate and try again
+  def schedule_primary_and_connect #:nodoc:
+    # Dump the one we were trying
+    server_pool.shift
+    # bind new one
+    bind_primary
+    # Clear pending for auth changes, and re-queue
+    @pending = nil
+    send_connect_command
+    EM.reconnect(@uri.host, @uri.port, self)
   end
 
   def inspect #:nodoc:
