@@ -52,7 +52,7 @@ describe 'monitor' do
 
   it 'should start monitor http servers when requested' do
     begin
-      sleep(0.25)
+      sleep(0.5)
       s = TCPSocket.open(NATSD::Server.host, HTTP_PORT)
     ensure
       s.close if s
