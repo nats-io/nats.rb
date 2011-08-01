@@ -486,15 +486,8 @@ module NATS
   end
 
   def unbind #:nodoc:
-puts "UNBIND!"
-puts "connected? = #{connected?}"
-puts "closing? = #{closing?}"
-puts "reconnecting? = #{reconnecting?}"
-puts "options[reconnect]? = #{@options[:reconnect]}"
-
     if connected? and not closing? and not reconnecting? and @options[:reconnect]
       schedule_reconnect(@options[:reconnect_time_wait])
-puts "RECONNECT!"
     else
       # We could be here because we have multiple servers and the first one failed
       if (server_pool.size > 1 && (not closing?))
