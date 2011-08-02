@@ -32,4 +32,6 @@ EM.run {
 
   # Check to see if we need to fire up the http monitor port and server
   NATSD::Server.start_http_server if NATSD::Server.options[:http_port]
+
+  EM.add_periodic_timer(60) { route_to_subscribers '>', nil, PING }
 }
