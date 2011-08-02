@@ -182,6 +182,13 @@ module NATSD #:nodoc: all
         http_server.start!
       end
 
+      def broadcast_ping
+        subscribers = @sublist.all_subscribers
+        subscribers.each do |sub|
+          deliver_to_subscriber sub, sub.subject, nil, "PING"
+        end
+      end
+
     end
   end
 

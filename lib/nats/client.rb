@@ -118,7 +118,7 @@ module NATS
       EM.epoll; EM.kqueue
       EM.run {
         @client = connect(*args, &blk)
-        EM.add_periodic_timer(60) { client.send_data(PING) }
+        EM.add_periodic_timer(60) do publish 'clients.ping', "PONG" end
       }
     end
 
