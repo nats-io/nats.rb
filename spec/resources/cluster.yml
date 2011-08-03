@@ -3,7 +3,7 @@
 
 #
 # Sample Server Sonfiguration
-# nats-server -c ./server_config.yml
+# nats-server -c ./cluster.yml
 #
 
 port: 4242
