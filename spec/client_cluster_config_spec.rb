@@ -4,11 +4,11 @@ describe 'client cluster config' do
 
   before(:all) do
 
-    USER = 'derek'
-    PASS = 'mypassword'
+    CLUSTER_USER = 'derek'
+    CLUSTER_PASS = 'mypassword'
 
     CLUSTER_AUTH_PORT = 9292
-    CLUSTER_AUTH_SERVER = "nats://#{USER}:#{PASS}@localhost:#{CLUSTER_AUTH_PORT}"
+    CLUSTER_AUTH_SERVER = "nats://#{CLUSTER_USER}:#{CLUSTER_PASS}@localhost:#{CLUSTER_AUTH_PORT}"
     CLUSTER_AUTH_SERVER_PID = '/tmp/nats_cluster_authorization.pid'
 
     @s = NatsServerControl.new
@@ -67,7 +67,7 @@ describe 'client cluster config' do
 
   it 'should fail to connect if no servers available' do
     expect do
-      NATS.start(:uri => ['nats://127.0.0.1:4223']) {  NATS.stop }
+      NATS.start(:uri => ['nats://127.0.0.1:4223']) { NATS.stop }
     end.to raise_error NATS::Error
   end
 
@@ -94,4 +94,88 @@ describe 'client cluster config' do
     end
   end
 
+  it 'should connect to another server if possible before reconnect' do
+
+    tokill = 'nats://localhost:9290'
+    s = NatsServerControl.new(tokill, '/tmp/nats_cluster_tokill')
+    s.start_server
+
+    NATS.start(:uri => [tokill, CLUSTER_AUTH_SERVER]) do
+      NATS.client.connected_server.should == URI.parse(tokill)
+      kill_time = Time.now
+      s.kill_server
+      EM.add_timer(0.5) do
+        time_diff = Time.now - kill_time
+        time_diff.should < 1
+        NATS.client.connected_server.should == URI.parse(CLUSTER_AUTH_SERVER)
+        NATS.flush { NATS.stop }
+      end
+    end
+  end
+
+  it 'should connect to a previous server if multiple servers exit' do
+
+    s1_uri = 'nats://localhost:9290'
+    s1 = NatsServerControl.new(s1_uri, '/tmp/nats_cluster_s1.pid')
+    s1.start_server
+
+    s2_uri = 'nats://localhost:9298'
+    s2 = NatsServerControl.new(s2_uri, '/tmp/nats_cluster_s2.pid')
+    s2.start_server
+
+    NATS.start(:uri => [s1_uri, s2_uri]) do
+      NATS.client.connected_server.should == URI.parse(s1_uri)
+      kill_time = Time.now
+      s1.kill_server
+      EM.add_timer(0.25) do
+        time_diff = Time.now - kill_time
+        time_diff.should < 1
+        NATS.client.connected_server.should == URI.parse(s2_uri)
+        s1.start_server
+        kill_time2 = Time.now
+        s2.kill_server
+        EM.add_timer(0.25) do
+          time_diff = Time.now - kill_time2
+          time_diff.should < 1
+          NATS.client.connected_server.should == URI.parse(s1_uri)
+          NATS.stop
+        end
+      end
+    end
+    s1.kill_server
+    s2.kill_server
+  end
+
+  it 'should use reconnect logic to connect to a previous server if multiple servers exit' do
+
+    s1_uri = 'nats://localhost:9296'
+    s1 = NatsServerControl.new(s1_uri, '/tmp/nats_cluster_s1.pid')
+    s1.start_server
+
+    s2_uri = 'nats://localhost:9297' # never started
+
+    options = {
+      :uri => [s1_uri, s2_uri],
+      :reconnect => true,
+      :max_reconnect_attempts => 1,
+      :reconnect_time_wait => 0.5
+    }
+
+    begin
+      NATS.start(options) do
+        NATS.client.connected_server.should == URI.parse(s1_uri)
+        kill_time = Time.now
+        s1.kill_server
+        EM.add_timer(0.25) { s1.start_server }
+        EM.add_timer(1) do
+          time_diff = Time.now - kill_time
+          time_diff.should < 1.5
+          NATS.client.connected_server.should == URI.parse(s1_uri)
+          NATS.stop
+        end
+      end
+    ensure
+      s1.kill_server
+    end
+  end
 end

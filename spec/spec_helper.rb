@@ -53,6 +53,8 @@ class NatsServerControl
     args += " #{@flags}" if @flags
     args += ' -d'
 
+    @pid = nil
+
     %x[ruby #{server} #{args} 2> /dev/null]
     NATS.wait_for_server(@uri, 10) #jruby can be slow on startup
   end
@@ -62,6 +64,7 @@ class NatsServerControl
       %x[kill -9 #{server_pid} 2> /dev/null]
       %x[rm #{@pid_file} 2> /dev/null]
       %x[rm #{NATS::AUTOSTART_LOG_FILE} 2> /dev/null]
+      sleep(0.1)
     end
   end
 end

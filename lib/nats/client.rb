@@ -108,7 +108,7 @@ module NATS
         @uri = URI.parse(u)
       end
 
-      @err_cb = proc {|e| raise e } unless err_cb
+      @err_cb = proc { |e| raise e } unless err_cb
       check_autostart(@uri) if opts[:autostart] == true
 
       client = EM.connect(@uri.host, @uri.port, self, opts)
@@ -131,7 +131,7 @@ module NATS
     # Close the default client connection and optionally call the associated block.
     # @param [Block] &blk called when the connection is closed.
     def stop(&blk)
-      client.close if (client and client.connected?)
+      client.close if client
       blk.call if blk
       @@tried_autostart = {}
       @err_cb = nil
@@ -371,20 +371,29 @@ module NATS
   # Close the connection to the server.
   def close
     @closing = true
-    close_connection_after_writing
+    if connected?
+      close_connection_after_writing
+    else
+      @connected = true # Allow disconnect to pop us out of a NATS.start if applicable
+      process_disconnect
+    end
   end
 
   def user_err_cb? # :nodoc:
     err_cb_overridden || NATS.err_cb_overridden
   end
 
-  def send_connect_command #:nodoc:
+  def connect_command #:nodoc:
     cs = { :verbose => @options[:verbose], :pedantic => @options[:pedantic] }
     if @uri.user
       cs[:user] = @uri.user
       cs[:pass] = @uri.password
     end
-    send_command("CONNECT #{cs.to_json}#{CR_LF}")
+    "CONNECT #{cs.to_json}#{CR_LF}"
+  end
+
+  def send_connect_command #:nodoc:
+    send_command(connect_command)
   end
 
   def queue_server_rt(&cb) #:nodoc:
@@ -474,14 +483,17 @@ module NATS
 
   def connection_completed #:nodoc:
     @connected = true
+    current = server_pool.first
+    current[:was_connected] = true
+    current[:reconnect_attempts] = 0
+
     if reconnecting?
-      EM.cancel_timer(@reconnect_timer)
-      send_connect_command
+      cancel_reconnect_timer
       @subs.each_pair { |k, v| send_command("SUB #{v[:subject]} #{k}#{CR_LF}") }
     end
     flush_pending if @pending
     unless user_err_cb? or reconnecting?
-      @err_cb = proc {|e| raise e }
+      @err_cb = proc { |e| raise e }
     end
     if (connect_cb and not reconnecting?)
       # We will round trip the server here to make sure all state from any pending commands
@@ -492,22 +504,37 @@ module NATS
     @parse_state = AWAITING_CONTROL_LINE
   end
 
-  def schedule_reconnect(wait=RECONNECT_TIME_WAIT) #:nodoc:
-    @reconnecting = true
-    @reconnect_attempts = 0
-    @reconnect_timer = EM.add_periodic_timer(wait) { attempt_reconnect }
+  def should_delay_connect?(server)
+    server[:was_connected] && server[:reconnect_attempts] >= 1
+  end
+
+  def schedule_reconnect #:nodoc:
+    @reconnect_timer = EM.add_timer(@options[:reconnect_time_wait]) { attempt_reconnect }
   end
 
   def unbind #:nodoc:
-    if connected? and not closing? and not reconnecting? and @options[:reconnect]
-      schedule_reconnect(@options[:reconnect_time_wait])
-    else
-      # We could be here because we have multiple servers and the first one failed
-      if (server_pool.size > 1 && (not closing?))
-        schedule_primary_and_connect
-      else
-        process_disconnect unless reconnecting?
-      end
+    # If we are closing or shouldn't reconnect, go ahead and disconnect.
+    process_disconnect and return if (closing? or should_not_reconnect?)
+
+    @reconnecting = true if connected?
+    @connected = false
+    @pending = @pongs = nil
+
+    schedule_primary_and_connect
+  end
+
+  def multiple_servers_available?
+    server_pool && server_pool.size > 1
+  end
+
+  def should_not_reconnect?
+    !@options[:reconnect]
+  end
+
+  def cancel_reconnect_timer
+    if @reconnect_timer
+      EM.cancel_timer(@reconnect_timer)
+      @reconnect_timer = nil
     end
   end
 
@@ -516,17 +543,24 @@ module NATS
       err_string = @connected ? "Client disconnected from server on #{@uri}." : "Could not connect to server on #{@uri}"
       err_cb.call(NATS::ConnectError.new(err_string))
     end
+    true #chaining
   ensure
-    EM.cancel_timer(@reconnect_timer) if @reconnect_timer
-    if (NATS.client == self and connected? and closing? and not NATS.reactor_was_running?)
+    cancel_reconnect_timer
+    if (NATS.client == self and closing? and not NATS.reactor_was_running?)
       EM.stop
     end
     @connected = @reconnecting = false
-    true # Chaining
+  end
+
+  def can_reuse_server?(server) #:nodoc:
+    reconnecting? && server[:was_connected] && server[:reconnect_attempts] <= @options[:max_reconnect_attempts]
   end
 
   def attempt_reconnect #:nodoc:
-    process_disconnect and return if (@reconnect_attempts += 1) > @options[:max_reconnect_attempts]
+    @reconnect_timer = nil
+    current = server_pool.first
+    current[:reconnect_attempts] += 1 if current[:reconnect_attempts]
+    send_connect_command
     EM.reconnect(@uri.host, @uri.port, self)
   end
 
@@ -545,34 +579,39 @@ module NATS
   def process_uri_options #:nodoc
     @server_pool = []
     uri = options[:uri] || options[:uris] || options[:servers]
-    if uri.kind_of?(Array)
-      server_pool.concat uri
-    else
-      server_pool << uri
-    end
+    uri = uri.kind_of?(Array) ? uri : [uri]
+    uri.each { |u| server_pool << { :uri => URI.parse(u) } }
     bind_primary
   end
 
   def connected_server
-    connected ? @uri : nil
+    connected? ? @uri : nil
   end
 
   def bind_primary #:nodoc:
-    @uri = URI.parse(server_pool.first)
+    f = server_pool.first
+    @uri = f[:uri]
     @uri.user = options[:user] if options[:user]
     @uri.password = options[:pass] if options[:pass]
+    f
   end
 
   # We have failed on an attempt at the primary (first) server, rotate and try again
   def schedule_primary_and_connect #:nodoc:
-    # Dump the one we were trying
-    server_pool.shift
+    # Dump the one we were trying if it wasn't connected
+    current = server_pool.shift
+    server_pool << current if can_reuse_server?(current)
+    # If we are out of options, go ahead and disconnect.
+    process_disconnect and return if server_pool.empty?
     # bind new one
-    bind_primary
-    # Clear pending for auth changes, and re-queue
-    @pending = nil
-    send_connect_command
-    EM.reconnect(@uri.host, @uri.port, self)
+    next_server = bind_primary
+    # If the next one was connected and we are trying to reconnect
+    # set up timer if we tried once already.
+    if should_delay_connect?(next_server)
+      schedule_reconnect
+    else
+      attempt_reconnect
+    end
   end
 
   def inspect #:nodoc:
