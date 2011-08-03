@@ -161,21 +161,65 @@ describe 'client cluster config' do
       :reconnect_time_wait => 0.5
     }
 
-    begin
-      NATS.start(options) do
+    NATS.start(options) do
+      NATS.client.connected_server.should == URI.parse(s1_uri)
+      kill_time = Time.now
+      s1.kill_server
+      EM.add_timer(0.25) { s1.start_server }
+      EM.add_timer(1) do
+        time_diff = Time.now - kill_time
+        time_diff.should < 1.5
         NATS.client.connected_server.should == URI.parse(s1_uri)
-        kill_time = Time.now
-        s1.kill_server
-        EM.add_timer(0.25) { s1.start_server }
-        EM.add_timer(1) do
-          time_diff = Time.now - kill_time
-          time_diff.should < 1.5
+        NATS.stop
+      end
+    end
+    s1.kill_server
+  end
+
+  it 'should honor auth credentials properly for listed servers' do
+
+    s1_uri = 'nats://derek:foo@localhost:9290'
+    s1 = NatsServerControl.new(s1_uri, '/tmp/nats_cluster_s1.pid')
+    s1.start_server
+
+    s2_uri = 'nats://ruth:bar@localhost:9298'
+    s2 = NatsServerControl.new(s2_uri, '/tmp/nats_cluster_s2.pid')
+    s2.start_server
+
+    NATS.start(:uri => [s1_uri, s2_uri]) do
+      NATS.client.connected_server.should == URI.parse(s1_uri)
+      kill_time = Time.now
+      s1.kill_server
+      EM.add_timer(0.25) do
+        time_diff = Time.now - kill_time
+        time_diff.should < 1
+        NATS.client.connected_server.should == URI.parse(s2_uri)
+        s1.start_server
+        kill_time2 = Time.now
+        s2.kill_server
+        EM.add_timer(0.25) do
+          time_diff = Time.now - kill_time2
+          time_diff.should < 1
           NATS.client.connected_server.should == URI.parse(s1_uri)
           NATS.stop
         end
       end
-    ensure
-      s1.kill_server
     end
+    s1.kill_server
+    s2.kill_server
   end
+
+  it 'should allow user/pass overrides' do
+
+    s_uri = "nats://localhost:#{CLUSTER_AUTH_PORT}"
+
+    expect do
+      NATS.start(:uri => [s_uri]) { NATS.stop }
+    end.to raise_error NATS::Error
+
+    expect do
+      NATS.start(:uri => [s_uri], :user => CLUSTER_USER, :pass => CLUSTER_PASS) { NATS.stop }
+    end.to_not raise_error
+  end
+
 end
