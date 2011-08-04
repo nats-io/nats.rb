@@ -89,7 +89,25 @@ class Sublist #:nodoc:
     @results
   end
 
+  def all_subscribers
+    results = Array.new
+    @root.nodes.each do |subject, node|
+      results.concat subscribers_from(node)
+    end
+    results
+  end
+
   private
+
+  def subscribers_from(node)
+    return node.leaf_nodes unless node.next_level
+
+    results = node.leaf_nodes
+    node.next_level.nodes.each do |subject, node|
+      results.concat subscribers_from(node)
+    end
+    results
+  end
 
   def matchAll(level, tokens)
     node, pwc = nil, nil # Define for scope

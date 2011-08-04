@@ -116,7 +116,10 @@ module NATS
       end
       # Setup optimized select versions
       EM.epoll; EM.kqueue
-      EM.run { @client = connect(*args, &blk) }
+      EM.run {
+        @client = connect(*args, &blk)
+        EM.add_periodic_timer(60) do publish 'clients.ping', "PONG" end
+      }
     end
 
     # Close the default client connection and optionally call the associated block.
