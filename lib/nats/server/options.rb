@@ -91,11 +91,6 @@ module NATSD
         end
 
         if cluster = config['cluster']
-
-puts "Found cluster config!"
-require 'pp'
-pp cluster
-
           @options[:cluster_port] = cluster['port'] if @options[:cluster_port].nil?
           if auth = cluster['authorization']
             @options[:cluster_user] = auth['user'] if @options[:cluster_user].nil?
