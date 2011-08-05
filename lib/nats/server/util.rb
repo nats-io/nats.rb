@@ -36,9 +36,7 @@ end
 def num_cpu_cores
   if RUBY_PLATFORM =~ /linux/
     return `cat /proc/cpuinfo | grep processor | wc -l`.to_i
-  elsif RUBY_PLATFORM =~ /darwin/
-    `hwprefs cpu_count`.strip.to_i
-  elsif RUBY_PLATFORM =~ /freebsd|netbsd/
+  elsif RUBY_PLATFORM =~ /darwin|freebsd|netbsd/
     `sysctl hw.ncpu`.strip.to_i
   else
     return 1
