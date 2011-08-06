@@ -42,6 +42,14 @@ class Sublist #:nodoc:
   def disable_cache; @cache = nil; end
   def enable_cache;  @cache ||= {};  end
   def clear_cache; @cache = {} if @cache; end
+  def invalid_cache(key); @cache.delete(key) if @cache; end
+
+  def wildcards?(tokens)
+    tokens.each do |token|
+      return true if token == PWC || token == FWC
+    end
+    false
+  end
 
   # Random removal
   def prune_cache
@@ -53,26 +61,28 @@ class Sublist #:nodoc:
   # Insert a subscriber into the sublist for the given subject.
   def insert(subject, subscriber)
     # TODO - validate subject as correct.
-    level, tokens = @root, subject.split('.')
+    level, tokens, wildcard = @root, subject.split('.'), false
     for token in tokens
       # This is slightly slower than direct if statements, but looks cleaner.
       case token
-        when FWC then node = (level.fwc || (level.fwc = SublistNode.new([])))
-        when PWC then node = (level.pwc || (level.pwc = SublistNode.new([])))
+        when FWC then node = (level.fwc || (level.fwc = SublistNode.new([]))); wildcard = true
+        when PWC then node = (level.pwc || (level.pwc = SublistNode.new([]))); wildcard = true
         else node  = ((level.nodes[token]) || (level.nodes[token] = SublistNode.new([])))
       end
       level = (node.next_level || (node.next_level = SublistLevel.new({})))
     end
     node.leaf_nodes.push(subscriber)
     @count += 1
-    clear_cache # Clear the cache
+    wildcard ? clear_cache : invalid_cache(subject) if @cache
     node.next_level = nil if node.next_level == EMPTY_LEVEL
   end
 
   # Remove a given subscriber from the sublist for the given subject.
   def remove(subject, subscriber)
     return unless subject && subscriber
-    remove_level(@root, subject.split('.'), subscriber)
+    tokens = subject.split('.')
+    remove_level(@root, @cache ? tokens.dup : tokens, subscriber)
+    wildcards?(tokens) ? clear_cache : invalid_cache(subject) if @cache
   end
 
   # Match a subject to all subscribers, return the array of matches.
@@ -138,7 +148,6 @@ class Sublist #:nodoc:
       if (node.leaf_nodes && node.leaf_nodes.delete(subscriber))
         @count -= 1
         prune_level(level, node, token)
-        clear_cache # Clear the cache
       end
     else
       remove_level(node.next_level, tokens, subscriber)

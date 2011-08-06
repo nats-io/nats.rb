@@ -164,4 +164,34 @@ describe 'sublist functionality' do
     nc.should == 0
   end
 
+  it 'should properly match after continuously insert/remove simple items and matches' do
+    @sublist.match('a.b.c').size.should == 0
+    @sublist.insert('a.b.c', 'foo')
+    @sublist.match('a.b.c').size.should == 1
+    @sublist.insert('a.b.c', 'bar')
+    @sublist.match('a.b.c').size.should == 2
+    @sublist.remove('a.b.c', 'foo')
+    @sublist.match('a.b.c').size.should == 1
+  end
+
+  it 'should properly match after continuously insert/remove pwc items and matches' do
+    @sublist.match('a.b.c').size.should == 0
+    @sublist.insert('a.b.*', 'foo')
+    @sublist.match('a.b.c').size.should == 1
+    @sublist.insert('a.*.c', 'bar')
+    @sublist.match('a.b.c').size.should == 2
+    @sublist.remove('a.b.*', 'foo')
+    @sublist.match('a.b.c').size.should == 1
+  end
+
+  it 'should properly match after continuously insert/remove fwc items and matches' do
+    @sublist.match('a.b.c').size.should == 0
+    @sublist.insert('a.>', 'foo')
+    @sublist.match('a.b.c').size.should == 1
+    @sublist.insert('a.b.>', 'bar')
+    @sublist.match('a.b.c').size.should == 2
+    @sublist.remove('a.>', 'foo')
+    @sublist.match('a.b.c').size.should == 1
+  end
+
 end
