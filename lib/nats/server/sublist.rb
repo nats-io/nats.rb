@@ -42,6 +42,14 @@ class Sublist #:nodoc:
   def disable_cache; @cache = nil; end
   def enable_cache;  @cache ||= {};  end
   def clear_cache; @cache = {} if @cache; end
+  def invalid_cache(key); @cache.delete(key) if @cache; end
+
+  def wildcards?(subject)
+    subject.split('.').each do |token|
+      return true if token == PWC || token == FWC
+    end
+    false
+  end
 
   # Random removal
   def prune_cache
@@ -65,7 +73,7 @@ class Sublist #:nodoc:
     end
     node.leaf_nodes.push(subscriber)
     @count += 1
-    clear_cache # Clear the cache
+    wildcards?(subject) ? clear_cache : invalid_cache(subject)
     node.next_level = nil if node.next_level == EMPTY_LEVEL
   end
 
@@ -73,6 +81,7 @@ class Sublist #:nodoc:
   def remove(subject, subscriber)
     return unless subject && subscriber
     remove_level(@root, subject.split('.'), subscriber)
+    wildcards?(subject) ? clear_cache : invalid_cache(subject)
   end
 
   # Match a subject to all subscribers, return the array of matches.
@@ -138,7 +147,6 @@ class Sublist #:nodoc:
       if (node.leaf_nodes && node.leaf_nodes.delete(subscriber))
         @count -= 1
         prune_level(level, node, token)
-        clear_cache # Clear the cache
       end
     else
       remove_level(node.next_level, tokens, subscriber)
