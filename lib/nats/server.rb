@@ -31,5 +31,13 @@ EM.run {
   end
 
   # Check to see if we need to fire up the http monitor port and server
-  NATSD::Server.start_http_server if NATSD::Server.options[:http_port]
+  if NATSD::Server.options[:http_port]
+    begin
+      NATSD::Server.start_http_server
+    rescue => e
+      log "Could not start monitoring server on port #{NATSD::Server.options[:http_port]}"
+      log_error
+      exit(1)
+    end
+  end
 }
