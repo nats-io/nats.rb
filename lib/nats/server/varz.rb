@@ -2,7 +2,6 @@ module NATSD #:nodoc: all
 
   class Varz
     def call(env)
-      #varz_json = Server.update_varz.to_json
       varz_json = JSON.pretty_generate(Server.update_varz) + "\n"
       hdrs = RACK_JSON_HDR.dup
       hdrs['Content-Length'] = varz_json.bytesize.to_s
