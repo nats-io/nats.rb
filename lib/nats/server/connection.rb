@@ -6,6 +6,8 @@ module NATSD #:nodoc: all
 
     def client_info
       @client_info ||= Socket.unpack_sockaddr_in(get_peername)
+    rescue
+      nil
     end
 
     def post_init
@@ -22,7 +24,7 @@ module NATSD #:nodoc: all
 
     def connect_auth_timeout
       error_close AUTH_REQUIRED
-      debug "Connection timeout due to lack of auth credentials", cid
+      debug "Client connection timeout due to lack of auth credentials", cid
     end
 
     def receive_data(data)
@@ -42,7 +44,7 @@ module NATSD #:nodoc: all
             @parse_state = AWAITING_MSG_PAYLOAD
             @msg_sub, @msg_reply, @msg_size = $1, $3, $4.to_i
             if (@msg_size > NATSD::Server.max_payload)
-              debug "Message payload size exceeded (#{@msg_size}/#{NATSD::Server.max_payload}), closing connection"
+              debug "Message payload size exceeded (#{@msg_size}/#{NATSD::Server.max_payload}), closing client connection..", cid
               error_close PAYLOAD_TOO_BIG
             end
             send_data(INVALID_SUBJECT) if (@pedantic && !(@msg_sub =~ SUB_NO_WC))
@@ -99,7 +101,7 @@ module NATSD #:nodoc: all
             # If we are here we do not have a complete line yet that we understand.
             # If too big, cut the connection off.
             if @buf.bytesize > NATSD::Server.max_control_line
-              debug "Control line size exceeded (#{@buf.bytesize}/#{NATSD::Server.max_control_line}), closing connection.."
+              debug "Control line size exceeded (#{@buf.bytesize}/#{NATSD::Server.max_control_line}), closing client connection..", cid
               error_close PROTOCOL_OP_TOO_BIG
             end
             return
@@ -135,7 +137,7 @@ module NATSD #:nodoc: all
         @auth_pending = nil
       else
         error_close AUTH_FAILED
-        debug "Authorization failed for connection", cid
+        debug "Authorization failed for client connection", cid
       end
     end
 
