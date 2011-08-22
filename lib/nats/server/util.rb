@@ -7,7 +7,7 @@ end
 
 def log(*args) #:nodoc:
   args.unshift(Time.now) if NATSD::Server.log_time
-  pp args.compact
+  PP::pp(args.compact, $stdout, 120)
 end
 
 def debug(*args) #:nodoc:
@@ -36,7 +36,9 @@ end
 def num_cpu_cores
   if RUBY_PLATFORM =~ /linux/
     return `cat /proc/cpuinfo | grep processor | wc -l`.to_i
-  elsif RUBY_PLATFORM =~ /darwin|freebsd|netbsd/
+  elsif RUBY_PLATFORM =~ /darwin/
+    `sysctl -n hw.ncpu`.strip.to_i
+  elsif RUBY_PLATFORM =~ /freebsd|netbsd/
     `sysctl hw.ncpu`.strip.to_i
   else
     return 1
@@ -47,7 +49,9 @@ def shutdown #:nodoc:
   puts
   log 'Server exiting..'
   EM.stop
-  FileUtils.rm(NATSD::Server.pid_file) if NATSD::Server.pid_file
+  if NATSD::Server.pid_file
+    FileUtils.rm(NATSD::Server.pid_file) if File.exists? NATSD::Server.pid_file
+  end
   exit
 end
 

@@ -24,8 +24,6 @@ describe 'monitor' do
 
   after(:all) do
     @s.kill_server
-    FileUtils.rm_f HTTP_SERVER_PID
-    FileUtils.rm_f LOG_FILE
   end
 
   it 'should process simple command line arguments for http port' do
@@ -52,7 +50,7 @@ describe 'monitor' do
 
   it 'should start monitor http servers when requested' do
     begin
-      sleep(0.25)
+      sleep(0.5)
       s = TCPSocket.open(NATSD::Server.host, HTTP_PORT)
     ensure
       s.close if s
@@ -83,6 +81,9 @@ describe 'monitor' do
     varz.should have_key :in_bytes
     varz.should have_key :out_msgs
     varz.should have_key :out_bytes
+
+    # Check to make sure we pick up cores correctly
+    varz[:cores].should > 0
   end
 
   it 'should properly track number of connections' do
@@ -97,7 +98,6 @@ describe 'monitor' do
       varz = JSON.parse(varz_resp.body, :symbolize_keys => true, :symbolize_names => true)
       varz[:connections].should == 10
       EM.stop
-      #NATS.stop
     end
   end
 
