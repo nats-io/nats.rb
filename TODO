@@ -1,10 +1,16 @@
 
-- *clustering/routing*
-
 - balance receive perf with send perf
 - do client blowup detection from sending in tight loop
 - allow port to also be listen_port in config file
 - queue groups allow selection, e.g. round robin vs random
+- Don't truncate log on startup
+- Logger rotation
+- Time interval Pings from server..
+- Ping/Pong time window
+- Connection queue size dump to log for SIGURS2
+
+- [IN PROGRESS] monitoring
+- [IN PROGRESS] clustering/routing
 
 - [IN PROGRESS] tests!
 - [IN PROGRESS] JRuby support - works if you hand run servers for tests
