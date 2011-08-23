@@ -8,7 +8,6 @@
 - Time interval Pings from server..
 - Ping/Pong time window
 - Allow clients to specify app/client name
-- Allow monitoring to specify on net param
 
 - [IN PROGRESS] monitoring
 - [IN PROGRESS] clustering/routing
@@ -16,6 +15,7 @@
 - [IN PROGRESS] tests!
 - [IN PROGRESS] JRuby support - works if you hand run servers for tests
 
+- [DONE] Allow monitoring to specify on net param
 - [DONE] /connz info
 - [DONE] Don't truncate log on startup
 - [DONE] Connection queue size dump to log for SIGURS2
