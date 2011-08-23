@@ -8,7 +8,7 @@ require "#{ep}/ext/json"
 
 module NATS
 
-  VERSION = "0.4.10".freeze
+  VERSION = "0.4.20".freeze
 
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
