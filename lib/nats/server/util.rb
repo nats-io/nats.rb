@@ -59,11 +59,11 @@ end
 
 # FIXME - Should probably be smarter when lots of connections
 def dump_connection_state
-  log "Dumping connection state on SIG_USR2:"
+  log "Dumping connection state on SIG_USR2"
   ObjectSpace.each_object(NATSD::Connection) do |c|
     log c.info unless c.closing?
   end
-  log "Dump complete"
+  log 'Connection Dump Complete'
 end
 
 trap('USR2') { dump_connection_state }
