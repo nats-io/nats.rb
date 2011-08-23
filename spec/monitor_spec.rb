@@ -43,6 +43,7 @@ describe 'monitor' do
     config = File.open(config_file) { |f| YAML.load(f) }
     NATSD::Server.process_options("-c #{config_file}".split)
     opts = NATSD::Server.options
+    opts[:http_net].should == '127.0.0.1'
     opts[:http_port].should == 4222
     opts[:http_user].should == 'derek'
     opts[:http_password].should == 'foo'
@@ -150,7 +151,7 @@ describe 'monitor' do
     auth_s = NatsServerControl.new(uri, config['pid_file'], "-c #{config_file}")
     auth_s.start_server
 
-    host, port = config['net'], config['http']['port']
+    host, port = config['http']['net'], config['http']['port']
     begin
       sleep(0.5)
       s = TCPSocket.open(host, port)

@@ -83,6 +83,9 @@ module NATSD
         @options[:nokqueue] = config['no_kqueue'] if config['no_kqueue']
 
         if http = config['http']
+          if @options[:http_net].nil?
+            @options[:http_net] = http['net'] || @options[:addr]
+          end
           @options[:http_port] = http['port'] if @options[:http_port].nil?
           @options[:http_user] = http['user'] if @options[:http_user].nil?
           @options[:http_password] = http['password'] if @options[:http_password].nil?

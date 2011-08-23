@@ -175,7 +175,7 @@ module NATSD #:nodoc: all
           :cores => num_cpu_cores
         }
 
-        http_server = Thin::Server.new(NATSD::Server.host, port, :signals => false) do
+        http_server = Thin::Server.new(@options[:http_net], port, :signals => false) do
           Thin::Logging.silent = true
           if NATSD::Server.options[:http_user]
             auth = [NATSD::Server.options[:http_user], NATSD::Server.options[:http_password]]

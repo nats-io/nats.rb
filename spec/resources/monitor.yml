@@ -5,6 +5,7 @@ port: 4242
 net: localhost
 
 http:
+  net:  127.0.0.1
   port: 4222
   user: derek
   password: foo
