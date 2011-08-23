@@ -95,7 +95,7 @@ module NATSD
 
       def setup_logs
         return unless @options[:log_file]
-        $stdout.reopen(@options[:log_file], "w")
+        $stdout.reopen(@options[:log_file], 'a')
         $stdout.sync = true
         $stderr.reopen($stdout)
       end
