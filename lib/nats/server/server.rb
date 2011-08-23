@@ -53,13 +53,21 @@ module NATSD #:nodoc: all
         if @options[:daemonize]
           require 'rubygems'
           require 'daemons'
+          require 'tmpdir'
           unless @options[:log_file]
             # These log messages visible to controlling TTY
             log "Starting #{NATSD::APP_NAME} version #{NATSD::VERSION} on port #{NATSD::Server.port}"
             log "Starting http monitor on port #{@options[:http_port]}" if @options[:http_port]
             log "Switching to daemon mode"
           end
-          Daemons.daemonize(:app_name => APP_NAME, :mode => :exec)
+          opts = {
+            :app_name => APP_NAME,
+            :mode => :exec,
+            :dir_mode => :normal,
+            :dir => Dir.tmpdir
+          }
+          Daemons.daemonize(opts)
+          FileUtils.rm_f("#{Dir.tmpdir}/#{APP_NAME}.pid")
         end
 
         setup_logs
@@ -185,12 +193,22 @@ module NATSD #:nodoc: all
     end
   end
 
-  module Connection #:nodoc:
+  module Connection #:nodoc: all
 
     attr_reader :cid, :closing
 
     def client_info
       @client_info ||= Socket.unpack_sockaddr_in(get_peername)
+    end
+
+    def info
+      {
+        :cid => cid,
+        :ip => client_info[1],
+        :port => client_info[0],
+        :subscriptions => @subscriptions.size,
+        :pending_size => get_outbound_data_size
+      }
     end
 
     def post_init
