@@ -61,7 +61,7 @@ end
 def dump_connection_state
   log "Dumping connection state on SIG_USR2:"
   ObjectSpace.each_object(NATSD::Connection) do |c|
-    log c.info
+    log c.info unless c.closing?
   end
   log "Dump complete"
 end

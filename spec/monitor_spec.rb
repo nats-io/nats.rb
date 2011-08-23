@@ -120,4 +120,25 @@ describe 'monitor' do
     varz[:out_bytes].should == 220
   end
 
+  it 'should return connz with proper members' do
+    EM.run do
+      (1..10).each { NATS.connect(:uri => HTTP_SERVER) }
+      # Wait for them to register and connz to allow updates
+      sleep(0.5)
+      host, port = NATSD::Server.host, HTTP_PORT
+      connz_req = Net::HTTP::Get.new("/connz")
+      connz_resp = Net::HTTP.new(host, port).start { |http| http.request(connz_req) }
+      connz_resp.body.should_not be_nil
+      connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)
+      connz[:connections].size.should == 10
+      c_info = connz[:connections].first
+      c_info.should have_key :cid
+      c_info.should have_key :ip
+      c_info.should have_key :port
+      c_info.should have_key :subscriptions
+      c_info.should have_key :pending_size
+      EM.stop
+    end
+  end
+
 end

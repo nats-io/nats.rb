@@ -167,7 +167,7 @@ module NATSD #:nodoc: all
 
         log "Starting http monitor on port #{port}"
 
-        @healthz = 'ok\n'
+        @healthz = "ok\n"
 
         @varz = {
           :start => Time.now,
@@ -186,6 +186,9 @@ module NATSD #:nodoc: all
           map '/varz' do
             run Varz.new
           end
+          map '/connz' do
+            run Connz.new
+          end
         end
         http_server.start!
       end
@@ -196,6 +199,7 @@ module NATSD #:nodoc: all
   module Connection #:nodoc: all
 
     attr_reader :cid, :closing
+    alias :closing? :closing
 
     def client_info
       @client_info ||= Socket.unpack_sockaddr_in(get_peername)
@@ -361,6 +365,7 @@ module NATSD #:nodoc: all
       @subscriptions.each_value { |sub| Server.unsubscribe(sub) }
       EM.cancel_timer(@auth_pending) if @auth_pending
       @auth_pending = nil
+      @closing = true
     end
 
     def ctrace(*args)

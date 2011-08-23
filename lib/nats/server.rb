@@ -14,6 +14,7 @@ require "#{ep}/server/options"
 require "#{ep}/server/const"
 require "#{ep}/server/util"
 require "#{ep}/server/varz"
+require "#{ep}/server/connz"
 
 # Do setup
 NATSD::Server.setup(ARGV.dup)
