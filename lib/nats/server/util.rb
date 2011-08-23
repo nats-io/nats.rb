@@ -57,3 +57,13 @@ end
 
 ['TERM','INT'].each { |s| trap(s) { shutdown } }
 
+# FIXME - Should probably be smarter when lots of connections
+def dump_connection_state
+  log "Dumping connection state on SIG_USR2:"
+  ObjectSpace.each_object(NATSD::Connection) do |c|
+    log c.info
+  end
+  log "Dump complete"
+end
+
+trap('USR2') { dump_connection_state }
