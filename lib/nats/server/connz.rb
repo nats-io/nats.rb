@@ -13,11 +13,13 @@ module NATSD #:nodoc: all
     class << self
 
       def dump_connections
-        conns = []
+        conns, total = [], 0
         ObjectSpace.each_object(NATSD::Connection) do |c|
-          conns << c.info unless c.closing?
+          next if c.closing?
+          total += c.info[:pending_size]
+          conns << c.info
         end
-        { :connections => conns }
+        { :pending_size => total, :connections => conns }
       end
 
     end

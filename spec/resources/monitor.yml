@@ -9,12 +9,6 @@ http:
   user: derek
   password: foo
 
-authorization:
-  user: derek
-  password: bella
-  token: deadbeef
-  timeout: 1
-
 pid_file: '/tmp/nats_test.pid'
 log_file: '/tmp/nats_test.log'
 

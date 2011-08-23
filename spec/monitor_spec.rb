@@ -130,6 +130,7 @@ describe 'monitor' do
       connz_resp = Net::HTTP.new(host, port).start { |http| http.request(connz_req) }
       connz_resp.body.should_not be_nil
       connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)
+      connz.should have_key :pending_size
       connz[:connections].size.should == 10
       c_info = connz[:connections].first
       c_info.should have_key :cid
@@ -139,6 +140,49 @@ describe 'monitor' do
       c_info.should have_key :pending_size
       EM.stop
     end
+  end
+
+  it 'should require auth if configured to do so' do
+    config_file = File.dirname(__FILE__) + '/resources/monitor.yml'
+    config = File.open(config_file) { |f| YAML.load(f) }
+    uri = "nats://#{config['net']}:#{config['port']}"
+
+    auth_s = NatsServerControl.new(uri, config['pid_file'], "-c #{config_file}")
+    auth_s.start_server
+
+    host, port = config['net'], config['http']['port']
+    begin
+      sleep(0.5)
+      s = TCPSocket.open(host, port)
+    ensure
+      s.close if s
+    end
+
+    varz_req = Net::HTTP::Get.new("/varz")
+    varz_resp = Net::HTTP.new(host, port).start { |http| http.request(varz_req) }
+    varz_resp.code.should_not == '200'
+    varz_resp.body.should be_empty
+
+    # Do proper auth here
+    varz_req.basic_auth(config['http']['user'], config['http']['password'])
+    varz_resp = Net::HTTP.new(host, port).start { |http| http.request(varz_req) }
+    varz_resp.code.should == '200'
+    varz_resp.body.should_not be_empty
+
+    varz = JSON.parse(varz_resp.body, :symbolize_keys => true, :symbolize_names => true)
+    varz.should be_an_instance_of Hash
+    varz.should have_key :start
+    varz.should have_key :options
+    varz.should have_key :mem
+    varz.should have_key :cpu
+    varz.should have_key :cores
+    varz.should have_key :connections
+    varz.should have_key :in_msgs
+    varz.should have_key :in_bytes
+    varz.should have_key :out_msgs
+    varz.should have_key :out_bytes
+
+    auth_s.kill_server if auth_s
   end
 
 end

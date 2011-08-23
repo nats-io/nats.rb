@@ -177,9 +177,12 @@ module NATSD #:nodoc: all
 
         http_server = Thin::Server.new(NATSD::Server.host, port, :signals => false) do
           Thin::Logging.silent = true
-          #use Rack::Auth::Basic do |username, password|
-          #  [username, password] == auth
-          #end
+          if NATSD::Server.options[:http_user]
+            auth = [NATSD::Server.options[:http_user], NATSD::Server.options[:http_password]]
+            use Rack::Auth::Basic do |username, password|
+              [username, password] == auth
+            end
+          end
           map '/healthz' do
             run lambda { |env| [200, RACK_TEXT_HDR, NATSD::Server.healthz] }
           end

@@ -52,7 +52,6 @@ class NatsServerControl
     args += " --pass #{@uri.password}" if @uri.password
     args += " #{@flags}" if @flags
     args += ' -d'
-
     %x[ruby #{server} #{args} 2> /dev/null]
     NATS.wait_for_server(@uri, 10) #jruby can be slow on startup
   end

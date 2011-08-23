@@ -8,6 +8,7 @@
 - Time interval Pings from server..
 - Ping/Pong time window
 - Allow clients to specify app/client name
+- Allow monitoring to specify on net param
 
 - [IN PROGRESS] monitoring
 - [IN PROGRESS] clustering/routing
