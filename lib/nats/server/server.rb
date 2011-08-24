@@ -7,7 +7,7 @@ module NATSD #:nodoc: all
 
     class << self
       attr_reader :id, :info, :log_time, :auth_required, :debug_flag, :trace_flag, :options
-      attr_reader :max_payload, :max_pending, :max_control_line, :auth_timeout
+      attr_reader :max_payload, :max_pending, :max_control_line, :auth_timeout, :ping_interval, :ping_max
       attr_accessor :varz, :healthz, :num_connections, :in_msgs, :out_msgs, :in_bytes, :out_bytes
 
       alias auth_required? :auth_required
@@ -222,12 +222,24 @@ module NATSD #:nodoc: all
       @cid = Server.cid
       @subscriptions = {}
       @verbose = @pedantic = true # suppressed by most clients, but allows friendly telnet
-      @receive_data_calls = 0
+      # @receive_data_calls = 0
       @parse_state = AWAITING_CONTROL_LINE
       send_info
       @auth_pending = EM.add_timer(NATSD::Server.auth_timeout) { connect_auth_timeout } if Server.auth_required?
+      @ping_timer = EM.add_periodic_timer(NATSD::Server.ping_interval) { send_ping }
+      @pings_outstanding = 0
       Server.num_connections += 1
       debug "Client connection created", client_info, cid
+    end
+
+    def send_ping
+      return if @closing
+      if @pings_outstanding > NATSD::Server.ping_max
+        error_close UNRESPONSIVE
+        return
+      end
+      send_data(PING_RESPONSE)
+      @pings_outstanding += 1
     end
 
     def connect_auth_timeout
@@ -236,7 +248,7 @@ module NATSD #:nodoc: all
     end
 
     def receive_data(data)
-      @receive_data_calls += 1
+      # @receive_data_calls += 1
       @buf = @buf ? @buf << data : data
       return close_connection if @buf =~ /(\006|\004)/ # ctrl+c or ctrl+d for telnet friendly
 
@@ -285,6 +297,10 @@ module NATSD #:nodoc: all
             ctrace('PING OP', strip_op($&)) if NATSD::Server.trace_flag?
             @buf = $'
             send_data(PONG_RESPONSE)
+          when PONG
+            ctrace('PONG OP', strip_op($&)) if NATSD::Server.trace_flag?
+            @buf = $'
+            @pings_outstanding -= 1
           when CONNECT
             ctrace('CONNECT OP', strip_op($&)) if NATSD::Server.trace_flag?
             @buf = $'
@@ -368,6 +384,9 @@ module NATSD #:nodoc: all
       @subscriptions.each_value { |sub| Server.unsubscribe(sub) }
       EM.cancel_timer(@auth_pending) if @auth_pending
       @auth_pending = nil
+      EM.cancel_timer(@ping_timer) if @ping_timer
+      @ping_timer = nil
+
       @closing = true
     end
 

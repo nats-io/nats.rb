@@ -91,6 +91,11 @@ module NATSD
           @options[:http_password] = http['password'] if @options[:http_password].nil?
         end
 
+        if ping = config['ping']
+          @options[:ping_interval] = ping['interval'] if @options[:ping_interval].nil?
+          @options[:ping_max] = ping['max_outstanding'] if @options[:ping_max].nil?
+        end
+
       rescue => e
         log "Could not read configuration file:  #{e}"
         exit
@@ -121,6 +126,13 @@ module NATSD
 
         # Authorization
         @auth_required = (not @options[:user].nil?)
+
+        # Pings
+        @options[:ping_interval] ||= DEFAULT_PING_INTERVAL
+        @ping_interval = @options[:ping_interval]
+
+        @options[:ping_max] ||= DEFAULT_PING_MAX
+        @ping_max = @options[:ping_max]
 
         # Thresholds
         @options[:max_control_line] ||= MAX_CONTROL_LINE_SIZE

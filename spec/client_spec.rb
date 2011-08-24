@@ -295,4 +295,20 @@ describe 'client specification' do
     got_error.should be_true
   end
 
+  it 'should monitor inbound and outbound messages and bytes' do
+    msg = 'Hello World!'
+    NATS.start do |c|
+      NATS.subscribe('foo')
+      NATS.publish('foo', msg)
+      NATS.publish('bar', msg)
+      NATS.flush do
+        c.msgs_sent.should == 2
+        c.msgs_received.should == 1
+        c.bytes_received.should == msg.size
+        c.bytes_sent.should == msg.size * 2
+        NATS.stop
+      end
+    end
+  end
+
 end

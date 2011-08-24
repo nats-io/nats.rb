@@ -26,6 +26,7 @@ module NATSD #:nodoc:
   CR_LF_SIZE = CR_LF.bytesize
   EMPTY = ''.freeze
   OK = "+OK#{CR_LF}".freeze
+  PING_RESPONSE = "PING#{CR_LF}".freeze
   PONG_RESPONSE = "PONG#{CR_LF}".freeze
   INFO_RESPONSE = "#{CR_LF}".freeze
 
@@ -40,6 +41,7 @@ module NATSD #:nodoc:
   AUTH_FAILED         = "-ERR 'Authorization failed'#{CR_LF}".freeze
   UNKNOWN_OP          = "-ERR 'Unknown Protocol Operation'#{CR_LF}".freeze
   SLOW_CONSUMER       = "-ERR 'Slow consumer detected, connection dropped'#{CR_LF}".freeze
+  UNRESPONSIVE        = "-ERR 'Unresponsive client detected, connection dropped'#{CR_LF}".freeze
 
   # Pedantic Mode
   SUB = /^([^\.\*>\s]+|>$|\*)(\.([^\.\*>\s]+|>$|\*))*$/
@@ -58,6 +60,10 @@ module NATSD #:nodoc:
 
   # Authorization wait time
   AUTH_TIMEOUT = 1
+
+  # Ping intervals
+  DEFAULT_PING_INTERVAL = 120
+  DEFAULT_PING_MAX = 2
 
   # HTTP
   RACK_JSON_HDR = { 'Content-Type' => 'application/json' }

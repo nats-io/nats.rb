@@ -1,0 +1,30 @@
+
+---
+
+port: 2421
+net: localhost
+
+pid_file: '/tmp/nats_ping_test.pid'
+log_file: '/tmp/nats_ping_test.log'
+
+# Ping options (in secs)
+ping:
+  interval: 0.1
+  max_outstanding: 2
+
+# Debug Options
+
+logtime: true
+debug:   false
+trace:   false
+
+# Protocol/Limits
+max_control_line: 512
+max_payload:  512000
+max_pending: 2000000
+
+# EM/IO
+no_epoll:  false
+no_kqueue: true
+
+
