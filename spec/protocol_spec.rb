@@ -3,7 +3,7 @@ require 'nats/server/const'
 
 describe 'NATS Protocol' do
 
-  context 'SUB' do
+  context 'sub' do
 
     it 'should match simple sub' do
       str = "SUB foo 1\r\n"
@@ -63,7 +63,7 @@ describe 'NATS Protocol' do
 
   end
 
-  context 'UNSUB' do
+  context 'unsub' do
 
     it 'should process simple unsub' do
       str = "UNSUB 1\r\n"
@@ -108,7 +108,7 @@ describe 'NATS Protocol' do
 
   end
 
-  context 'PUB' do
+  context 'pub' do
 
     it 'should process simple pub' do
       str = "PUB foo 2\r\nok\r\n"
@@ -162,7 +162,7 @@ describe 'NATS Protocol' do
 
   end
 
-  context 'MISC' do
+  context 'misc' do
 
     it 'should process ping requests' do
       str = "PING\r\n"
@@ -202,7 +202,7 @@ describe 'NATS Protocol' do
 
   end
 
-  context 'MIXED' do
+  context 'mixed' do
 
     it 'should process multiple commands in one buffer properly' do
       str = "PUB foo bar  2\r\nok\r\nSUB bar 22\r\nPUB bar 11\r\nHello World\r\n"
@@ -221,7 +221,7 @@ describe 'NATS Protocol' do
 
   end
 
-  context 'CLIENT' do
+  context 'client' do
 
     it 'should process ping and pong responsess' do
       str = "PING\r\n"
