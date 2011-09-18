@@ -148,7 +148,6 @@ module NATSD #:nodoc: all
       end
 
       def auth_ok?(user, pass)
-pp @options
         @options[:users].each { |u| return true if (user == u[:user] && pass == u[:pass]) }
         false
       end
