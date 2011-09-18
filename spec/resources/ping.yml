@@ -1,17 +1,16 @@
 
 ---
 
-port: 4242
+port: 2421
 net: localhost
 
-http:
-  net:  127.0.0.1
-  port: 4222
-  user: derek
-  password: foo
+pid_file: '/tmp/nats_ping_test.pid'
+log_file: '/tmp/nats_ping_test.log'
 
-pid_file: '/tmp/nats_test.pid'
-log_file: '/tmp/nats_test.log'
+# Ping options (in secs)
+ping:
+  interval: 0.1
+  max_outstanding: 2
 
 # Debug Options
 

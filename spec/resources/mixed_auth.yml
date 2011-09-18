@@ -1,0 +1,16 @@
+
+---
+
+port: 4242
+net: localhost
+
+authorization:
+
+  user: derek
+  pass: foo
+
+  users:
+    - user: sam
+      pass: wrestling
+    - user: meg
+      pass: soccer

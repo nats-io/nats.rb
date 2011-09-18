@@ -45,6 +45,8 @@ spec = Gem::Specification.new do |s|
     lib/nats/server/sublist.rb
     lib/nats/server/const.rb
     lib/nats/server/util.rb
+    lib/nats/server/varz.rb
+    lib/nats/server/connz.rb
   ]
 
 end

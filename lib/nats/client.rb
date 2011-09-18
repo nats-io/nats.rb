@@ -245,6 +245,7 @@ module NATS
 
   attr_reader :connected, :connect_cb, :err_cb, :err_cb_overridden #:nodoc:
   attr_reader :closing, :reconnecting, :server_pool, :options #:nodoc
+  attr_reader :msgs_received, :msgs_sent, :bytes_received, :bytes_sent, :pings
 
   alias :connected? :connected
   alias :closing? :closing
@@ -257,6 +258,7 @@ module NATS
     @err_cb = NATS.err_cb
     @reconnect_timer, @needed = nil, nil
     @connected, @closing, @reconnecting = false, false, false
+    @msgs_received = @msgs_sent = @bytes_received = @bytes_sent = @pings = 0
     send_connect_command
   end
 
@@ -268,6 +270,11 @@ module NATS
   def publish(subject, msg=EMPTY_MSG, opt_reply=nil, &blk)
     return unless subject
     msg = msg.to_s
+
+    # Accounting
+    @msgs_sent += 1
+    @bytes_sent += msg.bytesize if msg
+
     send_command("PUB #{subject} #{opt_reply} #{msg.bytesize}#{CR_LF}#{msg}#{CR_LF}")
     queue_server_rt(&blk) if blk
   end
@@ -403,6 +410,11 @@ module NATS
   end
 
   def on_msg(subject, sid, reply, msg) #:nodoc:
+
+    # Accounting - We should account for inbound even if they are not processed.
+    @msgs_received += 1
+    @bytes_received += msg.bytesize if msg
+
     return unless sub = @subs[sid]
 
     # Check for auto_unsubscribe
@@ -448,6 +460,7 @@ module NATS
                 @buf = $'
                 err_cb.call(NATS::ServerError.new($1))
               when PING
+                @pings += 1
                 @buf = $'
                 send_command(PONG_RESPONSE)
               when PONG

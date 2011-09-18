@@ -43,6 +43,8 @@ class NatsServerControl
       return
     end
 
+    @pid = nil
+
     # This should work but is sketchy and slow under jruby, so use direct
     # %x[ruby -S bundle exec nats-server -p #{@uri.port} -P #{@pid_file} -d 2> /dev/null]
     server = File.expand_path(File.join(__FILE__, "../../lib/nats/server.rb"))
@@ -52,9 +54,6 @@ class NatsServerControl
     args += " --pass #{@uri.password}" if @uri.password
     args += " #{@flags}" if @flags
     args += ' -d'
-
-    @pid = nil
-
     %x[ruby #{server} #{args} 2> /dev/null]
     NATS.wait_for_server(@uri, 10) #jruby can be slow on startup
   end
@@ -65,6 +64,7 @@ class NatsServerControl
       %x[rm #{@pid_file} 2> /dev/null]
       %x[rm #{NATS::AUTOSTART_LOG_FILE} 2> /dev/null]
       sleep(0.1)
+      @pid = nil
     end
   end
 end

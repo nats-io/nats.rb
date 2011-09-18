@@ -1,14 +1,24 @@
 
-- *clustering/routing*
-
 - balance receive perf with send perf
 - do client blowup detection from sending in tight loop
 - allow port to also be listen_port in config file
 - queue groups allow selection, e.g. round robin vs random
 
+- Logger rotation should work
+- Time interval Pings from server..
+- Ping/Pong time window
+- Allow clients to specify app/client name
+
+- [IN PROGRESS] monitoring
+- [IN PROGRESS] clustering/routing
+
 - [IN PROGRESS] tests!
 - [IN PROGRESS] JRuby support - works if you hand run servers for tests
 
+- [DONE] Allow monitoring to specify on net param
+- [DONE] /connz info
+- [DONE] Don't truncate log on startup
+- [DONE] Connection queue size dump to log for SIGURS2
 - [DONE] Fixed # of replies? sub foo [2], server closes subscription automatically, avoid overwhelming client connection?
 - [DONE] Request timeout option.
 - [DONE] proper flow control, EM and PING/PONG

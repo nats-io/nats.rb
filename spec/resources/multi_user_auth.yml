@@ -1,0 +1,27 @@
+
+---
+
+port: 9226
+net: localhost
+
+authorization:
+  users:
+    - user: derek
+      pass: foo
+    - user: sam
+      pass: wrestling
+    - user: meg
+      pass: soccer
+
+  timeout: 1
+
+pid_file: '/tmp/nats_multi_user_auth_test.pid'
+log_file: '/tmp/nats_multi_user_auth_test.log'
+
+# Debug Options
+
+logtime: true
+debug:   false
+trace:   false
+
+

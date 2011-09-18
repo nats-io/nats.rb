@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    nats (0.4.14)
+    nats (0.4.20)
       daemons (>= 1.1.4)
       eventmachine (>= 0.12.10)
       json_pure (>= 1.5.3)

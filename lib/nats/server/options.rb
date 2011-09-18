@@ -67,6 +67,8 @@ module NATSD
           @options[:pass] = auth['pass'] if @options[:pass].nil?
           @options[:token] = auth['token'] if @options[:token].nil?
           @options[:auth_timeout] = auth['timeout'] if @options[:auth_timeout].nil?
+          # Multiple Users setup
+          @options[:users] = symbolize_users(auth['users']) || []
         end
 
         @options[:pid_file] = config['pid_file'] if @options[:pid_file].nil?
@@ -85,9 +87,17 @@ module NATSD
         @options[:nokqueue] = config['no_kqueue'] if config['no_kqueue']
 
         if http = config['http']
+          if @options[:http_net].nil?
+            @options[:http_net] = http['net'] || @options[:addr]
+          end
           @options[:http_port] = http['port'] if @options[:http_port].nil?
           @options[:http_user] = http['user'] if @options[:http_user].nil?
           @options[:http_password] = http['password'] if @options[:http_password].nil?
+        end
+
+        if ping = config['ping']
+          @options[:ping_interval] = ping['interval'] if @options[:ping_interval].nil?
+          @options[:ping_max] = ping['max_outstanding'] if @options[:ping_max].nil?
         end
 
         if cluster = config['cluster']
@@ -111,9 +121,18 @@ module NATSD
 
       def setup_logs
         return unless @options[:log_file]
-        $stdout.reopen(@options[:log_file], "w")
+        $stdout.reopen(@options[:log_file], 'a')
         $stdout.sync = true
         $stderr.reopen($stdout)
+      end
+
+      def symbolize_users(users)
+        return nil unless users
+        auth_users = []
+        users.each do |u|
+          auth_users << { :user => u['user'], :pass => u['pass'] || u['password'] }
+        end
+        auth_users
       end
 
       def finalize_options
@@ -133,7 +152,25 @@ module NATSD
         trace "TRACE is on"
 
         # Authorization
+
+        # Multi-user setup for auth
+        if @options[:user]
+          # Multiple Users setup
+          @options[:users] ||= []
+          @options[:users].unshift({:user => @options[:user], :pass => @options[:pass]}) if @options[:user]
+        elsif @options[:users]
+          first = @options[:users].first
+          @options[:user], @options[:pass] = first[:user], first[:pass]
+        end
+
         @auth_required = (not @options[:user].nil?)
+
+        # Pings
+        @options[:ping_interval] ||= DEFAULT_PING_INTERVAL
+        @ping_interval = @options[:ping_interval]
+
+        @options[:ping_max] ||= DEFAULT_PING_MAX
+        @ping_max = @options[:ping_max]
 
         # Thresholds
         @options[:max_control_line] ||= MAX_CONTROL_LINE_SIZE
