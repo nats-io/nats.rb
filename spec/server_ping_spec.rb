@@ -14,6 +14,7 @@ describe 'server ping' do
     config = File.open(config_file) { |f| YAML.load(f) }
     NATSD::Server.process_options("-c #{config_file}".split)
     @opts = NATSD::Server.options
+    @log_file = config['log_file']
     @host = config['net']
     @port = config['port']
     @uri = "nats://#{@host}:#{@port}"
@@ -23,6 +24,7 @@ describe 'server ping' do
 
   after(:all) do
     @s.kill_server
+    FileUtils.rm_f(@log_file)
   end
 
   it 'should set default values for ping if not set' do

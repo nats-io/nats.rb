@@ -65,6 +65,8 @@ module NATSD
           @options[:pass] = auth['pass'] if @options[:pass].nil?
           @options[:token] = auth['token'] if @options[:token].nil?
           @options[:auth_timeout] = auth['timeout'] if @options[:auth_timeout].nil?
+          # Multiple Users setup
+          @options[:users] = symbolize_users(auth['users']) || []
         end
 
         @options[:pid_file] = config['pid_file'] if @options[:pid_file].nil?
@@ -108,6 +110,15 @@ module NATSD
         $stderr.reopen($stdout)
       end
 
+      def symbolize_users(users)
+        return nil unless users
+        auth_users = []
+        users.each do |u|
+          auth_users << { :user => u['user'], :pass => u['pass'] || u['password'] }
+        end
+        auth_users
+      end
+
       def finalize_options
         # Addr/Port
         @options[:port] ||= DEFAULT_PORT
@@ -125,6 +136,17 @@ module NATSD
         trace "TRACE is on"
 
         # Authorization
+
+        # Multi-user setup for auth
+        if @options[:user]
+          # Multiple Users setup
+          @options[:users] ||= []
+          @options[:users].unshift({:user => @options[:user], :pass => @options[:pass]}) if @options[:user]
+        elsif @options[:users]
+          first = @options[:users].first
+          @options[:user], @options[:pass] = first[:user], first[:pass]
+        end
+
         @auth_required = (not @options[:user].nil?)
 
         # Pings
