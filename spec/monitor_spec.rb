@@ -132,7 +132,33 @@ describe 'monitor' do
       connz_resp.body.should_not be_nil
       connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)
       connz.should have_key :pending_size
+      connz.should have_key :num_connections
+      connz[:num_connections].should == 10
       connz[:connections].size.should == 10
+      c_info = connz[:connections].first
+      c_info.should have_key :cid
+      c_info.should have_key :ip
+      c_info.should have_key :port
+      c_info.should have_key :subscriptions
+      c_info.should have_key :pending_size
+      EM.stop
+    end
+  end
+
+  it 'should return connz with subset of connections if requested' do
+    EM.run do
+      (1..10).each { NATS.connect(:uri => HTTP_SERVER) }
+      # Wait for them to register and connz to allow updates
+      sleep(0.5)
+      host, port = NATSD::Server.host, HTTP_PORT
+      connz_req = Net::HTTP::Get.new("/connz?n=4")
+      connz_resp = Net::HTTP.new(host, port).start { |http| http.request(connz_req) }
+      connz_resp.body.should_not be_nil
+      connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)
+      connz.should have_key :pending_size
+      connz.should have_key :num_connections
+      connz[:num_connections].should == 10
+      connz[:connections].size.should == 4
       c_info = connz[:connections].first
       c_info.should have_key :cid
       c_info.should have_key :ip

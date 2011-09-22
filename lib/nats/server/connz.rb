@@ -2,7 +2,13 @@ module NATSD #:nodoc: all
 
   class Connz
     def call(env)
-      connz_json = JSON.pretty_generate(Server.dump_connections) + "\n"
+      c_info = Server.dump_connections
+      qs = env['QUERY_STRING']
+      if (qs =~ /n=(\d)/)
+        conns = c_info[:connections]
+        c_info[:connections] = conns.sort { |a,b| b[:pending_size] <=> a[:pending_size] } [0, $1.to_i]
+      end
+      connz_json = JSON.pretty_generate(c_info) + "\n"
       hdrs = RACK_JSON_HDR.dup
       hdrs['Content-Length'] = connz_json.bytesize.to_s
       [200, hdrs, connz_json]
@@ -19,7 +25,11 @@ module NATSD #:nodoc: all
           total += c.info[:pending_size]
           conns << c.info
         end
-        { :pending_size => total, :connections => conns }
+        {
+          :pending_size => total,
+          :num_connections => conns ? conns.size : 0,
+          :connections => conns
+        }
       end
 
     end
