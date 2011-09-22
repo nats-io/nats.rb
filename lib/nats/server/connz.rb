@@ -27,7 +27,7 @@ module NATSD #:nodoc: all
         end
         {
           :pending_size => total,
-          :num_connections => conns ? conns.size : 0,
+          :num_connections => conns.size,
           :connections => conns
         }
       end
