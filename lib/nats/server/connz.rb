@@ -5,8 +5,20 @@ module NATSD #:nodoc: all
       c_info = Server.dump_connections
       qs = env['QUERY_STRING']
       if (qs =~ /n=(\d)/)
+        sort_key = :pending_size
+        n = $1.to_i
+        if (qs =~ /s=(\S+)/)
+          case $1
+            when 'in_msgs'; sort_key = :in_msgs
+            when 'out_msgs'; sort_key = :out_msgs
+            when 'in_bytes'; sort_key = :in_bytes
+            when 'out_bytes'; sort_key = :out_bytes
+            when 'subs'; sort_key = :subscriptions
+            when 'subscriptions'; sort_key = :subscriptions
+          end
+        end
         conns = c_info[:connections]
-        c_info[:connections] = conns.sort { |a,b| b[:pending_size] <=> a[:pending_size] } [0, $1.to_i]
+        c_info[:connections] = conns.sort { |a,b| b[sort_key] <=> a[sort_key] } [0, n]
       end
       connz_json = JSON.pretty_generate(c_info) + "\n"
       hdrs = RACK_JSON_HDR.dup
