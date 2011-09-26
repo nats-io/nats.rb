@@ -295,4 +295,10 @@ describe 'client specification' do
     got_error.should be_true
   end
 
+  it 'should accept the same option set twice' do
+    opts = {:uri => 'nats://localhost:4222'}
+    NATS.start(opts) { NATS.stop }
+    NATS.start(opts) { NATS.stop }
+  end
+
 end
