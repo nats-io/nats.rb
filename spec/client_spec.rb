@@ -309,6 +309,7 @@ describe 'client specification' do
         NATS.stop
       end
     end
+  end
 
   it 'should accept the same option set twice' do
     opts = {:uri => 'nats://localhost:4222'}
