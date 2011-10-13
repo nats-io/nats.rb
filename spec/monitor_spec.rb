@@ -136,6 +136,8 @@ describe 'monitor' do
       connz_resp.body.should_not be_nil
       connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)
       connz.should have_key :pending_size
+      connz.should have_key :num_connections
+      connz[:num_connections].should == 10
       connz[:connections].size.should == 10
       c_info = connz[:connections].first
       c_info.should have_key :cid
@@ -143,8 +145,138 @@ describe 'monitor' do
       c_info.should have_key :port
       c_info.should have_key :subscriptions
       c_info.should have_key :pending_size
+      c_info.should have_key :in_msgs
+      c_info.should have_key :out_msgs
+      c_info.should have_key :in_bytes
+      c_info.should have_key :out_bytes
       conns.each { |c| c.close }
       EM.stop
+    end
+  end
+
+  it 'should return connz with subset of connections if requested' do
+    EM.run do
+      (1..10).each { NATS.connect(:uri => HTTP_SERVER) }
+      # Wait for them to register and connz to allow updates
+      sleep(0.5)
+      host, port = NATSD::Server.host, HTTP_PORT
+      connz_req = Net::HTTP::Get.new("/connz?n=4")
+      connz_resp = Net::HTTP.new(host, port).start { |http| http.request(connz_req) }
+      connz_resp.body.should_not be_nil
+      connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)
+      connz.should have_key :pending_size
+      connz.should have_key :num_connections
+      connz[:num_connections].should == 10
+      connz[:connections].size.should == 4
+      c_info = connz[:connections].first
+      c_info.should have_key :cid
+      c_info.should have_key :ip
+      c_info.should have_key :port
+      c_info.should have_key :subscriptions
+      c_info.should have_key :pending_size
+      c_info.should have_key :in_msgs
+      c_info.should have_key :out_msgs
+      c_info.should have_key :in_bytes
+      c_info.should have_key :out_bytes
+      EM.stop
+    end
+  end
+
+  it 'should return connz with subset of connections sorted correctly if requested' do
+    EM.run do
+      (1..10).each { NATS.connect(:uri => HTTP_SERVER) }
+      (1..4).each do
+        NATS.connect(:uri => HTTP_SERVER) do |c|
+          c.subscribe('foo')
+          c.subscribe('foo')
+        end
+      end
+      # Wait for them to register and connz to allow updates
+      sleep(0.5)
+      NATS.connect(:uri => HTTP_SERVER) do |c|
+        (1..10).each { c.publish('foo', "hello world") }
+        c.flush do
+          host, port = NATSD::Server.host, HTTP_PORT
+
+          # Test different sorts
+
+          # out_msgs
+          connz_req = Net::HTTP::Get.new("/connz?n=4&s=out_msgs")
+          connz_resp = Net::HTTP.new(host, port).start { |http| http.request(connz_req) }
+          connz_resp.body.should_not be_nil
+          connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)
+          connz.should have_key :pending_size
+          connz.should have_key :num_connections
+          connz[:num_connections].should == 15
+          connz[:connections].size.should == 4
+          connz[:connections].each do |c_info|
+            c_info[:out_msgs].should == 20
+          end
+
+          # out_bytes
+          connz_req = Net::HTTP::Get.new("/connz?n=2&s=out_bytes")
+          connz_resp = Net::HTTP.new(host, port).start { |http| http.request(connz_req) }
+          connz_resp.body.should_not be_nil
+          connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)
+          connz.should have_key :pending_size
+          connz.should have_key :num_connections
+          connz[:num_connections].should == 15
+          connz[:connections].size.should == 2
+          connz[:connections].each do |c_info|
+            c_info[:out_bytes].should == 220
+          end
+
+          # in_msgs
+          connz_req = Net::HTTP::Get.new("/connz?n=1&s=in_msgs")
+          connz_resp = Net::HTTP.new(host, port).start { |http| http.request(connz_req) }
+          connz_resp.body.should_not be_nil
+          connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)
+          connz.should have_key :pending_size
+          connz.should have_key :num_connections
+          connz[:num_connections].should == 15
+          connz[:connections].size.should == 1
+          c_info = connz[:connections].first
+          c_info[:in_msgs].should == 10
+
+          # in_bytes
+          connz_req = Net::HTTP::Get.new("/connz?n=1&s=in_bytes")
+          connz_resp = Net::HTTP.new(host, port).start { |http| http.request(connz_req) }
+          connz_resp.body.should_not be_nil
+          connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)
+          connz.should have_key :pending_size
+          connz.should have_key :num_connections
+          connz[:num_connections].should == 15
+          connz[:connections].size.should == 1
+          c_info = connz[:connections].first
+          c_info[:in_bytes].should == 110
+
+          # subscriptions (short form)
+          connz_req = Net::HTTP::Get.new("/connz?n=1&s=subs")
+          connz_resp = Net::HTTP.new(host, port).start { |http| http.request(connz_req) }
+          connz_resp.body.should_not be_nil
+          connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)
+          connz.should have_key :pending_size
+          connz.should have_key :num_connections
+          connz[:num_connections].should == 15
+          connz[:connections].size.should == 1
+          c_info = connz[:connections].first
+          c_info[:subscriptions].should == 2
+
+          # subscriptions (long form)
+          connz_req = Net::HTTP::Get.new("/connz?n=1&s=subscriptions")
+          connz_resp = Net::HTTP.new(host, port).start { |http| http.request(connz_req) }
+          connz_resp.body.should_not be_nil
+          connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)
+          connz.should have_key :pending_size
+          connz.should have_key :num_connections
+          connz[:num_connections].should == 15
+          connz[:connections].size.should == 1
+          c_info = connz[:connections].first
+          c_info[:subscriptions].should == 2
+
+          EM.stop
+        end
+      end
     end
   end
 

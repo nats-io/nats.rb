@@ -72,7 +72,7 @@ module NATS
     # The optional block will be called when the connection has been completed.
     #
     # @param [Hash] opts
-    # @option opts [String] :uri The URI to connect to, example nats://localhost:4222
+    # @option opts [String|URI] :uri The URI to connect to, example nats://localhost:4222
     # @option opts [Boolean] :autostart Boolean that can be used to engage server autostart functionality.
     # @option opts [Boolean] :reconnect Boolean that can be used to suppress reconnect functionality.
     # @option opts [Boolean] :debug Boolean that can be used to output additional debug information.
@@ -105,7 +105,7 @@ module NATS
       # Real connection will do proper walk throughs etc..
       if not uri.nil?
         u = uri.kind_of?(Array) ? uri.first : uri
-        @uri = URI.parse(u)
+        @uri = u.is_a?(URI) ? u : URI.parse(u)
       end
 
       @err_cb = proc { |e| raise e } unless err_cb

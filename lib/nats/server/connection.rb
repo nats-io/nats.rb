@@ -1,8 +1,10 @@
 module NATSD #:nodoc: all
 
-  module Connection #:nodoc:
+  module Connection #:nodoc: all
 
-    attr_reader :cid, :closing
+    attr_accessor :in_msgs, :out_msgs, :in_bytes, :out_bytes
+    attr_reader :cid, :closing, :last_activity
+
     alias :closing? :closing
 
     def client_info
@@ -15,7 +17,11 @@ module NATSD #:nodoc: all
         :ip => client_info[1],
         :port => client_info[0],
         :subscriptions => @subscriptions.size,
-        :pending_size => get_outbound_data_size
+        :pending_size => get_outbound_data_size,
+        :in_msgs => in_msgs,
+        :out_msgs => out_msgs,
+        :in_bytes => in_bytes,
+        :out_bytes => out_bytes
       }
     end
 
@@ -23,7 +29,7 @@ module NATSD #:nodoc: all
       @cid = Server.cid
       @subscriptions = {}
       @verbose = @pedantic = true # suppressed by most clients, but allows friendly telnet
-      @receive_data_calls = 0
+      @in_msgs = @out_msgs = @in_bytes = @out_bytes = 0
       @parse_state = AWAITING_CONTROL_LINE
       send_info
       @auth_pending = EM.add_timer(NATSD::Server.auth_timeout) { connect_auth_timeout } if Server.auth_required?
@@ -34,7 +40,7 @@ module NATSD #:nodoc: all
     end
 
     def send_ping
-      return if closing?
+      return if @closing
       if @pings_outstanding > NATSD::Server.ping_max
         error_close UNRESPONSIVE
         return
@@ -49,7 +55,6 @@ module NATSD #:nodoc: all
     end
 
     def receive_data(data)
-      @receive_data_calls += 1
       @buf = @buf ? @buf << data : data
       return close_connection if @buf =~ /(\006|\004)/ # ctrl+c or ctrl+d for telnet friendly
 
@@ -138,6 +143,8 @@ module NATSD #:nodoc: all
           ctrace('Processing msg', @msg_sub, @msg_reply, msg) if NATSD::Server.trace_flag?
           send_data(OK) if @verbose
           Server.route_to_subscribers(@msg_sub, @msg_reply, msg)
+          @in_msgs += 1
+          @in_bytes += @msg_size
           @buf = @buf.slice((@msg_size + CR_LF_SIZE), @buf.bytesize)
           @msg_sub = @msg_size = @reply = nil
           @parse_state = AWAITING_CONTROL_LINE
@@ -180,12 +187,12 @@ module NATSD #:nodoc: all
     def unbind
       debug "Client connection closed", client_info, cid
       Server.num_connections -= 1
-      # ctrace "Receive_Data called #{@receive_data_calls} times." if @receive_data_calls > 0
       @subscriptions.each_value { |sub| Server.unsubscribe(sub) }
       EM.cancel_timer(@auth_pending) if @auth_pending
       @auth_pending = nil
       EM.cancel_timer(@ping_timer) if @ping_timer
       @ping_timer = nil
+
       @closing = true
     end
 

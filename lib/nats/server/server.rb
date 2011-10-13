@@ -96,7 +96,12 @@ module NATSD #:nodoc: all
 
         # Accounting
         @out_msgs += 1
-        @out_bytes += msg.bytesize unless msg.nil?
+        conn.out_msgs += 1
+        unless msg.nil?
+          mbs = msg.bytesize
+          @out_bytes += mbs
+          conn.out_bytes += mbs
+        end
 
         conn.send_data("MSG #{subject} #{sub.sid} #{reply}#{msg.bytesize}#{CR_LF}#{msg}#{CR_LF}")
 
