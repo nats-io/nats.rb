@@ -156,7 +156,8 @@ describe 'monitor' do
 
   it 'should return connz with subset of connections if requested' do
     EM.run do
-      (1..10).each { NATS.connect(:uri => HTTP_SERVER) }
+      conns = []
+      (1..10).each { conns << NATS.connect(:uri => HTTP_SERVER) }
       # Wait for them to register and connz to allow updates
       sleep(0.5)
       host, port = NATSD::Server.host, HTTP_PORT
@@ -178,15 +179,19 @@ describe 'monitor' do
       c_info.should have_key :out_msgs
       c_info.should have_key :in_bytes
       c_info.should have_key :out_bytes
+
+      conns.each { |c| c.close }
       EM.stop
     end
   end
 
   it 'should return connz with subset of connections sorted correctly if requested' do
     EM.run do
-      (1..10).each { NATS.connect(:uri => HTTP_SERVER) }
+      conns = []
+      (1..10).each { conns << NATS.connect(:uri => HTTP_SERVER) }
       (1..4).each do
         NATS.connect(:uri => HTTP_SERVER) do |c|
+          conns << c
           c.subscribe('foo')
           c.subscribe('foo')
         end
@@ -274,6 +279,7 @@ describe 'monitor' do
           c_info = connz[:connections].first
           c_info[:subscriptions].should == 2
 
+          conns.each { |c| c.close }
           EM.stop
         end
       end
