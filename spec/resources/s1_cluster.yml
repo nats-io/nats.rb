@@ -1,0 +1,38 @@
+
+---
+
+#
+# Sample Server Sonfiguration
+# nats-server -c ./s[N]_cluster.yml
+#
+
+port: 4242
+net: localhost
+
+authorization:
+  user: derek
+  password: bella
+  token: deadbeef
+  timeout: 1
+
+# This is the cluster definition for NATS.
+
+cluster:
+  port: 4262
+
+  authorization:
+    user: ruser
+    password: cafebabe
+    token: deadbeef
+    timeout: 1
+
+pid_file: '/tmp/nats_cluster_s1.pid'
+#log_file: '/tmp/nats_cluster_s1.log'
+
+# Debug Options
+
+logtime: true
+debug:   false
+trace:   false
+
+

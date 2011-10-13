@@ -1,58 +1,56 @@
 module NATSD #:nodoc: all
 
-  module Connection #:nodoc:
+  module Route #:nodoc:
 
-    attr_reader :cid, :closing
-    alias :closing? :closing
+    attr_reader :rid, :closing, :r_obj
 
-    def client_info
-      @client_info ||= Socket.unpack_sockaddr_in(get_peername)
+    def initialize(r_obj=nil)
+      @r_obj = r_obj
     end
 
-    def info
-      {
-        :cid => cid,
-        :ip => client_info[1],
-        :port => client_info[0],
-        :subscriptions => @subscriptions.size,
-        :pending_size => get_outbound_data_size
-      }
+    def peer_info
+      @peer_info ||= Socket.unpack_sockaddr_in(get_peername)
+    rescue
+      nil
+    end
+
+    def solicited?
+      r_obj != nil
     end
 
     def post_init
-      @cid = Server.cid
+      @rid = Server.rid
       @subscriptions = {}
       @verbose = @pedantic = true # suppressed by most clients, but allows friendly telnet
-      @receive_data_calls = 0
       @parse_state = AWAITING_CONTROL_LINE
+
+      # queue up auth if needed and we solicited the connection
+      if solicited?
+        send_auth
+      else
+        @auth_pending = EM.add_timer(NATSD::Server.auth_timeout) { connect_auth_timeout } if Server.route_auth_required?
+      end
       send_info
-      @auth_pending = EM.add_timer(NATSD::Server.auth_timeout) { connect_auth_timeout } if Server.auth_required?
-      @ping_timer = EM.add_periodic_timer(NATSD::Server.ping_interval) { send_ping }
-      @pings_outstanding = 0
-      Server.num_connections += 1
-      debug "Client connection created", client_info, cid
+      Server.num_routes += 1
+      debug "Router connection created", peer_info, rid
     end
 
-    def send_ping
-      return if closing?
-      if @pings_outstanding > NATSD::Server.ping_max
-        error_close UNRESPONSIVE
-        return
-      end
-      send_data(PING_RESPONSE)
-      @pings_outstanding += 1
+    def send_auth
+      return unless r_obj[:uri].user
+      cs = { :user => r_obj[:uri].user, :pass => r_obj[:uri].password }
+      send_data("CONNECT #{cs.to_json}#{CR_LF}")
     end
 
     def connect_auth_timeout
       error_close AUTH_REQUIRED
-      debug "Client connection timeout due to lack of auth credentials", cid
+      debug "Router connection timeout due to lack of auth credentials", rid
     end
 
     def receive_data(data)
-      @receive_data_calls += 1
       @buf = @buf ? @buf << data : data
       return close_connection if @buf =~ /(\006|\004)/ # ctrl+c or ctrl+d for telnet friendly
 
+      # while (@buf && !@buf.empty? && !@closing)
       while (@buf && !@closing)
         case @parse_state
         when AWAITING_CONTROL_LINE
@@ -64,7 +62,7 @@ module NATSD #:nodoc: all
             @parse_state = AWAITING_MSG_PAYLOAD
             @msg_sub, @msg_reply, @msg_size = $1, $3, $4.to_i
             if (@msg_size > NATSD::Server.max_payload)
-              debug "Message payload size exceeded (#{@msg_size}/#{NATSD::Server.max_payload}), closing client connection..", cid
+              debug "Message payload size exceeded (#{@msg_size}/#{NATSD::Server.max_payload}), closing router connection..", rid
               error_close PAYLOAD_TOO_BIG
             end
             send_data(INVALID_SUBJECT) if (@pedantic && !(@msg_sub =~ SUB_NO_WC))
@@ -97,10 +95,6 @@ module NATSD #:nodoc: all
             ctrace('PING OP', strip_op($&)) if NATSD::Server.trace_flag?
             @buf = $'
             send_data(PONG_RESPONSE)
-          when PONG
-            ctrace('PONG OP', strip_op($&)) if NATSD::Server.trace_flag?
-            @buf = $'
-            @pings_outstanding -= 1
           when CONNECT
             ctrace('CONNECT OP', strip_op($&)) if NATSD::Server.trace_flag?
             @buf = $'
@@ -125,7 +119,7 @@ module NATSD #:nodoc: all
             # If we are here we do not have a complete line yet that we understand.
             # If too big, cut the connection off.
             if @buf.bytesize > NATSD::Server.max_control_line
-              debug "Control line size exceeded (#{@buf.bytesize}/#{NATSD::Server.max_control_line}), closing client connection..", cid
+              debug "Control line size exceeded (#{@buf.bytesize}/#{NATSD::Server.max_control_line}), closing router connection..", rid
               error_close PROTOCOL_OP_TOO_BIG
             end
             return
@@ -161,7 +155,7 @@ module NATSD #:nodoc: all
         @auth_pending = nil
       else
         error_close AUTH_FAILED
-        debug "Authorization failed for client connection", cid
+        debug "Authorization failed for router connection", rid
       end
     end
 
@@ -178,19 +172,15 @@ module NATSD #:nodoc: all
     end
 
     def unbind
-      debug "Client connection closed", client_info, cid
-      Server.num_connections -= 1
-      # ctrace "Receive_Data called #{@receive_data_calls} times." if @receive_data_calls > 0
+      debug "Router connection closed", peer_info, rid
+      Server.num_routes -= 1
       @subscriptions.each_value { |sub| Server.unsubscribe(sub) }
       EM.cancel_timer(@auth_pending) if @auth_pending
       @auth_pending = nil
-      EM.cancel_timer(@ping_timer) if @ping_timer
-      @ping_timer = nil
-      @closing = true
     end
 
     def ctrace(*args)
-      trace(args, "c: #{cid}")
+      trace(args, "r: #{rid}")
     end
 
     def strip_op(op='')

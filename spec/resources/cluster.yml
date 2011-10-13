@@ -17,9 +17,8 @@ authorization:
 
 # This is the cluster definition for NATS.
 #
-# NATS can support both full mesh and directive
-# acyclic graphs setups. Its up to the configuration
-# setup to avoid cycles.
+# NATS can support both full mesh and directed-acyclic
+# graph setups. Its up to the configuration setup to avoid cycles.
 #
 # The port definition allows us to receive incoming connections.
 # Comment out if you want to suppress incoming connections.
@@ -42,8 +41,8 @@ cluster:
   # above.
 
   routes:
-    nats-route://foo:bar@127.0.0.1:4220
-    nats-route://foo:bar@127.0.0.1:4221
+    - nats-route://foo:bar@127.0.0.1:4220
+    - nats-route://foo:bar@127.0.0.1:4221
 
 pid_file: '/tmp/nats_test.pid'
 # log_file: '/tmp/nats_test.log'

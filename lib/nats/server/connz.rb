@@ -11,7 +11,6 @@ module NATSD #:nodoc: all
 
   class Server
     class << self
-
       def dump_connections
         conns, total = [], 0
         ObjectSpace.each_object(NATSD::Connection) do |c|
@@ -21,7 +20,6 @@ module NATSD #:nodoc: all
         end
         { :pending_size => total, :connections => conns }
       end
-
     end
   end
 

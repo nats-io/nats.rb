@@ -24,6 +24,7 @@ describe 'monitor' do
 
   after(:all) do
     @s.kill_server
+    FileUtils.rm_f(LOG_FILE)
   end
 
   it 'should process simple command line arguments for http port' do
@@ -89,7 +90,8 @@ describe 'monitor' do
 
   it 'should properly track number of connections' do
     EM.run do
-      (1..10).each { NATS.connect(:uri => HTTP_SERVER) }
+      conns = []
+      (1..10).each { conns << NATS.connect(:uri => HTTP_SERVER) }
       # Wait for them to register and varz to allow updates
       sleep(0.5)
       host, port = NATSD::Server.host, HTTP_PORT
@@ -98,6 +100,7 @@ describe 'monitor' do
       varz_resp.body.should_not be_nil
       varz = JSON.parse(varz_resp.body, :symbolize_keys => true, :symbolize_names => true)
       varz[:connections].should == 10
+      conns.each { |c| c.close }
       EM.stop
     end
   end
@@ -107,7 +110,7 @@ describe 'monitor' do
       NATS.subscribe('foo')
       NATS.subscribe('foo')
       (1..10).each {  NATS.publish('foo', 'hello world') }
-      NATS.publish('foo') { NATS.stop }
+      NATS.flush { NATS.stop }
     end
     sleep(0.5)
     host, port = NATSD::Server.host, HTTP_PORT
@@ -115,15 +118,16 @@ describe 'monitor' do
     varz_resp = Net::HTTP.new(host, port).start { |http| http.request(varz_req) }
     varz_resp.body.should_not be_nil
     varz = JSON.parse(varz_resp.body, :symbolize_keys => true, :symbolize_names => true)
-    varz[:in_msgs].should == 11
-    varz[:out_msgs].should == 22
+    varz[:in_msgs].should == 10
+    varz[:out_msgs].should == 20
     varz[:in_bytes].should == 110
     varz[:out_bytes].should == 220
   end
 
   it 'should return connz with proper members' do
     EM.run do
-      (1..10).each { NATS.connect(:uri => HTTP_SERVER) }
+      conns = []
+      (1..10).each { conns << NATS.connect(:uri => HTTP_SERVER) }
       # Wait for them to register and connz to allow updates
       sleep(0.5)
       host, port = NATSD::Server.host, HTTP_PORT
@@ -139,6 +143,7 @@ describe 'monitor' do
       c_info.should have_key :port
       c_info.should have_key :subscriptions
       c_info.should have_key :pending_size
+      conns.each { |c| c.close }
       EM.stop
     end
   end
