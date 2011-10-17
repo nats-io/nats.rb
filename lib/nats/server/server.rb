@@ -6,11 +6,12 @@ module NATSD #:nodoc: all
   class Server
 
     class << self
-      attr_reader :id, :info, :log_time, :auth_required, :debug_flag, :trace_flag, :options
-      attr_reader :max_payload, :max_pending, :max_control_line, :auth_timeout, :ping_interval, :ping_max
+      attr_reader :id, :info, :log_time, :auth_required, :ssl_required, :debug_flag, :trace_flag, :options
+      attr_reader :max_payload, :max_pending, :max_control_line, :auth_timeout, :ssl_timeout, :ping_interval, :ping_max
       attr_accessor :varz, :healthz, :num_connections, :in_msgs, :out_msgs, :in_bytes, :out_bytes
 
       alias auth_required? :auth_required
+      alias ssl_required?  :ssl_required
       alias debug_flag?    :debug_flag
       alias trace_flag?    :trace_flag
 
@@ -42,10 +43,13 @@ module NATSD #:nodoc: all
         @in_msgs = @out_msgs = 0
         @in_bytes = @out_bytes = 0
 
+        @ssl_ok = false
+
         @info = {
           :server_id => Server.id,
           :version => VERSION,
           :auth_required => auth_required?,
+          :ssl_required => ssl_required?,
           :max_payload => @max_payload
         }
 
@@ -152,10 +156,18 @@ module NATSD #:nodoc: all
         end
       end
 
-      def auth_ok?(user, pass)
-        @options[:users].each { |u| return true if (user == u[:user] && pass == u[:pass]) }
-        false
-      end
+			def auth_ok?(user, pass)
+				@options[:users].each { |u| return true if (user == u[:user] && pass == u[:pass]) }
+				false
+			end
+
+			def ssl_ok(value)
+				@ssl_ok = value
+			end
+
+			def ssl_ok?
+				@ssl_ok
+			end
 
       def cid
         @cid += 1

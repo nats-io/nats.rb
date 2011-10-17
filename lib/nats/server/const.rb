@@ -39,6 +39,8 @@ module NATSD #:nodoc:
   INVALID_CONFIG      = "-ERR 'Invalid config, valid JSON required for connection configuration'#{CR_LF}".freeze
   AUTH_REQUIRED       = "-ERR 'Authorization is required'#{CR_LF}".freeze
   AUTH_FAILED         = "-ERR 'Authorization failed'#{CR_LF}".freeze
+  SSL_REQUIRED        = "-ERR 'TSL/SSL is required'#{CR_LF}".freeze
+  SSL_FAILED          = "-ERR 'TLS/SSL failed'#{CR_LF}".freeze
   UNKNOWN_OP          = "-ERR 'Unknown Protocol Operation'#{CR_LF}".freeze
   SLOW_CONSUMER       = "-ERR 'Slow consumer detected, connection dropped'#{CR_LF}".freeze
   UNRESPONSIVE        = "-ERR 'Unresponsive client detected, connection dropped'#{CR_LF}".freeze
@@ -60,6 +62,9 @@ module NATSD #:nodoc:
 
   # Authorization wait time
   AUTH_TIMEOUT = 1
+
+  # TLS/SSL wait time
+  SSL_TIMEOUT = 1
 
   # Ping intervals
   DEFAULT_PING_INTERVAL = 120
