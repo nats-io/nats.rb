@@ -166,9 +166,9 @@ module NATSD #:nodoc: all
     def process_connect_config(config)
       @verbose  = config['verbose'] unless config['verbose'].nil?
       @pedantic = config['pedantic'] unless config['pedantic'].nil?
-      @ssl = config['ssl_required'].nil unless config['ssl_required'].nil?
+      @ssl = config['ssl_required'] unless config['ssl_required'].nil?
 
-      start_tls if @ssl && Server.auth_required?
+      start_tls if @ssl && Server.ssl_required?
 
       return send_data(OK) unless Server.auth_required? 
 
