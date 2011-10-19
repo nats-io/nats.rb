@@ -60,11 +60,11 @@ module NATSD #:nodoc:
   # Maximum outbound size per client
   MAX_PENDING_SIZE = (10*1024*1024)
 
-  # Authorization wait time
-  AUTH_TIMEOUT = 1
-
   # TLS/SSL wait time
-  SSL_TIMEOUT = 5
+  SSL_TIMEOUT = 0.5
+
+  # Authorization wait time
+  AUTH_TIMEOUT = SSL_TIMEOUT + 0.5
 
   # Ping intervals
   DEFAULT_PING_INTERVAL = 120
