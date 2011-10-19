@@ -78,6 +78,7 @@ module NATS
     # @option opts [Boolean] :debug Boolean that can be used to output additional debug information.
     # @option opts [Boolean] :verbose Boolean that is sent to server for setting verbose protocol mode.
     # @option opts [Boolean] :pedantic Boolean that is sent to server for setting pedantic mode.
+    # @option opts [Boolean] :ssl Boolean that is sent to server for setting TLS/SSL mode.
     # @option opts [Integer] :max_reconnect_attempts Integer that can be used to set the max number of reconnect tries
     # @option opts [Integer] :reconnect_time_wait Integer that can be used to set the number of seconds to wait between reconnect tries
     # @param [Block] &blk called when the connection is completed. Connection will be passed to the block.
@@ -87,6 +88,7 @@ module NATS
       opts[:verbose] = false if opts[:verbose].nil?
       opts[:pedantic] = false if opts[:pedantic].nil?
       opts[:reconnect] = true if opts[:reconnect].nil?
+      opts[:ssl] = false if opts[:ssl].nil?
       opts[:max_reconnect_attempts] = MAX_RECONNECT_ATTEMPTS if opts[:max_reconnect_attempts].nil?
       opts[:reconnect_time_wait] = RECONNECT_TIME_WAIT if opts[:reconnect_time_wait].nil?
 
@@ -96,6 +98,7 @@ module NATS
       opts[:pedantic] = ENV['NATS_PEDANTIC'].downcase == 'true' unless ENV['NATS_PEDANTIC'].nil?
       opts[:debug] = ENV['NATS_DEBUG'].downcase == 'true' unless ENV['NATS_DEBUG'].nil?
       opts[:reconnect] = ENV['NATS_RECONNECT'].downcase == 'true' unless ENV['NATS_RECONNECT'].nil?
+      opts[:ssl] = ENV['NATS_SSL'].downcase == 'true' unless ENV['NATS_SSL'].nil?
       opts[:max_reconnect_attempts] = ENV['NATS_MAX_RECONNECT_ATTEMPTS'].to_i unless ENV['NATS_MAX_RECONNECT_ATTEMPTS'].nil?
       opts[:reconnect_time_wait] = ENV['NATS_RECONNECT_TIME_WAIT'].to_i unless ENV['NATS_RECONNECT_TIME_WAIT'].nil?
       @uri = opts[:uri] = opts[:uri].is_a?(URI) ? opts[:uri] : URI.parse(opts[:uri])
@@ -246,6 +249,7 @@ module NATS
     @uri = options[:uri]
     @uri.user = options[:user] if options[:user]
     @uri.password = options[:pass] if options[:pass]
+    @ssl = options[:ssl] if options[:ssl]
     @options = options
     @ssid, @subs = 1, {}
     @err_cb = NATS.err_cb
@@ -384,6 +388,7 @@ module NATS
       cs[:user] = @uri.user
       cs[:pass] = @uri.password
     end
+    cs[:ssl_required] = @ssl if @ssl
     send_command("CONNECT #{cs.to_json}#{CR_LF}")
   end
 
@@ -474,9 +479,17 @@ module NATS
     end
   end
 
-  def process_info(info) #:nodoc:
-    @server_info = JSON.parse(info, :symbolize_keys => true, :symbolize_names => true)
-  end
+	def process_info(info) #:nodoc:
+		@server_info = JSON.parse(info, :symbolize_keys => true, :symbolize_names => true)
+		if @server_info[:ssl_required] && @ssl
+			start_tls
+		else 
+			if @server_info[:ssl_required] || @ssl
+				err_cb.call(NATS::Error.new("TLS/SSL needed"))
+			end
+		end
+		@server_info
+	end
 
   def connection_completed #:nodoc:
     @connected = true

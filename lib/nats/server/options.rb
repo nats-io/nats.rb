@@ -38,6 +38,9 @@ module NATSD
           opts.on("--pass password", "Password required for connections")      { |pass| @options[:pass] = pass }
 
           opts.separator ""
+          opts.on("--ssl", "Enable SSL")                                       { |ssl| @options[:ssl] = true }
+
+          opts.separator ""
           opts.separator "Advanced IO options:"
 
           opts.on("--no_epoll", "Disable epoll (Linux)")                       { @options[:noepoll] = true }
@@ -68,6 +71,9 @@ module NATSD
           # Multiple Users setup
           @options[:users] = symbolize_users(auth['users']) || []
         end
+
+        # TLS/SSL
+        @options[:ssl] = config['ssl'] if @options[:ssl].nil?
 
         @options[:pid_file] = config['pid_file'] if @options[:pid_file].nil?
         @options[:log_file] = config['log_file'] if @options[:log_file].nil?
@@ -149,6 +155,8 @@ module NATSD
 
         @auth_required = (not @options[:user].nil?)
 
+        @ssl_required = (not @options[:ssl].nil?)
+
         # Pings
         @options[:ping_interval] ||= DEFAULT_PING_INTERVAL
         @ping_interval = @options[:ping_interval]
@@ -168,6 +176,9 @@ module NATSD
 
         @options[:auth_timeout] ||= AUTH_TIMEOUT
         @auth_timeout = @options[:auth_timeout]
+
+        @options[:ssl_timeout] ||= SSL_TIMEOUT
+        @ssl_timeout = @options[:ssl_timeout]
       end
 
     end
