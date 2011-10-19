@@ -18,6 +18,7 @@ describe "server configuration" do
     opts.should have_key :max_control_line
     opts.should have_key :max_payload
     opts.should have_key :max_pending
+    opts.should have_key :ssl
 
     opts[:port].should == NATSD::DEFAULT_PORT
     opts[:addr].should == NATSD::DEFAULT_HOST
@@ -44,6 +45,7 @@ describe "server configuration" do
     opts[:user].should == config['authorization']['user']
     opts[:pass].should == config['authorization']['password']
     opts[:token].should == config['authorization']['token']
+    opts[:ssl].should == config['ssl']
     opts[:pid_file].should == config['pid_file']
     opts[:log_file].should == config['log_file']
     opts[:log_time].should == config['logtime']
