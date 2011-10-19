@@ -43,8 +43,6 @@ module NATSD #:nodoc: all
         @in_msgs = @out_msgs = 0
         @in_bytes = @out_bytes = 0
 
-        @ssl_ok = false
-
         @info = {
           :server_id => Server.id,
           :version => VERSION,
@@ -159,14 +157,6 @@ module NATSD #:nodoc: all
 			def auth_ok?(user, pass)
 				@options[:users].each { |u| return true if (user == u[:user] && pass == u[:pass]) }
 				false
-			end
-
-			def ssl_ok(value)
-				@ssl_ok = value
-			end
-
-			def ssl_ok?
-				@ssl_ok
 			end
 
       def cid

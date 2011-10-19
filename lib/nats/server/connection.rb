@@ -168,7 +168,7 @@ module NATSD #:nodoc: all
       @pedantic = config['pedantic'] unless config['pedantic'].nil?
       @ssl = config['ssl_required'] unless config['ssl_required'].nil?
 
-      start_tls if @ssl && Server.ssl_required?
+      start_tls(:verify_peer => true) if @ssl && Server.ssl_required?
 
       return send_data(OK) unless Server.auth_required? 
 
@@ -212,6 +212,11 @@ module NATSD #:nodoc: all
     	EM.cancel_timer(@ssl_pending)
     	@ssl_pending = nil
     	debug "Client Certificate:", get_peer_cert, cid
+    end
+
+    # Cert accepted by default
+    def ssl_verify_peer(cert)
+      true
     end
 
     def ctrace(*args)
