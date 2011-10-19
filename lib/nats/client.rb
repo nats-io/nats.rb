@@ -388,9 +388,7 @@ module NATS
       cs[:user] = @uri.user
       cs[:pass] = @uri.password
     end
-    if @ssl
-    	cs[:ssl_required] = @ssl
-		end
+    cs[:ssl_required] = @ssl if @ssl
     send_command("CONNECT #{cs.to_json}#{CR_LF}")
   end
 
