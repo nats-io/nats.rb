@@ -18,7 +18,6 @@ describe "server configuration" do
     opts.should have_key :max_control_line
     opts.should have_key :max_payload
     opts.should have_key :max_pending
-    opts.should have_key :ssl
 
     opts[:port].should == NATSD::DEFAULT_PORT
     opts[:addr].should == NATSD::DEFAULT_HOST
