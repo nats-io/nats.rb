@@ -211,9 +211,8 @@ module NATSD #:nodoc: all
     def ssl_handshake_completed
     	EM.cancel_timer(@ssl_pending)
     	@ssl_pending = nil
-    	Server.ssl_ok(true)
-    	debug "Client Certificate:",get_peer_cert,cid
-	end
+    	debug "Client Certificate:", get_peer_cert, cid
+    end
 
     def ctrace(*args)
       trace(args, "c: #{cid}")
