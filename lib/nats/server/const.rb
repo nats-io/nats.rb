@@ -64,7 +64,7 @@ module NATSD #:nodoc:
   AUTH_TIMEOUT = 1
 
   # TLS/SSL wait time
-  SSL_TIMEOUT = 1
+  SSL_TIMEOUT = 5
 
   # Ping intervals
   DEFAULT_PING_INTERVAL = 120
