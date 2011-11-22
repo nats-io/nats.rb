@@ -8,7 +8,7 @@ require "#{ep}/ext/json"
 
 module NATS
 
-  VERSION = "0.4.20".freeze
+  VERSION = "0.4.22.beta.1".freeze
 
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
@@ -483,7 +483,7 @@ module NATS
 		@server_info = JSON.parse(info, :symbolize_keys => true, :symbolize_names => true)
 		if @server_info[:ssl_required] && @ssl
 			start_tls
-		else 
+		else
 			if @server_info[:ssl_required] || @ssl
 				err_cb.call(NATS::Error.new("TLS/SSL needed"))
 			end
