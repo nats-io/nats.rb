@@ -36,7 +36,7 @@ NATS.start do
   end
 
   def send_request
-    NATS.request('test') {
+    s = NATS.request('test') {
       $drain-=1
       if $drain == 0
         done
@@ -44,6 +44,7 @@ NATS.start do
         send_request
         printf('+') if $drain.modulo($hash) == 0
       end
+      NATS.unsubscribe(s)
     }
   end
 
