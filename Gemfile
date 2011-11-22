@@ -2,8 +2,8 @@ source "http://rubygems.org"
 
 gem 'eventmachine', '>= 0.12.10'
 gem 'daemons', '>= 1.1.4'
-gem 'json_pure', :require => 'json'
-gem 'thin', '>= 1.2.11'
+gem 'json_pure', '>= 1.6.1', :require => 'json'
+gem 'thin', '>= 1.3.1'
 
 group :test do
   gem 'rake'

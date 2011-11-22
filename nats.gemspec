@@ -17,13 +17,13 @@ spec = Gem::Specification.new do |s|
   s.email = ['derek.collison@gmail.com']
 
   s.add_dependency('eventmachine', '>= 0.12.10')
-  s.add_dependency('json_pure', '>= 1.5.3')
+  s.add_dependency('json_pure', '>= 1.6.1')
   s.add_dependency('daemons', '>= 1.1.4')
-  s.add_dependency('thin', '>= 1.2.11')
+  s.add_dependency('thin', '>= 1.3.1')
 
   s.require_paths = ['lib']
   s.bindir = 'bin'
-  s.executables = [NATSD::APP_NAME, 'nats-pub', 'nats-sub', 'nats-queue']
+  s.executables = [NATSD::APP_NAME, 'nats-pub', 'nats-sub', 'nats-queue', 'nats-top']
 
   s.files = %w[
     COPYING
@@ -35,6 +35,7 @@ spec = Gem::Specification.new do |s|
     bin/nats-sub
     bin/nats-pub
     bin/nats-queue
+    bin/nats-top
     lib/nats/client.rb
     lib/nats/ext/bytesize.rb
     lib/nats/ext/em.rb
