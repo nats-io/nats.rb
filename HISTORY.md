@@ -26,7 +26,7 @@
   - Queue group support
   - Auto-unsubscribe support
   - Time expiration on subscriptions
-  - Jruby initial support (1.5.6, 1.6.0-RC1)
+  - Jruby initial support
   - Performance enhancements
   - Complete config file support
   - See full list @ https://github.com/derekcollison/nats/compare/v0.3.12...v0.4.2
@@ -34,3 +34,4 @@
 ## v0.3.12 (Nov 21, 2010)
 
   - Initial Release
+
