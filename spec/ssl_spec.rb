@@ -5,10 +5,10 @@ describe 'ssl' do
 
   before (:all) do
 
-    TEST_SERVER_SSL = "nats://localhost:9222"
+    TEST_SERVER_SSL = "nats://localhost:9292"
     TEST_SERVER_SSL_PID = '/tmp/nats_ssl.pid'
 
-    TEST_SERVER_NO_SSL = "nats://localhost:4222"
+    TEST_SERVER_NO_SSL = "nats://localhost:9492"
     TEST_SERVER_NO_SSL_PID = '/tmp/nats_no_ssl.pid'
 
     @s_ssl = NatsServerControl.new(TEST_SERVER_SSL, TEST_SERVER_SSL_PID, "--ssl")
