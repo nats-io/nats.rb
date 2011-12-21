@@ -31,12 +31,16 @@ module NATSD #:nodoc: all
       @in_msgs = @out_msgs = @in_bytes = @out_bytes = 0
       @parse_state = AWAITING_CONTROL_LINE
       send_info
-      @ssl_pending = EM.add_timer(NATSD::Server.ssl_timeout) { connect_ssl_timeout } if Server.ssl_required?
+      debug "Client connection created", client_info, cid
+      if Server.ssl_required?
+        debug "Starting TLS/SSL", client_info, cid
+        @ssl_pending = EM.add_timer(NATSD::Server.ssl_timeout) { connect_ssl_timeout }
+        start_tls(:verify_peer => true) if Server.ssl_required?
+      end
       @auth_pending = EM.add_timer(NATSD::Server.auth_timeout) { connect_auth_timeout } if Server.auth_required?
       @ping_timer = EM.add_periodic_timer(NATSD::Server.ping_interval) { send_ping }
       @pings_outstanding = 0
       Server.num_connections += 1
-      debug "Client connection created", client_info, cid
     end
 
     def send_ping
@@ -56,7 +60,7 @@ module NATSD #:nodoc: all
 
     def connect_ssl_timeout
       error_close SSL_REQUIRED
-      debug "Connection timeout due to lack of tls/ssl negotiations", cid
+      debug "Connection timeout due to lack of TLS/SSL negotiations", cid
     end
 
     def receive_data(data)
@@ -166,11 +170,8 @@ module NATSD #:nodoc: all
     def process_connect_config(config)
       @verbose  = config['verbose'] unless config['verbose'].nil?
       @pedantic = config['pedantic'] unless config['pedantic'].nil?
-      @ssl = config['ssl_required'] unless config['ssl_required'].nil?
 
-      start_tls(:verify_peer => true) if @ssl && Server.ssl_required?
-
-      return send_data(OK) unless Server.auth_required? 
+      return send_data(OK) unless Server.auth_required?
 
       EM.cancel_timer(@auth_pending)
       if Server.auth_ok?(config['user'], config['pass'])
@@ -209,12 +210,12 @@ module NATSD #:nodoc: all
     end
 
     def ssl_handshake_completed
-    	EM.cancel_timer(@ssl_pending)
-    	@ssl_pending = nil
-    	debug "Client Certificate:", get_peer_cert, cid
+      EM.cancel_timer(@ssl_pending)
+      @ssl_pending = nil
+      debug "Client Certificate:", get_peer_cert, cid
     end
 
-    # Cert accepted by default
+    # FIXME! Cert accepted by default
     def ssl_verify_peer(cert)
       true
     end
