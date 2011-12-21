@@ -1,8 +1,8 @@
 # NATS
 
-[![Build Status](https://secure.travis-ci.org/derekcollison/nats.png)](http://travis-ci.org/derekcollison/nats)
+A lightweight publish-subscribe and distributed queueing messaging system.
 
-A lightweight EventMachine based publish-subscribe messaging system.
+[![Build Status](https://secure.travis-ci.org/derekcollison/nats.png)](http://travis-ci.org/derekcollison/nats)
 
 ## Supported Platforms
 
