@@ -479,26 +479,33 @@ module NATS
     end
   end
 
-	def process_info(info) #:nodoc:
-		@server_info = JSON.parse(info, :symbolize_keys => true, :symbolize_names => true)
-		if @server_info[:ssl_required] && @ssl
-			start_tls
-		else
-			if @server_info[:ssl_required] || @ssl
-				err_cb.call(NATS::Error.new("TLS/SSL needed"))
-			end
-		end
-		@server_info
-	end
+  def process_info(info) #:nodoc:
+    @server_info = JSON.parse(info, :symbolize_keys => true, :symbolize_names => true)
+    if @server_info[:ssl_required] && @ssl
+      start_tls
+    else
+      if @server_info[:ssl_required]
+        err_cb.call(NATS::Error.new("TLS/SSL required by server"))
+      elsif @ssl
+        err_cb.call(NATS::Error.new("TLS/SSL not supported by server"))
+      end
+    end
+    @server_info
+  end
+
+  def ssl_handshake_completed
+    @connected = true
+    flush_pending
+  end
 
   def connection_completed #:nodoc:
-    @connected = true
+    @connected = true unless @ssl
     if reconnecting?
       EM.cancel_timer(@reconnect_timer)
       send_connect_command
       @subs.each_pair { |k, v| send_command("SUB #{v[:subject]} #{k}#{CR_LF}") }
     end
-    flush_pending if @pending
+    flush_pending unless @ssl
     unless user_err_cb? or reconnecting?
       @err_cb = proc {|e| raise e }
     end
@@ -525,11 +532,13 @@ module NATS
     end
   end
 
+  def disconnect_error_string
+    return "Client disconnected from server on #{@uri}." if @connected
+    return "Could not connect to server on #{@uri}"
+  end
+
   def process_disconnect #:nodoc:
-    if not closing? and @err_cb
-      err_string = @connected ? "Client disconnected from server on #{@uri}." : "Could not connect to server on #{@uri}"
-      err_cb.call(NATS::ConnectError.new(err_string))
-    end
+    err_cb.call(NATS::ConnectError.new(disconnect_error_string)) if not closing? and @err_cb
   ensure
     EM.cancel_timer(@reconnect_timer) if @reconnect_timer
     if (NATS.client == self and connected? and closing? and not NATS.reactor_was_running?)
