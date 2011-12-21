@@ -8,9 +8,9 @@ require 'nats/server/const'
 spec = Gem::Specification.new do |s|
   s.name = 'nats'
   s.version = NATSD::VERSION
-  s.summary = 'A lightweight publish-subscribe messaging system.'
+  s.summary = 'A lightweight publish-subscribe and distributed queuing messaging system.'
   s.homepage = 'http://github.com/derekcollison/nats'
-  s.description = 'A lightweight publish-subscribe messaging system.'
+  s.description = 'A lightweight publish-subscribe and distributed queuing messaging system.'
   s.has_rdoc = true
 
   s.authors = ['Derek Collison']
