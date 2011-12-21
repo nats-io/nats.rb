@@ -50,9 +50,14 @@ describe 'monitor' do
   end
 
   it 'should start monitor http servers when requested' do
+    total_wait, now = 0, Time.now
     begin
-      sleep(0.5)
+      sleep(0.2)
       s = TCPSocket.open(NATSD::Server.host, HTTP_PORT)
+    rescue Errno::ECONNREFUSED => e
+      total_wait = Time.now - now
+      now = Time.now
+      retry unless total_wait > 5
     ensure
       s.close if s
     end
