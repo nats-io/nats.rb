@@ -17,10 +17,10 @@ module NATSD #:nodoc: all
         :port => client_info[0],
         :subscriptions => @subscriptions.size,
         :pending_size => get_outbound_data_size,
-        :in_msgs => in_msgs,
-        :out_msgs => out_msgs,
-        :in_bytes => in_bytes,
-        :out_bytes => out_bytes
+        :in_msgs => @in_msgs,
+        :out_msgs => @out_msgs,
+        :in_bytes => @in_bytes,
+        :out_bytes => @out_bytes
       }
     end
 

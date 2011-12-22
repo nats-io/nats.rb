@@ -213,8 +213,8 @@ describe 'monitor' do
             c_info[:out_msgs].should == 20
           end
 
-          # msgs_from
-          connz_req = Net::HTTP::Get.new("/connz?n=4&s=msgs_from")
+          # msgs_to
+          connz_req = Net::HTTP::Get.new("/connz?n=4&s=msgs_to")
           connz_resp = Net::HTTP.new(host, port).start { |http| http.request(connz_req) }
           connz_resp.body.should_not be_nil
           connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)
@@ -239,8 +239,8 @@ describe 'monitor' do
             c_info[:out_bytes].should == 220
           end
 
-          # bytes_from
-          connz_req = Net::HTTP::Get.new("/connz?n=2&s=bytes_from")
+          # bytes_to
+          connz_req = Net::HTTP::Get.new("/connz?n=2&s=bytes_to")
           connz_resp = Net::HTTP.new(host, port).start { |http| http.request(connz_req) }
           connz_resp.body.should_not be_nil
           connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)
@@ -264,8 +264,9 @@ describe 'monitor' do
           c_info = connz[:connections].first
           c_info[:in_msgs].should == 10
 
-          # msgs_to
-          connz_req = Net::HTTP::Get.new("/connz?n=1&s=msgs_to")
+
+          # msgs_from
+          connz_req = Net::HTTP::Get.new("/connz?n=1&s=msgs_from")
           connz_resp = Net::HTTP.new(host, port).start { |http| http.request(connz_req) }
           connz_resp.body.should_not be_nil
           connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)
@@ -288,8 +289,8 @@ describe 'monitor' do
           c_info = connz[:connections].first
           c_info[:in_bytes].should == 110
 
-          # bytes_to
-          connz_req = Net::HTTP::Get.new("/connz?n=1&s=bytes_to")
+          # bytes_from
+          connz_req = Net::HTTP::Get.new("/connz?n=1&s=bytes_from")
           connz_resp = Net::HTTP.new(host, port).start { |http| http.request(connz_req) }
           connz_resp.body.should_not be_nil
           connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)

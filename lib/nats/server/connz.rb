@@ -8,15 +8,15 @@ module NATSD #:nodoc: all
         sort_key = :pending_size
         n = $1.to_i
         if (qs =~ /s=(\S+)/)
-          case $1
+          case $1.downcase
             when 'in_msgs'; sort_key = :in_msgs
-            when 'msgs_to'; sort_key = :in_msgs
+            when 'msgs_from'; sort_key = :in_msgs
             when 'out_msgs'; sort_key = :out_msgs
-            when 'msgs_from'; sort_key = :out_msgs
+            when 'msgs_to'; sort_key = :out_msgs
             when 'in_bytes'; sort_key = :in_bytes
-            when 'bytes_to'; sort_key = :in_bytes
+            when 'bytes_from'; sort_key = :in_bytes
             when 'out_bytes'; sort_key = :out_bytes
-            when 'bytes_from'; sort_key = :out_bytes
+            when 'bytes_to'; sort_key = :out_bytes
             when 'subs'; sort_key = :subscriptions
             when 'subscriptions'; sort_key = :subscriptions
           end

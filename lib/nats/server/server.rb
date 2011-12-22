@@ -154,10 +154,10 @@ module NATSD #:nodoc: all
         end
       end
 
-			def auth_ok?(user, pass)
-				@options[:users].each { |u| return true if (user == u[:user] && pass == u[:pass]) }
-				false
-			end
+      def auth_ok?(user, pass)
+        @options[:users].each { |u| return true if (user == u[:user] && pass == u[:pass]) }
+        false
+      end
 
       def cid
         @cid += 1
