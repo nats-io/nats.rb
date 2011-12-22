@@ -4,7 +4,7 @@ module NATSD #:nodoc: all
     def call(env)
       c_info = Server.dump_connections
       qs = env['QUERY_STRING']
-      if (qs =~ /n=(\d)/)
+      if (qs =~ /n=(\d+)/)
         sort_key = :pending_size
         n = $1.to_i
         if (qs =~ /s=(\S+)/)
