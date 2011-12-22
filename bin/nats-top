@@ -35,7 +35,7 @@ connz_uri = URI.parse("#{$nats_server}/connz?n=#{$num_connections}")
 
 def psize(size, prec=1)
   return 'NA' unless size
-  return "#{size}" if size < 1024
+  return sprintf("%.#{prec}f", size) if size < 1024
   return sprintf("%.#{prec}fK", size/1024.0) if size < (1024*1024)
   return sprintf("%.#{prec}fM", size/(1024.0*1024.0)) if size < (1024*1024*1024)
   return sprintf("%.#{prec}fG", size/(1024.0*1024.0*1024.0))
