@@ -9,7 +9,7 @@ require 'rubygems'
 require 'json'
 
 def usage
-  puts "Usage: nats-top [-s server_uri] [-m local monitor port] [-n num_connections] [-d delay_secs] [-s sort_by]"
+  puts "Usage: nats-top [-s server_uri] [-m local monitor port] [-n num_connections] [-d delay_secs] [--sort sort_by]"
   puts "--sort_options for more help"
   exit
 end
@@ -28,7 +28,7 @@ opts_parser = OptionParser.new do |opts|
   opts.on('-m local_port')      { |port|     $nats_port = port.to_i }
   opts.on('-n num_connections') { |num|      $num_connections = num.to_i }
   opts.on('-d delay')           { |delay|    $delay = delay.to_f }
-  opts.on('-s sort_by')         { |sort_key| $sort_key = sort_key }
+  opts.on('--sort sort_by')     { |sort_key| $sort_key = sort_key }
   opts.on('--sort_options')     { sort_options_help }
   opts.on('-h')     { usage }
   opts.on('--help') { usage }
