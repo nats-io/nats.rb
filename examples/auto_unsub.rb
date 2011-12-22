@@ -1,8 +1,7 @@
 require 'rubygems'
 require 'nats/client'
 
-trap("TERM") { NATS.stop }
-trap("INT")  { NATS.stop }
+["TERM", "INT"].each { |sig| trap(sig) { NATS.stop } }
 
 def usage
   puts "Usage: ruby auto_unsub.rb <subject> [wanted=5] [send=10]"; exit
