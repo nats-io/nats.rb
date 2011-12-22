@@ -31,7 +31,7 @@ $nats_server = "http://localhost:#{$nats_port}" if $nats_server.nil?
 $nats_server = "http://#{$nats_server}" unless $nats_server.start_with?('http')
 
 varz_uri = URI.parse("#{$nats_server}/varz")
-connz_uri = URI.parse("#{$nats_server}/connz?#{$num_connections}")
+connz_uri = URI.parse("#{$nats_server}/connz?n=#{$num_connections}")
 
 def psize(size, prec=1)
   return 'NA' unless size
@@ -42,7 +42,7 @@ def psize(size, prec=1)
 end
 
 def clear_screen
-  print "\e[2J\e[f"
+  print "\e[H\e[2J"
 end
 
 ['TERM', 'INT'].each { |s| trap(s) {  clear_screen; exit! } }
