@@ -3,19 +3,33 @@
 require 'optparse'
 require 'net/http'
 require 'uri'
+require 'io/wait'
 
 require 'rubygems'
 require 'json'
 
 def usage
-  puts "Usage: nats-top [-s server_uri] [-m local port] [-n num_connections]"; exit
+  puts "Usage: nats-top [-s server_uri] [-m local monitor port] [-n num_connections] [-d delay_secs] [-s sort_by]"
+  puts "--sort_options for more help"
+  exit
+end
+
+$valid_sort_options = ['pending_size', 'msgs_to', 'msgs_from', 'bytes_to', 'bytes_from', 'subs']
+
+def sort_options_help
+  puts "Available sort_by options: #{$valid_sort_options.join(', ')}."
+  puts "E.g. #{$0} -s bytes_to"
+  exit
 end
 
 args = ARGV.dup
 opts_parser = OptionParser.new do |opts|
-  opts.on('-s server_uri') { |server| $nats_server = server }
-  opts.on('-m local_port') { |port| $nats_port = port }
-  opts.on('-n num_connections') { |num| $num_connections = num }
+  opts.on('-s server_uri')      { |server|   $nats_server = server }
+  opts.on('-m local_port')      { |port|     $nats_port = port.to_i }
+  opts.on('-n num_connections') { |num|      $num_connections = num.to_i }
+  opts.on('-d delay')           { |delay|    $delay = delay.to_f }
+  opts.on('-s sort_by')         { |sort_key| $sort_key = sort_key }
+  opts.on('--sort_options')     { sort_options_help }
   opts.on('-h')     { usage }
   opts.on('--help') { usage }
 end
@@ -23,6 +37,8 @@ args = opts_parser.parse!(args)
 
 DEFAULT_MONITOR_PORT = 9222
 DEFAULT_NUM_CONNECTIONS = 10
+DEFAULT_DELAY = 1 #sec
+DEFAULT_SORT = 'pending_size'
 
 $nats_port = DEFAULT_MONITOR_PORT if $nats_port.nil?
 $num_connections = DEFAULT_NUM_CONNECTIONS if $num_connections.nil?
@@ -30,8 +46,17 @@ $nats_server = "http://localhost:#{$nats_port}" if $nats_server.nil?
 
 $nats_server = "http://#{$nats_server}" unless $nats_server.start_with?('http')
 
+$delay = DEFAULT_DELAY if $delay.nil?
+$sort_key = DEFAULT_SORT if $sort_key.nil?
+$sort_key.downcase!
+
+unless $valid_sort_options.include?($sort_key)
+  puts "Invalid sort_by argument: #{$sort_key}"
+  sort_options_help
+end
+
 varz_uri = URI.parse("#{$nats_server}/varz")
-connz_uri = URI.parse("#{$nats_server}/connz?n=#{$num_connections}")
+connz_uri = URI.parse("#{$nats_server}/connz?n=#{$num_connections}&s=#{$sort_key}")
 
 def psize(size, prec=1)
   return 'NA' unless size
@@ -88,7 +113,7 @@ while true
     print "  Out:  Msgs: #{psize(varz[:out_msgs])}  Bytes: #{psize(varz[:out_bytes])}"
     puts  "  Msgs/Sec: #{psize(rate_out_msgs)}  Bytes/Sec: #{psize(rate_out_bytes)}"
 
-    puts "\nConnections: #{psize(connz[:num_connections])}"
+    puts "\nConnections: #{psize(connz[:num_connections], 0)}"
 
     conn_t = "  %-20s %-8s %-6s  %-10s  %-10s  %-10s  %-10s  %-10s\n"
     printf(conn_t, 'HOST', 'CID', 'SUBS', 'PENDING', 'MSGS_TO', 'MSGS_FROM', 'BYTES_TO', 'BYTES_FROM')
@@ -98,21 +123,23 @@ while true
                      conn[:cid],
                      psize(conn[:subscriptions]),
                      psize(conn[:pending_size]),
-                     psize(conn[:in_msgs]),
                      psize(conn[:out_msgs]),
-                     psize(conn[:in_bytes]),
-                     psize(conn[:out_bytes])
+                     psize(conn[:in_msgs]),
+                     psize(conn[:out_bytes]),
+                     psize(conn[:in_bytes])
              )
     end
     puts
 
-    first = false if first
-    sleep(1)
+    first = false
+
+    sleep($delay)
 
   rescue => e
     puts "Error: #{e}"
     exit(1)
   end
+
 end
 
 
