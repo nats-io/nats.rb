@@ -48,7 +48,7 @@ describe "queue group support" do
         end
       end
       (0...TOTAL).each { NATS.publish('foo.bar', 'ok') }
-      NATS.publish('done') { NATS.stop }
+      NATS.flush { NATS.stop }
     end
     received.each_value { |count| (AVG - count).abs.should < ALLOWED_V }
     total.should == TOTAL
@@ -60,7 +60,7 @@ describe "queue group support" do
       NATS.subscribe('foo.bar', :queue => 'g1') { received += 1 }
       NATS.subscribe('foo.*', :queue => 'g1') { received += 1 }
       NATS.subscribe('foo.>', :queue => 'g1') { received += 1 }
-      NATS.publish('foo.bar', :queue => 'hello') { NATS.stop }
+      NATS.publish('foo.bar', 'hello') { NATS.stop }
     end
     received.should == 1
   end
@@ -77,7 +77,7 @@ describe "queue group support" do
       10.times do
         NATS.publish('foo.bar', 'hello')
       end
-      NATS.publish('done') { NATS.stop }
+      NATS.flush { NATS.stop }
     end
     received_g1.should == 10
     received_g2.should == 10
