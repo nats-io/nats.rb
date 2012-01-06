@@ -12,6 +12,8 @@ This gem currently works on the following Ruby platforms:
 - Rubinius
 - JRuby
 
+There is a [Node.js](https://github.com/derekcollison/node_nats) client available as well.
+
 ## Getting Started
 
 ```bash
