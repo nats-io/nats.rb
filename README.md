@@ -55,12 +55,12 @@ end
 ## Wildcard Subscriptions
 
 ```ruby
-# '*" matches any token, at any level of the subject.
+# "*" matches any token, at any level of the subject.
 NATS.subscribe('foo.*.baz') { |msg, reply, sub| puts "Msg received on [#{sub}] : '#{msg}'" }
 NATS.subscribe('foo.bar.*') { |msg, reply, sub| puts "Msg received on [#{sub}] : '#{msg}'" }
 NATS.subscribe('*.bar.*')   { |msg, reply, sub| puts "Msg received on [#{sub}] : '#{msg}'" }
 
-# '>" matches any length of the tail of a subject and can only be the last token
+# ">" matches any length of the tail of a subject and can only be the last token
 # E.g. 'foo.>' will match 'foo.bar', 'foo.bar.baz', 'foo.foo.bar.bax.22'
 NATS.subscribe('foo.>') { |msg, reply, sub| puts "Msg received on [#{sub}] : '#{msg}'" }
 ```
