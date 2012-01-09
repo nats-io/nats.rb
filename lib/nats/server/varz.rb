@@ -27,7 +27,7 @@ module NATSD #:nodoc: all
           @varz[:out_msgs] = out_msgs
           @varz[:in_bytes] = in_bytes
           @varz[:out_bytes] = out_bytes
-          @varz[:routes] = num_routes
+#FIXME    @varz[:routes] = num_routes
           @last_varz_update = Time.now.to_f
         end
         varz
