@@ -44,6 +44,7 @@ describe "server configuration" do
     opts[:user].should == config['authorization']['user']
     opts[:pass].should == config['authorization']['password']
     opts[:token].should == config['authorization']['token']
+    opts[:ssl].should == config['ssl']
     opts[:pid_file].should == config['pid_file']
     opts[:log_file].should == config['log_file']
     opts[:log_time].should == config['logtime']

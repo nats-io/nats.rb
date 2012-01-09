@@ -18,10 +18,10 @@ module NATSD #:nodoc: all
         :port => client_info[0],
         :subscriptions => @subscriptions.size,
         :pending_size => get_outbound_data_size,
-        :in_msgs => in_msgs,
-        :out_msgs => out_msgs,
-        :in_bytes => in_bytes,
-        :out_bytes => out_bytes
+        :in_msgs => @in_msgs,
+        :out_msgs => @out_msgs,
+        :in_bytes => @in_bytes,
+        :out_bytes => @out_bytes
       }
     end
 
@@ -32,11 +32,16 @@ module NATSD #:nodoc: all
       @in_msgs = @out_msgs = @in_bytes = @out_bytes = 0
       @parse_state = AWAITING_CONTROL_LINE
       send_info
+      debug "Client connection created", client_info, cid
+      if Server.ssl_required?
+        debug "Starting TLS/SSL", client_info, cid
+        @ssl_pending = EM.add_timer(NATSD::Server.ssl_timeout) { connect_ssl_timeout }
+        start_tls(:verify_peer => true) if Server.ssl_required?
+      end
       @auth_pending = EM.add_timer(NATSD::Server.auth_timeout) { connect_auth_timeout } if Server.auth_required?
       @ping_timer = EM.add_periodic_timer(NATSD::Server.ping_interval) { send_ping }
       @pings_outstanding = 0
       Server.num_connections += 1
-      debug "Client connection created", client_info, cid
     end
 
     def send_ping
@@ -52,6 +57,11 @@ module NATSD #:nodoc: all
     def connect_auth_timeout
       error_close AUTH_REQUIRED
       debug "Client connection timeout due to lack of auth credentials", cid
+    end
+
+    def connect_ssl_timeout
+      error_close SSL_REQUIRED
+      debug "Connection timeout due to lack of TLS/SSL negotiations", cid
     end
 
     def receive_data(data)
@@ -160,6 +170,7 @@ module NATSD #:nodoc: all
     def process_connect_config(config)
       @verbose  = config['verbose'] unless config['verbose'].nil?
       @pedantic = config['pedantic'] unless config['pedantic'].nil?
+
       return send_data(OK) unless Server.auth_required?
 
       EM.cancel_timer(@auth_pending)
@@ -188,12 +199,25 @@ module NATSD #:nodoc: all
       debug "Client connection closed", client_info, cid
       Server.num_connections -= 1
       @subscriptions.each_value { |sub| Server.unsubscribe(sub) }
+      EM.cancel_timer(@ssl_pending) if @ssl_pending
+      @ssl_pending = nil
       EM.cancel_timer(@auth_pending) if @auth_pending
       @auth_pending = nil
       EM.cancel_timer(@ping_timer) if @ping_timer
       @ping_timer = nil
 
       @closing = true
+    end
+
+    def ssl_handshake_completed
+      EM.cancel_timer(@ssl_pending)
+      @ssl_pending = nil
+      debug "Client Certificate:", get_peer_cert, cid
+    end
+
+    # FIXME! Cert accepted by default
+    def ssl_verify_peer(cert)
+      true
     end
 
     def ctrace(*args)

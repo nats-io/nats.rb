@@ -25,6 +25,7 @@ NATSD::Server.setup(ARGV.dup)
 EM.run do
 
   log "Starting #{NATSD::APP_NAME} version #{NATSD::VERSION} on port #{NATSD::Server.port}"
+  log "TLS/SSL Support Enabled" if NATSD::Server.options[:ssl] 
   begin
     EM.set_descriptor_table_size(32768) # Requires Root privileges
     EM.start_server(NATSD::Server.host, NATSD::Server.port, NATSD::Connection)

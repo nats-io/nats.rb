@@ -13,6 +13,8 @@ authorization:
 pid_file: '/tmp/nats_test.pid'
 log_file: '/tmp/nats_test.log'
 
+ssl: false
+
 # Debug Options
 
 logtime: true

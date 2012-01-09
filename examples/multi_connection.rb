@@ -1,8 +1,7 @@
 require 'rubygems'
 require 'nats/client'
 
-trap("TERM") { NATS.stop }
-trap("INT")  { NATS.stop }
+["TERM", "INT"].each { |sig| trap(sig) { NATS.stop } }
 
 NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
@@ -12,6 +11,6 @@ NATS.start {
     NATS.stop
   end
 
-  # Form second connection to send message on
-  NATS.connect { NATS.publish('test', 'Hello World!') }
+  # Form a second connection to send message on
+  NATS.connect { |nc| nc.publish('test', 'Hello World!') }
 }

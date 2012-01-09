@@ -1,8 +1,7 @@
 require 'rubygems'
 require 'nats/client'
 
-trap("TERM") { NATS.stop }
-trap("INT")  { NATS.stop }
+["TERM", "INT"].each { |sig| trap(sig) { NATS.stop } }
 
 def usage
   puts "Usage: ruby queue_sub.rb <subject> <queue name>"; exit

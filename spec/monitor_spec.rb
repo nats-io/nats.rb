@@ -51,9 +51,14 @@ describe 'monitor' do
   end
 
   it 'should start monitor http servers when requested' do
+    total_wait, now = 0, Time.now
     begin
-      sleep(0.5)
+      sleep(0.2)
       s = TCPSocket.open(NATSD::Server.host, HTTP_PORT)
+    rescue Errno::ECONNREFUSED => e
+      total_wait = Time.now - now
+      now = Time.now
+      retry unless total_wait > 5
     ensure
       s.close if s
     end
@@ -157,18 +162,18 @@ describe 'monitor' do
   it 'should return connz with subset of connections if requested' do
     EM.run do
       conns = []
-      (1..10).each { conns << NATS.connect(:uri => HTTP_SERVER) }
+      (1..50).each { conns << NATS.connect(:uri => HTTP_SERVER) }
       # Wait for them to register and connz to allow updates
       sleep(0.5)
       host, port = NATSD::Server.host, HTTP_PORT
-      connz_req = Net::HTTP::Get.new("/connz?n=4")
+      connz_req = Net::HTTP::Get.new("/connz?n=11")
       connz_resp = Net::HTTP.new(host, port).start { |http| http.request(connz_req) }
       connz_resp.body.should_not be_nil
       connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)
       connz.should have_key :pending_size
       connz.should have_key :num_connections
-      connz[:num_connections].should == 10
-      connz[:connections].size.should == 4
+      connz[:num_connections].should == 50
+      connz[:connections].size.should == 11
       c_info = connz[:connections].first
       c_info.should have_key :cid
       c_info.should have_key :ip
@@ -218,8 +223,34 @@ describe 'monitor' do
             c_info[:out_msgs].should == 20
           end
 
+          # msgs_to
+          connz_req = Net::HTTP::Get.new("/connz?n=4&s=msgs_to")
+          connz_resp = Net::HTTP.new(host, port).start { |http| http.request(connz_req) }
+          connz_resp.body.should_not be_nil
+          connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)
+          connz.should have_key :pending_size
+          connz.should have_key :num_connections
+          connz[:num_connections].should == 15
+          connz[:connections].size.should == 4
+          connz[:connections].each do |c_info|
+            c_info[:out_msgs].should == 20
+          end
+
           # out_bytes
           connz_req = Net::HTTP::Get.new("/connz?n=2&s=out_bytes")
+          connz_resp = Net::HTTP.new(host, port).start { |http| http.request(connz_req) }
+          connz_resp.body.should_not be_nil
+          connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)
+          connz.should have_key :pending_size
+          connz.should have_key :num_connections
+          connz[:num_connections].should == 15
+          connz[:connections].size.should == 2
+          connz[:connections].each do |c_info|
+            c_info[:out_bytes].should == 220
+          end
+
+          # bytes_to
+          connz_req = Net::HTTP::Get.new("/connz?n=2&s=bytes_to")
           connz_resp = Net::HTTP.new(host, port).start { |http| http.request(connz_req) }
           connz_resp.body.should_not be_nil
           connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)
@@ -243,8 +274,33 @@ describe 'monitor' do
           c_info = connz[:connections].first
           c_info[:in_msgs].should == 10
 
+
+          # msgs_from
+          connz_req = Net::HTTP::Get.new("/connz?n=1&s=msgs_from")
+          connz_resp = Net::HTTP.new(host, port).start { |http| http.request(connz_req) }
+          connz_resp.body.should_not be_nil
+          connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)
+          connz.should have_key :pending_size
+          connz.should have_key :num_connections
+          connz[:num_connections].should == 15
+          connz[:connections].size.should == 1
+          c_info = connz[:connections].first
+          c_info[:in_msgs].should == 10
+
           # in_bytes
           connz_req = Net::HTTP::Get.new("/connz?n=1&s=in_bytes")
+          connz_resp = Net::HTTP.new(host, port).start { |http| http.request(connz_req) }
+          connz_resp.body.should_not be_nil
+          connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)
+          connz.should have_key :pending_size
+          connz.should have_key :num_connections
+          connz[:num_connections].should == 15
+          connz[:connections].size.should == 1
+          c_info = connz[:connections].first
+          c_info[:in_bytes].should == 110
+
+          # bytes_from
+          connz_req = Net::HTTP::Get.new("/connz?n=1&s=bytes_from")
           connz_resp = Net::HTTP.new(host, port).start { |http| http.request(connz_req) }
           connz_resp.body.should_not be_nil
           connz = JSON.parse(connz_resp.body, :symbolize_keys => true, :symbolize_names => true)

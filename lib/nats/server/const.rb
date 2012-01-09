@@ -1,7 +1,7 @@
 
 module NATSD #:nodoc:
 
-  VERSION  = '0.4.20'
+  VERSION  = '0.4.22.beta.4'
   APP_NAME = 'nats-server'
 
   DEFAULT_PORT = 4222
@@ -39,6 +39,8 @@ module NATSD #:nodoc:
   INVALID_CONFIG      = "-ERR 'Invalid config, valid JSON required for connection configuration'#{CR_LF}".freeze
   AUTH_REQUIRED       = "-ERR 'Authorization is required'#{CR_LF}".freeze
   AUTH_FAILED         = "-ERR 'Authorization failed'#{CR_LF}".freeze
+  SSL_REQUIRED        = "-ERR 'TSL/SSL is required'#{CR_LF}".freeze
+  SSL_FAILED          = "-ERR 'TLS/SSL failed'#{CR_LF}".freeze
   UNKNOWN_OP          = "-ERR 'Unknown Protocol Operation'#{CR_LF}".freeze
   SLOW_CONSUMER       = "-ERR 'Slow consumer detected, connection dropped'#{CR_LF}".freeze
   UNRESPONSIVE        = "-ERR 'Unresponsive client detected, connection dropped'#{CR_LF}".freeze
@@ -58,8 +60,11 @@ module NATSD #:nodoc:
   # Maximum outbound size per client
   MAX_PENDING_SIZE = (10*1024*1024)
 
+  # TLS/SSL wait time
+  SSL_TIMEOUT = 0.5
+
   # Authorization wait time
-  AUTH_TIMEOUT = 1
+  AUTH_TIMEOUT = SSL_TIMEOUT + 0.5
 
   # Ping intervals
   DEFAULT_PING_INTERVAL = 120

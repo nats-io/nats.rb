@@ -8,39 +8,41 @@ require 'nats/server/const'
 spec = Gem::Specification.new do |s|
   s.name = 'nats'
   s.version = NATSD::VERSION
-  s.summary = 'A lightweight publish-subscribe messaging system.'
+  s.summary = 'A lightweight publish-subscribe and distributed queuing messaging system.'
   s.homepage = 'http://github.com/derekcollison/nats'
-  s.description = 'A lightweight publish-subscribe messaging system.'
+  s.description = 'A lightweight publish-subscribe and distributed queuing messaging system.'
   s.has_rdoc = true
 
   s.authors = ['Derek Collison']
   s.email = ['derek.collison@gmail.com']
 
   s.add_dependency('eventmachine', '>= 0.12.10')
-  s.add_dependency('json_pure', '>= 1.5.3')
+  s.add_dependency('json_pure', '>= 1.6.1')
   s.add_dependency('daemons', '>= 1.1.4')
-  s.add_dependency('thin', '>= 1.2.11')
+  s.add_dependency('thin', '>= 1.3.1')
 
   s.require_paths = ['lib']
   s.bindir = 'bin'
-  s.executables = [NATSD::APP_NAME, 'nats-pub', 'nats-sub', 'nats-queue']
+  s.executables = [NATSD::APP_NAME, 'nats-pub', 'nats-sub', 'nats-queue', 'nats-top']
 
   s.files = %w[
     COPYING
     README.md
-    ChangeLog
+    HISTORY.md
     nats.gemspec
     Rakefile
     bin/nats-server
     bin/nats-sub
     bin/nats-pub
     bin/nats-queue
+    bin/nats-top
     lib/nats/client.rb
     lib/nats/ext/bytesize.rb
     lib/nats/ext/em.rb
     lib/nats/ext/json.rb
     lib/nats/server.rb
     lib/nats/server/server.rb
+    lib/nats/server/connection.rb
     lib/nats/server/options.rb
     lib/nats/server/sublist.rb
     lib/nats/server/const.rb

@@ -78,6 +78,7 @@ module NATS
     # @option opts [Boolean] :debug Boolean that can be used to output additional debug information.
     # @option opts [Boolean] :verbose Boolean that is sent to server for setting verbose protocol mode.
     # @option opts [Boolean] :pedantic Boolean that is sent to server for setting pedantic mode.
+    # @option opts [Boolean] :ssl Boolean that is sent to server for setting TLS/SSL mode.
     # @option opts [Integer] :max_reconnect_attempts Integer that can be used to set the max number of reconnect tries
     # @option opts [Integer] :reconnect_time_wait Integer that can be used to set the number of seconds to wait between reconnect tries
     # @param [Block] &blk called when the connection is completed. Connection will be passed to the block.
@@ -87,6 +88,7 @@ module NATS
       opts[:verbose] = false if opts[:verbose].nil?
       opts[:pedantic] = false if opts[:pedantic].nil?
       opts[:reconnect] = true if opts[:reconnect].nil?
+      opts[:ssl] = false if opts[:ssl].nil?
       opts[:max_reconnect_attempts] = MAX_RECONNECT_ATTEMPTS if opts[:max_reconnect_attempts].nil?
       opts[:reconnect_time_wait] = RECONNECT_TIME_WAIT if opts[:reconnect_time_wait].nil?
 
@@ -96,6 +98,7 @@ module NATS
       opts[:pedantic] = ENV['NATS_PEDANTIC'].downcase == 'true' unless ENV['NATS_PEDANTIC'].nil?
       opts[:debug] = ENV['NATS_DEBUG'].downcase == 'true' unless ENV['NATS_DEBUG'].nil?
       opts[:reconnect] = ENV['NATS_RECONNECT'].downcase == 'true' unless ENV['NATS_RECONNECT'].nil?
+      opts[:ssl] = ENV['NATS_SSL'].downcase == 'true' unless ENV['NATS_SSL'].nil?
       opts[:max_reconnect_attempts] = ENV['NATS_MAX_RECONNECT_ATTEMPTS'].to_i unless ENV['NATS_MAX_RECONNECT_ATTEMPTS'].nil?
       opts[:reconnect_time_wait] = ENV['NATS_RECONNECT_TIME_WAIT'].to_i unless ENV['NATS_RECONNECT_TIME_WAIT'].nil?
 
@@ -254,6 +257,7 @@ module NATS
   def initialize(options)
     @options = options
     process_uri_options
+    @ssl = options[:ssl] if options[:ssl]
     @ssid, @subs = 1, {}
     @err_cb = NATS.err_cb
     @reconnect_timer, @needed = nil, nil
@@ -396,6 +400,7 @@ module NATS
       cs[:user] = @uri.user
       cs[:pass] = @uri.password
     end
+    cs[:ssl_required] = @ssl if @ssl
     "CONNECT #{cs.to_json}#{CR_LF}"
   end
 
@@ -492,10 +497,26 @@ module NATS
 
   def process_info(info) #:nodoc:
     @server_info = JSON.parse(info, :symbolize_keys => true, :symbolize_names => true)
+    if @server_info[:ssl_required] && @ssl
+      start_tls
+    else
+      if @server_info[:ssl_required]
+        err_cb.call(NATS::Error.new("TLS/SSL required by server"))
+      elsif @ssl
+        err_cb.call(NATS::Error.new("TLS/SSL not supported by server"))
+      end
+    end
+    @server_info
+  end
+
+  def ssl_handshake_completed
+    @connected = true
+    flush_pending
   end
 
   def connection_completed #:nodoc:
-    @connected = true
+    @connected = true unless @ssl
+
     current = server_pool.first
     current[:was_connected] = true
     current[:reconnect_attempts] = 0
@@ -504,7 +525,7 @@ module NATS
       cancel_reconnect_timer
       @subs.each_pair { |k, v| send_command("SUB #{v[:subject]} #{k}#{CR_LF}") }
     end
-    flush_pending if @pending
+    flush_pending unless @ssl
     unless user_err_cb? or reconnecting?
       @err_cb = proc { |e| raise e }
     end
@@ -551,12 +572,13 @@ module NATS
     end
   end
 
+  def disconnect_error_string
+    return "Client disconnected from server on #{@uri}." if @connected
+    return "Could not connect to server on #{@uri}"
+  end
+
   def process_disconnect #:nodoc:
-    if not closing? and @err_cb
-      err_string = @connected ? "Client disconnected from server on #{@uri}." : "Could not connect to server on #{@uri}"
-      err_cb.call(NATS::ConnectError.new(err_string))
-    end
-    true #chaining
+    err_cb.call(NATS::ConnectError.new(disconnect_error_string)) if not closing? and @err_cb
   ensure
     cancel_reconnect_timer
     if (NATS.client == self and closing? and not NATS.reactor_was_running?)
@@ -602,11 +624,11 @@ module NATS
   end
 
   def bind_primary #:nodoc:
-    f = server_pool.first
+    first = server_pool.first
     @uri = f[:uri]
     @uri.user = options[:user] if options[:user]
     @uri.password = options[:pass] if options[:pass]
-    f
+    first
   end
 
   # We have failed on an attempt at the primary (first) server, rotate and try again
