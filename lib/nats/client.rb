@@ -579,6 +579,7 @@ module NATS
 
   def process_disconnect #:nodoc:
     err_cb.call(NATS::ConnectError.new(disconnect_error_string)) if not closing? and @err_cb
+    true # Chaining
   ensure
     cancel_reconnect_timer
     if (NATS.client == self and closing? and not NATS.reactor_was_running?)
@@ -625,7 +626,7 @@ module NATS
 
   def bind_primary #:nodoc:
     first = server_pool.first
-    @uri = f[:uri]
+    @uri = first[:uri]
     @uri.user = options[:user] if options[:user]
     @uri.password = options[:pass] if options[:pass]
     first
