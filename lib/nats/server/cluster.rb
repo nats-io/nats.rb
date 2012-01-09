@@ -4,7 +4,7 @@ module NATSD #:nodoc: all
 
   class Server
     class << self
-      attr_reader :opt_routes
+      attr_reader :opt_routes, :num_routes
 
       def connected_routes
         @routes ||= []
