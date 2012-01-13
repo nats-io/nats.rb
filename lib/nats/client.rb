@@ -438,48 +438,49 @@ module NATS
   def receive_data(data) #:nodoc:
     @buf = @buf ? @buf << data : data
     while (@buf)
-        case @parse_state
+      case @parse_state
 
-          when AWAITING_CONTROL_LINE
-            case @buf
-              when MSG
-                @buf = $'
-                @sub, @sid, @reply, @needed = $1, $2.to_i, $4, $5.to_i
-                @parse_state = AWAITING_MSG_PAYLOAD
-              when OK # No-op right now
-                @buf = $'
-              when ERR
-                @buf = $'
-                err_cb.call(NATS::ServerError.new($1))
-              when PING
-                @pings += 1
-                @buf = $'
-                send_command(PONG_RESPONSE)
-              when PONG
-                @buf = $'
-                cb = @pongs.shift
-                cb.call if cb
-              when INFO
-                @buf = $'
-                process_info($1)
-              when UNKNOWN
-                @buf = $'
-                err_cb.call(NATS::Error.new("Unknown protocol: $1"))
-              else
-                # If we are here we do not have a complete line yet that we understand.
-                return
-            end
-            @buf = nil if (@buf && @buf.empty?)
+        when AWAITING_CONTROL_LINE
+         case @buf
+         when MSG
+           @buf = $'
+           @sub, @sid, @reply, @needed = $1, $2.to_i, $4, $5.to_i
+           @parse_state = AWAITING_MSG_PAYLOAD
+         when OK # No-op right now
+           @buf = $'
+         when ERR
+           @buf = $'
+           err_cb.call(NATS::ServerError.new($1))
+         when PING
+           @pings += 1
+           @buf = $'
+           send_command(PONG_RESPONSE)
+         when PONG
+           @buf = $'
+           cb = @pongs.shift
+           cb.call if cb
+         when INFO
+           @buf = $'
+           process_info($1)
+         when UNKNOWN
+           @buf = $'
+           err_cb.call(NATS::Error.new("Unknown protocol: $1"))
+         else
+           # If we are here we do not have a complete line yet that we understand.
+           return
+         end
+        @buf = nil if (@buf && @buf.empty?)
 
-          when AWAITING_MSG_PAYLOAD
-            return unless (@needed && @buf.bytesize >= (@needed + CR_LF_SIZE))
-            on_msg(@sub, @sid, @reply, @buf.slice(0, @needed))
-            @buf = @buf.slice((@needed + CR_LF_SIZE), @buf.bytesize)
-            @sub = @sid = @reply = @needed = nil
-            @parse_state = AWAITING_CONTROL_LINE
-            @buf = nil if (@buf && @buf.empty?)
-        end
+      when AWAITING_MSG_PAYLOAD
+        return unless (@needed && @buf.bytesize >= (@needed + CR_LF_SIZE))
+        on_msg(@sub, @sid, @reply, @buf.slice(0, @needed))
+        @buf = @buf.slice((@needed + CR_LF_SIZE), @buf.bytesize)
+        @sub = @sid = @reply = @needed = nil
+        @parse_state = AWAITING_CONTROL_LINE
+        @buf = nil if (@buf && @buf.empty?)
+      end
     end
+
   end
 
   def process_info(info) #:nodoc:
