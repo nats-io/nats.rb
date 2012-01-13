@@ -95,7 +95,7 @@ module NATSD #:nodoc: all
             @parse_state = AWAITING_MSG_PAYLOAD
             @msg_sub, @msg_reply, @msg_size = $1, $3, $4.to_i
             if (@msg_size > NATSD::Server.max_payload)
-              debug "Message payload size exceeded (#{@msg_size}/#{NATSD::Server.max_payload}), closing connection"
+              debug_print_msg_too_big(@msg_size)
               error_close PAYLOAD_TOO_BIG
             end
             queue_data(INVALID_SUBJECT) if (@pedantic && !(@msg_sub =~ SUB_NO_WC))
@@ -157,7 +157,7 @@ module NATSD #:nodoc: all
             # If we are here we do not have a complete line yet that we understand.
             # If too big, cut the connection off.
             if @buf.bytesize > NATSD::Server.max_control_line
-              debug "Control line size exceeded (#{@buf.bytesize}/#{NATSD::Server.max_control_line}), closing connection.."
+              debug_print_controlline_too_big(@buf.bytesize)
               error_close PROTOCOL_OP_TOO_BIG
             end
             return
@@ -211,6 +211,24 @@ module NATSD #:nodoc: all
       flush_data
       EM.next_tick { close_connection_after_writing }
       @closing = true
+    end
+
+    def pretty_size(size, prec=1)
+      return 'NA' unless size
+      return "#{size}B" if size < 1024
+      return sprintf("%.#{prec}fK", size/1024.0) if size < (1024*1024)
+      return sprintf("%.#{prec}fM", size/(1024.0*1024.0)) if size < (1024*1024*1024)
+      return sprintf("%.#{prec}fG", size/(1024.0*1024.0*1024.0))
+    end
+
+    def debug_print_controlline_too_big(line_size)
+      sizes = "#{pretty_size(line_size)} vs #{pretty_size(NATSD::Server.max_control_line)} max"
+      debug "Control line size exceeded (#{sizes}), closing connection.."
+    end
+
+    def debug_print_msg_too_big(msg_size)
+      sizes = "#{pretty_size(msg_size)} vs #{pretty_size(NATSD::Server.max_payload)} max"
+      debug "Message payload size exceeded (#{sizes}), closing connection"
     end
 
     def unbind
