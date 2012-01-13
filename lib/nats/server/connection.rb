@@ -13,15 +13,10 @@ module NATSD #:nodoc: all
     end
 
     def queue_data(data)
-      if @writev.nil?
-        EM.next_tick { flush_data }
-        @writev = [data]
-        @writev_size = data.bytesize
-      else
-        @writev << data
-        @writev_size += data.bytesize
-        flush_data if @writev_size > MAX_WRITEV_SIZE
-      end
+      EM.next_tick { flush_data } if @writev.nil?
+      (@writev ||= []) << data
+      @writev_size += data.bytesize
+      flush_data if @writev_size > MAX_WRITEV_SIZE
     end
 
     def client_info
@@ -47,6 +42,7 @@ module NATSD #:nodoc: all
       @subscriptions = {}
       @verbose = @pedantic = true # suppressed by most clients, but allows friendly telnet
       @in_msgs = @out_msgs = @in_bytes = @out_bytes = 0
+      @writev_size = 0
       @parse_state = AWAITING_CONTROL_LINE
       send_info
       debug "Client connection created", client_info, cid
