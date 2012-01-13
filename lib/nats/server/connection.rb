@@ -65,6 +65,7 @@ module NATSD #:nodoc: all
         return
       end
       queue_data(PING_RESPONSE)
+      flush_data
       @pings_outstanding += 1
     end
 
@@ -127,6 +128,7 @@ module NATSD #:nodoc: all
             ctrace('PING OP', strip_op($&)) if NATSD::Server.trace_flag?
             @buf = $'
             queue_data(PONG_RESPONSE)
+            flush_data
           when PONG
             ctrace('PONG OP', strip_op($&)) if NATSD::Server.trace_flag?
             @buf = $'
@@ -206,6 +208,7 @@ module NATSD #:nodoc: all
 
     def error_close(msg)
       queue_data(msg)
+      flush_data
       EM.next_tick { close_connection_after_writing }
       @closing = true
     end
