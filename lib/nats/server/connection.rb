@@ -6,6 +6,19 @@ module NATSD #:nodoc: all
     attr_reader :cid, :closing, :last_activity
     alias :closing? :closing
 
+    def send_data(data)
+      if @writev.nil?
+        EM.next_tick {
+          super(@writev.join)
+          @writev = nil
+        }
+
+        @writev = [data]
+      else
+        @writev << data
+      end
+    end
+
     def client_info
       @client_info ||= Socket.unpack_sockaddr_in(get_peername)
     end
