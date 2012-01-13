@@ -6,17 +6,48 @@ module NATSD #:nodoc: all
     attr_reader :cid, :closing, :last_activity
     alias :closing? :closing
 
-    def send_data(data)
-      if @writev.nil?
-        EM.next_tick {
-          super(@writev.join)
-          @writev = nil
-        }
+    def on_tick(&blk)
+      if @on_tick.nil?
+        EM.next_tick do
+          @on_tick.each(&:call)
+          @on_tick = nil
+        end
 
-        @writev = [data]
+        @on_tick = [blk]
       else
-        @writev << data
+        @on_tick << blk
       end
+    end
+
+    def send_data(data)
+      if @defer_writes.nil?
+        super(data)
+      else
+        if @writev.nil?
+          on_tick do
+            super(@writev.join)
+            @writev = nil
+          end
+
+          @writev = [data]
+        else
+          @writev << data
+        end
+      end
+    end
+
+    def close_connection_after_writing
+      if @defer_writes.nil?
+        super()
+      else
+        on_tick do
+          super()
+        end
+      end
+    end
+
+    def defer_writes!
+      @defer_writes = true
     end
 
     def client_info
@@ -49,6 +80,8 @@ module NATSD #:nodoc: all
         debug "Starting TLS/SSL", client_info, cid
         @ssl_pending = EM.add_timer(NATSD::Server.ssl_timeout) { connect_ssl_timeout }
         start_tls(:verify_peer => true) if Server.ssl_required?
+      else
+        defer_writes!
       end
       @auth_pending = EM.add_timer(NATSD::Server.auth_timeout) { connect_auth_timeout } if Server.auth_required?
       @ping_timer = EM.add_periodic_timer(NATSD::Server.ping_interval) { send_ping }
@@ -226,6 +259,7 @@ module NATSD #:nodoc: all
       EM.cancel_timer(@ssl_pending)
       @ssl_pending = nil
       debug "Client Certificate:", get_peer_cert, cid
+      defer_writes!
     end
 
     # FIXME! Cert accepted by default
