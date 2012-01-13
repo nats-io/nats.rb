@@ -8,13 +8,15 @@ require "#{ep}/ext/json"
 
 module NATS
 
-  VERSION = "0.4.22.beta.4".freeze
+  VERSION = '0.4.22.beta.6'.freeze
 
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
 
   MAX_RECONNECT_ATTEMPTS = 10
   RECONNECT_TIME_WAIT = 2
+
+  MAX_PENDING_SIZE = 32768
 
   # Protocol
   # @private
@@ -256,6 +258,7 @@ module NATS
     @reconnect_timer, @needed = nil, nil
     @connected, @closing, @reconnecting = false, false, false
     @msgs_received = @msgs_sent = @bytes_received = @bytes_sent = @pings = 0
+    @pending_size = 0
     send_connect_command
   end
 
@@ -428,8 +431,8 @@ module NATS
 
   def flush_pending #:nodoc:
     return unless @pending
-    @pending.each { |p| send_data(p) }
-    @pending = nil
+    send_data(@pending.join)
+    @pending, @pending_size = nil, 0
   end
 
   def receive_data(data) #:nodoc:
@@ -554,12 +557,10 @@ module NATS
   end
 
   def send_command(command) #:nodoc:
-    queue_command(command) and return unless connected?
-    send_data(command)
-  end
-
-  def queue_command(command) #:nodoc:
+    EM.next_tick { flush_pending } if (connected? && @pending.nil?)
     (@pending ||= []) << command
+    @pending_size += command.bytesize
+    flush_pending if (connected? && @pending_size > MAX_PENDING_SIZE)
     true
   end
 
