@@ -8,7 +8,7 @@ $count = 100000
 $batch = 10
 
 $sub  = 'test'
-$data_size = 32
+$data_size = 16
 
 $hash  = 2500
 

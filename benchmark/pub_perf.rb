@@ -5,10 +5,10 @@ $:.unshift File.expand_path('../../lib', __FILE__)
 require 'nats/client'
 
 $count = 100000
-$batch = 10
+$batch = 100
 
 $sub  = 'test'
-$data_size = 128
+$data_size = 16
 
 $hash  = 2500
 
