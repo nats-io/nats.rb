@@ -102,7 +102,7 @@ module NATSD #:nodoc: all
           conn.out_bytes += mbs
         end
 
-        conn.send_data("MSG #{subject} #{sub.sid} #{reply}#{msg.bytesize}#{CR_LF}#{msg}#{CR_LF}")
+        conn.queue_data("MSG #{subject} #{sub.sid} #{reply}#{msg.bytesize}#{CR_LF}#{msg}#{CR_LF}")
 
         # Account for these response and check for auto-unsubscribe (pruning interest graph)
         sub.num_responses += 1

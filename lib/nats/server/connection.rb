@@ -6,16 +6,21 @@ module NATSD #:nodoc: all
     attr_reader :cid, :closing, :last_activity
     alias :closing? :closing
 
-    def send_data(data)
-      if @writev.nil?
-        EM.next_tick {
-          super(@writev.join)
-          @writev = nil
-        }
+    def flush_data
+      return unless @writev
+      send_data(@writev.join)
+      @writev, @writev_size = nil, 0
+    end
 
+    def queue_data(data)
+      if @writev.nil?
+        EM.next_tick { flush_data }
         @writev = [data]
+        @writev_size = data.bytesize
       else
         @writev << data
+        @writev_size += data.bytesize
+        flush_data if @writev_size > MAX_WRITEV_SIZE
       end
     end
 
@@ -47,6 +52,7 @@ module NATSD #:nodoc: all
       debug "Client connection created", client_info, cid
       if Server.ssl_required?
         debug "Starting TLS/SSL", client_info, cid
+        flush_data
         @ssl_pending = EM.add_timer(NATSD::Server.ssl_timeout) { connect_ssl_timeout }
         start_tls(:verify_peer => true) if Server.ssl_required?
       end
@@ -62,7 +68,7 @@ module NATSD #:nodoc: all
         error_close UNRESPONSIVE
         return
       end
-      send_data(PING_RESPONSE)
+      queue_data(PING_RESPONSE)
       @pings_outstanding += 1
     end
 
@@ -95,18 +101,18 @@ module NATSD #:nodoc: all
               debug "Message payload size exceeded (#{@msg_size}/#{NATSD::Server.max_payload}), closing connection"
               error_close PAYLOAD_TOO_BIG
             end
-            send_data(INVALID_SUBJECT) if (@pedantic && !(@msg_sub =~ SUB_NO_WC))
+            queue_data(INVALID_SUBJECT) if (@pedantic && !(@msg_sub =~ SUB_NO_WC))
           when SUB_OP
             ctrace('SUB OP', strip_op($&)) if NATSD::Server.trace_flag?
             return connect_auth_timeout if @auth_pending
             @buf = $'
             sub, qgroup, sid = $1, $3, $4
-            return send_data(INVALID_SUBJECT) if !($1 =~ SUB)
-            return send_data(INVALID_SID_TAKEN) if @subscriptions[sid]
+            return queue_data(INVALID_SUBJECT) if !($1 =~ SUB)
+            return queue_data(INVALID_SID_TAKEN) if @subscriptions[sid]
             sub = Subscriber.new(self, sub, sid, qgroup, 0)
             @subscriptions[sid] = sub
             Server.subscribe(sub)
-            send_data(OK) if @verbose
+            queue_data(OK) if @verbose
           when UNSUB_OP
             ctrace('UNSUB OP', strip_op($&)) if NATSD::Server.trace_flag?
             return connect_auth_timeout if @auth_pending
@@ -117,14 +123,14 @@ module NATSD #:nodoc: all
               # the appropriate amount of responses.
               sub.max_responses = ($2 && $3) ? $3.to_i : nil
               delete_subscriber(sub) unless (sub.max_responses && (sub.num_responses < sub.max_responses))
-              send_data(OK) if @verbose
+              queue_data(OK) if @verbose
             else
-              send_data(INVALID_SID_NOEXIST) if @pedantic
+              queue_data(INVALID_SID_NOEXIST) if @pedantic
             end
           when PING
             ctrace('PING OP', strip_op($&)) if NATSD::Server.trace_flag?
             @buf = $'
-            send_data(PONG_RESPONSE)
+            queue_data(PONG_RESPONSE)
           when PONG
             ctrace('PONG OP', strip_op($&)) if NATSD::Server.trace_flag?
             @buf = $'
@@ -136,7 +142,7 @@ module NATSD #:nodoc: all
               config = JSON.parse($1)
               process_connect_config(config)
             rescue => e
-              send_data(INVALID_CONFIG)
+              queue_data(INVALID_CONFIG)
               log_error
             end
           when INFO
@@ -148,7 +154,7 @@ module NATSD #:nodoc: all
             ctrace('Unknown Op', strip_op($&)) if NATSD::Server.trace_flag?
             return connect_auth_timeout if @auth_pending
             @buf = $'
-            send_data(UNKNOWN_OP)
+            queue_data(UNKNOWN_OP)
           else
             # If we are here we do not have a complete line yet that we understand.
             # If too big, cut the connection off.
@@ -164,7 +170,7 @@ module NATSD #:nodoc: all
           return unless (@buf.bytesize >= (@msg_size + CR_LF_SIZE))
           msg = @buf.slice(0, @msg_size)
           ctrace('Processing msg', @msg_sub, @msg_reply, msg) if NATSD::Server.trace_flag?
-          send_data(OK) if @verbose
+          queue_data(OK) if @verbose
           Server.route_to_subscribers(@msg_sub, @msg_reply, msg)
           @in_msgs += 1
           @in_bytes += @msg_size
@@ -177,18 +183,18 @@ module NATSD #:nodoc: all
     end
 
     def send_info
-      send_data("INFO #{Server.info_string}#{CR_LF}")
+      queue_data("INFO #{Server.info_string}#{CR_LF}")
     end
 
     def process_connect_config(config)
       @verbose  = config['verbose'] unless config['verbose'].nil?
       @pedantic = config['pedantic'] unless config['pedantic'].nil?
 
-      return send_data(OK) unless Server.auth_required?
+      return queue_data(OK) unless Server.auth_required?
 
       EM.cancel_timer(@auth_pending)
       if Server.auth_ok?(config['user'], config['pass'])
-        send_data(OK) if @verbose
+        queue_data(OK) if @verbose
         @auth_pending = nil
       else
         error_close AUTH_FAILED
@@ -203,8 +209,8 @@ module NATSD #:nodoc: all
     end
 
     def error_close(msg)
-      send_data(msg)
-      close_connection_after_writing
+      queue_data(msg)
+      EM.next_tick { close_connection_after_writing }
       @closing = true
     end
 
@@ -225,7 +231,8 @@ module NATSD #:nodoc: all
     def ssl_handshake_completed
       EM.cancel_timer(@ssl_pending)
       @ssl_pending = nil
-      debug "Client Certificate:", get_peer_cert, cid
+      cert = get_peer_cert
+      debug "Client Certificate:", cert ? cert : 'N/A', cid
     end
 
     # FIXME! Cert accepted by default

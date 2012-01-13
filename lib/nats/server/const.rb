@@ -60,6 +60,9 @@ module NATSD #:nodoc:
   # Maximum outbound size per client
   MAX_PENDING_SIZE = (10*1024*1024)
 
+  # Maximum pending bucket size
+  MAX_WRITEV_SIZE = (65*1024)
+
   # TLS/SSL wait time
   SSL_TIMEOUT = 0.5
 
