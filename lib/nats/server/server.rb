@@ -109,9 +109,10 @@ module NATSD #:nodoc: all
         conn.delete_subscriber(sub) if (sub.max_responses && sub.num_responses >= sub.max_responses)
 
         # Check the outbound queue here and react if need be..
-        if conn.get_outbound_data_size > NATSD::Server.max_pending
+        if (conn.get_outbound_data_size + conn.writev_size) > NATSD::Server.max_pending
           conn.error_close SLOW_CONSUMER
-          log "Slow consumer dropped, exceeded #{NATSD::Server.max_pending} bytes pending", conn.client_info
+          maxp = pretty_size(NATSD::Server.max_pending)
+          log "Slow consumer dropped, exceeded #{maxp} pending", conn.client_info
         end
       end
 

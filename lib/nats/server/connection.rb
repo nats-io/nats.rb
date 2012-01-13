@@ -3,11 +3,11 @@ module NATSD #:nodoc: all
   module Connection #:nodoc: all
 
     attr_accessor :in_msgs, :out_msgs, :in_bytes, :out_bytes
-    attr_reader :cid, :closing, :last_activity
+    attr_reader :cid, :closing, :last_activity, :writev_size
     alias :closing? :closing
 
     def flush_data
-      return unless @writev
+      return if @writev.nil? || closing?
       send_data(@writev.join)
       @writev, @writev_size = nil, 0
     end
@@ -211,14 +211,6 @@ module NATSD #:nodoc: all
       flush_data
       EM.next_tick { close_connection_after_writing }
       @closing = true
-    end
-
-    def pretty_size(size, prec=1)
-      return 'NA' unless size
-      return "#{size}B" if size < 1024
-      return sprintf("%.#{prec}fK", size/1024.0) if size < (1024*1024)
-      return sprintf("%.#{prec}fM", size/(1024.0*1024.0)) if size < (1024*1024*1024)
-      return sprintf("%.#{prec}fG", size/(1024.0*1024.0*1024.0))
     end
 
     def debug_print_controlline_too_big(line_size)
