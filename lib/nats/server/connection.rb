@@ -158,7 +158,7 @@ module NATSD #:nodoc: all
             # If too big, cut the connection off.
             if @buf.bytesize > NATSD::Server.max_control_line
               debug_print_controlline_too_big(@buf.bytesize)
-              error_close PROTOCOL_OP_TOO_BIG
+              close_connection
             end
             return
           end
