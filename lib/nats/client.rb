@@ -55,20 +55,16 @@ module NATS
   # Duplicate autostart protection
   @@tried_autostart = {}
 
-  class Error < StandardError #:nodoc:
-  end
+  class Error < StandardError; end #:nodoc:
 
   # When the NATS server sends us an ERROR message, this is raised/passed by default
-  class ServerError < Error #:nodoc:
-  end
+  class ServerError < Error; end #:nodoc:
 
   # When we detect error on the client side (e.g. Fast Producer)
-  class ClientError < Error #:nodoc:
-  end
+  class ClientError < Error; end #:nodoc:
 
   # When we cannot connect to the server (either initially or after a reconnect), this is raised/passed
-  class ConnectError < Error #:nodoc:
-  end
+  class ConnectError < Error; end #:nodoc:
 
   class << self
     attr_reader   :client, :reactor_was_running, :err_cb, :err_cb_overridden #:nodoc:
@@ -230,6 +226,10 @@ module NATS
       return true
     rescue
       return false
+    end
+
+    def clear_client # :nodoc:
+      @client = nil
     end
 
     private
@@ -488,7 +488,7 @@ module NATS
           process_info($1)
         when UNKNOWN
           @buf = $'
-          err_cb.call(NATS::Error.new("Unknown protocol: $1"))
+          err_cb.call(NATS::ServerError.new("Unknown protocol: $1"))
         else
           # If we are here we do not have a complete line yet that we understand.
           return
@@ -572,6 +572,7 @@ module NATS
     if (NATS.client == self and connected? and closing? and not NATS.reactor_was_running?)
       EM.stop
     end
+    NATS.clear_client if (NATS.client == self)
     @connected = @reconnecting = false
     true # Chaining
   end
