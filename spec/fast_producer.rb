@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe "fast producer" do
+describe 'fast producer' do
 
   before(:all) do
     @s = NatsServerControl.new
