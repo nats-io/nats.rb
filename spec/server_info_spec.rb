@@ -12,6 +12,7 @@ describe 'server_info support' do
   end
 
   it 'should report nil when not connected for server_info' do
+    NATS.connected?.should be_false
     NATS.server_info.should be_nil
   end
 
