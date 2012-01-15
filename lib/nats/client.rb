@@ -18,6 +18,9 @@ module NATS
 
   MAX_PENDING_SIZE = 32768
 
+  # Maximum outbound size per client to trigger FP, 20MB
+  FAST_PRODUCER_THRESHOLD = (10*1024*1024)
+
   # Protocol
   # @private
   MSG      = /\AMSG\s+([^\s]+)\s+([^\s]+)\s+(([^\s]+)[^\S\r\n]+)?(\d+)\r\n/i #:nodoc:
@@ -57,6 +60,10 @@ module NATS
 
   # When the NATS server sends us an ERROR message, this is raised/passed by default
   class ServerError < Error #:nodoc:
+  end
+
+  # When we detect error on the client side (e.g. Fast Producer)
+  class ClientError < Error #:nodoc:
   end
 
   # When we cannot connect to the server (either initially or after a reconnect), this is raised/passed
@@ -100,11 +107,12 @@ module NATS
       opts[:pedantic] = ENV['NATS_PEDANTIC'].downcase == 'true' unless ENV['NATS_PEDANTIC'].nil?
       opts[:debug] = ENV['NATS_DEBUG'].downcase == 'true' unless ENV['NATS_DEBUG'].nil?
       opts[:reconnect] = ENV['NATS_RECONNECT'].downcase == 'true' unless ENV['NATS_RECONNECT'].nil?
+      opts[:fast_producer_error] = ENV['NATS_FAST_PRODUCER'].downcase == 'true' unless ENV['NATS_FAST_PRODUCER'].nil?
       opts[:ssl] = ENV['NATS_SSL'].downcase == 'true' unless ENV['NATS_SSL'].nil?
       opts[:max_reconnect_attempts] = ENV['NATS_MAX_RECONNECT_ATTEMPTS'].to_i unless ENV['NATS_MAX_RECONNECT_ATTEMPTS'].nil?
       opts[:reconnect_time_wait] = ENV['NATS_RECONNECT_TIME_WAIT'].to_i unless ENV['NATS_RECONNECT_TIME_WAIT'].nil?
       @uri = opts[:uri] = opts[:uri].is_a?(URI) ? opts[:uri] : URI.parse(opts[:uri])
-      @err_cb = proc {|e| raise e } unless err_cb
+      @err_cb = proc { |e| raise e } unless err_cb
       check_autostart(@uri) if opts[:autostart] == true
 
       client = EM.connect(@uri.host, @uri.port, self, opts)
@@ -193,6 +201,12 @@ module NATS
     # @see NATS#flush
     def flush(*args, &blk)
       (@client ||= connect).flush(*args, &blk)
+    end
+
+    # Return bytes outstanding for the default client connection.
+    # @see NATS#pending_data_size
+    def pending_data_size(*args)
+      (@client ||= connect).pending_data_size(*args)
     end
 
     def wait_for_server(uri, max_wait = 5) # :nodoc:
@@ -381,6 +395,11 @@ module NATS
     close_connection_after_writing
   end
 
+  # Return bytes outstanding waiting to be sent to server.
+  def pending_data_size
+    get_outbound_data_size + @pending_size
+  end
+
   def user_err_cb? # :nodoc:
     err_cb_overridden || NATS.err_cb_overridden
   end
@@ -439,36 +458,35 @@ module NATS
     @buf = @buf ? @buf << data : data
     while (@buf)
       case @parse_state
-
-        when AWAITING_CONTROL_LINE
-         case @buf
-         when MSG
-           @buf = $'
-           @sub, @sid, @reply, @needed = $1, $2.to_i, $4, $5.to_i
-           @parse_state = AWAITING_MSG_PAYLOAD
-         when OK # No-op right now
-           @buf = $'
-         when ERR
-           @buf = $'
-           err_cb.call(NATS::ServerError.new($1))
-         when PING
-           @pings += 1
-           @buf = $'
-           send_command(PONG_RESPONSE)
-         when PONG
-           @buf = $'
-           cb = @pongs.shift
-           cb.call if cb
-         when INFO
-           @buf = $'
-           process_info($1)
-         when UNKNOWN
-           @buf = $'
-           err_cb.call(NATS::Error.new("Unknown protocol: $1"))
-         else
-           # If we are here we do not have a complete line yet that we understand.
-           return
-         end
+      when AWAITING_CONTROL_LINE
+        case @buf
+        when MSG
+          @buf = $'
+          @sub, @sid, @reply, @needed = $1, $2.to_i, $4, $5.to_i
+          @parse_state = AWAITING_MSG_PAYLOAD
+        when OK # No-op right now
+          @buf = $'
+        when ERR
+          @buf = $'
+          err_cb.call(NATS::ServerError.new($1))
+        when PING
+          @pings += 1
+          @buf = $'
+          send_command(PONG_RESPONSE)
+        when PONG
+          @buf = $'
+          cb = @pongs.shift
+          cb.call if cb
+        when INFO
+          @buf = $'
+          process_info($1)
+        when UNKNOWN
+          @buf = $'
+          err_cb.call(NATS::Error.new("Unknown protocol: $1"))
+        else
+          # If we are here we do not have a complete line yet that we understand.
+          return
+        end
         @buf = nil if (@buf && @buf.empty?)
 
       when AWAITING_MSG_PAYLOAD
@@ -479,8 +497,8 @@ module NATS
         @parse_state = AWAITING_CONTROL_LINE
         @buf = nil if (@buf && @buf.empty?)
       end
-    end
 
+    end
   end
 
   def process_info(info) #:nodoc:
@@ -489,9 +507,9 @@ module NATS
       start_tls
     else
       if @server_info[:ssl_required]
-        err_cb.call(NATS::Error.new("TLS/SSL required by server"))
+        err_cb.call(NATS::ClientError.new('TLS/SSL required by server'))
       elsif @ssl
-        err_cb.call(NATS::Error.new("TLS/SSL not supported by server"))
+        err_cb.call(NATS::ClientError.new('TLS/SSL not supported by server'))
       end
     end
     @server_info
@@ -511,7 +529,7 @@ module NATS
     end
     flush_pending unless @ssl
     unless user_err_cb? or reconnecting?
-      @err_cb = proc {|e| raise e }
+      @err_cb = proc { |e| raise e }
     end
     if (connect_cb and not reconnecting?)
       # We will round trip the server here to make sure all state from any pending commands
@@ -562,6 +580,9 @@ module NATS
     (@pending ||= []) << command
     @pending_size += command.bytesize
     flush_pending if (connected? && @pending_size > MAX_PENDING_SIZE)
+    if (@options[:fast_producer_error] && pending_data_size > FAST_PRODUCER_THRESHOLD)
+      err_cb.call(NATS::ClientError.new("Fast Producer: #{pending_data_size} bytes outstanding"))
+    end
     true
   end
 

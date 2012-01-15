@@ -22,9 +22,9 @@ describe "client configuration" do
       options.should have_key :verbose
       options[:verbose].should be_true
       options.should have_key :reconnect
-      options[:reconnect].should be_true 
+      options[:reconnect].should be_true
       options.should have_key :max_reconnect_attempts
-      options[:max_reconnect_attempts].should == 100 
+      options[:max_reconnect_attempts].should == 100
       options.should have_key :reconnect_time_wait
       options[:reconnect_time_wait].should == 5
       options.should have_key :uri
@@ -58,10 +58,11 @@ describe "client configuration" do
     ENV['NATS_PEDANTIC'] = 'true'
     ENV['NATS_DEBUG'] = 'true'
     ENV['NATS_RECONNECT'] = 'true'
+    ENV['NATS_FAST_PRODUCER'] = 'true'
     ENV['NATS_MAX_RECONNECT_ATTEMPTS'] = '100'
     ENV['NATS_RECONNECT_TIME_WAIT'] = '5'
     ENV['NATS_URI'] = 'nats://127.0.0.1:4222'
- 
+
     NATS.start do
       options = NATS.options
       options.should be_an_instance_of Hash
@@ -72,9 +73,11 @@ describe "client configuration" do
       options.should have_key :verbose
       options[:verbose].should be_true
       options.should have_key :reconnect
-      options[:reconnect].should be_true 
+      options[:reconnect].should be_true
+      options.should have_key :fast_producer_error
+      options[:fast_producer_error].should be_true
       options.should have_key :max_reconnect_attempts
-      options[:max_reconnect_attempts].should == 100 
+      options[:max_reconnect_attempts].should == 100
       options.should have_key :reconnect_time_wait
       options[:reconnect_time_wait].should == 5
       options.should have_key :uri
