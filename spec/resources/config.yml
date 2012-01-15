@@ -25,6 +25,7 @@ trace:   false
 max_control_line: 512
 max_payload:  512000
 max_pending: 2000000
+max_connections: 128
 
 # EM/IO
 no_epoll:  false

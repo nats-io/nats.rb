@@ -18,6 +18,7 @@ describe "server configuration" do
     opts.should have_key :max_control_line
     opts.should have_key :max_payload
     opts.should have_key :max_pending
+    opts.should have_key :max_connections
 
     opts[:port].should == NATSD::DEFAULT_PORT
     opts[:addr].should == NATSD::DEFAULT_HOST
@@ -53,6 +54,8 @@ describe "server configuration" do
     opts[:max_control_line].should == config['max_control_line']
     opts[:max_payload].should == config['max_payload']
     opts[:max_pending].should == config['max_pending']
+    opts[:max_connections].should == config['max_connections']
+
   end
 
   it 'should allow pass and password for authorization config' do

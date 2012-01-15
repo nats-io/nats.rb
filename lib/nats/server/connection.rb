@@ -20,7 +20,7 @@ module NATSD #:nodoc: all
     end
 
     def client_info
-      @client_info ||= Socket.unpack_sockaddr_in(get_peername)
+      @client_info ||= (get_peername.nil? ? 'N/A' : Socket.unpack_sockaddr_in(get_peername))
     end
 
     def info
@@ -35,6 +35,13 @@ module NATSD #:nodoc: all
         :in_bytes => @in_bytes,
         :out_bytes => @out_bytes
       }
+    end
+
+    def max_connections_exceeded?
+      return false unless (Server.num_connections > Server.max_connections)
+      error_close MAX_CONNS_EXCEEDED
+      debug "Maximum #{Server.max_connections} connections exceeded, c:#{cid} will be closed"
+      true
     end
 
     def post_init
@@ -56,6 +63,7 @@ module NATSD #:nodoc: all
       @ping_timer = EM.add_periodic_timer(NATSD::Server.ping_interval) { send_ping }
       @pings_outstanding = 0
       Server.num_connections += 1
+      return if max_connections_exceeded?
     end
 
     def send_ping

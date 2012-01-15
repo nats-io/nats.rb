@@ -44,6 +44,7 @@ module NATSD #:nodoc:
   UNKNOWN_OP          = "-ERR 'Unknown Protocol Operation'#{CR_LF}".freeze
   SLOW_CONSUMER       = "-ERR 'Slow consumer detected, connection dropped'#{CR_LF}".freeze
   UNRESPONSIVE        = "-ERR 'Unresponsive client detected, connection dropped'#{CR_LF}".freeze
+  MAX_CONNS_EXCEEDED  = "-ERR 'Maximum client connections exceeded, connection dropped'#{CR_LF}".freeze
 
   # Pedantic Mode
   SUB = /^([^\.\*>\s]+|>$|\*)(\.([^\.\*>\s]+|>$|\*))*$/
@@ -61,7 +62,10 @@ module NATSD #:nodoc:
   MAX_PENDING_SIZE = (10*1024*1024)
 
   # Maximum pending bucket size
-  MAX_WRITEV_SIZE = (65*1024)
+  MAX_WRITEV_SIZE = (64*1024)
+
+  # Maximum connections default
+  DEFAULT_MAX_CONNECTIONS = (64*1024)
 
   # TLS/SSL wait time
   SSL_TIMEOUT = 0.5
