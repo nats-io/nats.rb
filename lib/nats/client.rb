@@ -153,6 +153,12 @@ module NATS
       client.options
     end
 
+    # @return [Hash] Server information
+    def server_info
+      return nil unless client
+      client.server_info
+    end
+
     # Set the default on_error callback.
     # @param [Block] &callback called when an error has been detected.
     def on_error(&callback)
@@ -254,7 +260,7 @@ module NATS
   end
 
   attr_reader :connected, :connect_cb, :err_cb, :err_cb_overridden #:nodoc:
-  attr_reader :closing, :reconnecting, :options #:nodoc
+  attr_reader :closing, :reconnecting, :options, :server_info #:nodoc
   attr_reader :msgs_received, :msgs_sent, :bytes_received, :bytes_sent, :pings
 
   alias :connected? :connected

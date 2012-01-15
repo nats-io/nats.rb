@@ -45,6 +45,8 @@ module NATSD #:nodoc: all
 
         @info = {
           :server_id => Server.id,
+          :host => host,
+          :port => port,
           :version => VERSION,
           :auth_required => auth_required?,
           :ssl_required => ssl_required?,
