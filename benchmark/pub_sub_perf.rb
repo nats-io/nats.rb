@@ -41,7 +41,7 @@ NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
 $data = Array.new($data_size) { "%01x" % rand(16) }.join('').freeze
 
-NATS.start({:fast_producer => true}) do
+NATS.start(:fast_producer => true) do
 
   $batch = 10 if $data_size >= TSIZE
 

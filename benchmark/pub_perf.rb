@@ -41,7 +41,7 @@ NATS.on_error { |err| puts "Error: #{err}"; exit! }
 
 $data = Array.new($data_size) { "%01x" % rand(16) }.join('').freeze
 
-NATS.start({:fast_producer_error => true}) do
+NATS.start(:fast_producer_error => true) do
 
   $start   = Time.now
   $to_send = $count
