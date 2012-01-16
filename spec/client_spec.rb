@@ -198,9 +198,10 @@ describe 'client specification' do
     received = false
     NATS.start {
       NATS.subscribe('foo') { received = true; NATS.stop }
-      new_conn = NATS.connect
-      new_conn.publish('foo', 'hello')
-      timeout_nats_on_failure(1)
+      new_conn = NATS.connect do
+        new_conn.publish('foo', 'hello')
+      end
+      timeout_nats_on_failure(5)
     }
     new_conn.should_not be_nil
     received.should be_true
