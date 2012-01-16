@@ -39,7 +39,7 @@ describe 'fast producer' do
   it 'should raise an error when exceeding the threshold if enabled' do
     data = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
     EM.run do
-      c = NATS.connect({:fast_producer_error => true})
+      c = NATS.connect(:fast_producer_error => true)
       expect do
         while (c.pending_data_size <= NATS::FAST_PRODUCER_THRESHOLD) do
           c.publish('foo', data)
