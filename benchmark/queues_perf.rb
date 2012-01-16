@@ -5,7 +5,7 @@ $:.unshift File.expand_path('../../lib', __FILE__)
 require 'nats/client'
 
 $expected = 100000
-$hash = 10000
+$hash = 2500
 $sub  = 'test'
 $qs = 5
 $qgroup = 'mycoolgroup'
