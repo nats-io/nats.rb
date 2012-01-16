@@ -68,6 +68,7 @@ module NATS
 
   class << self
     attr_reader   :client, :reactor_was_running, :err_cb, :err_cb_overridden #:nodoc:
+    attr_reader   :reconnect_cb  #:nodoc
     attr_accessor :timeout_cb #:nodoc
 
     alias :reactor_was_running? :reactor_was_running
@@ -131,7 +132,7 @@ module NATS
     # Close the default client connection and optionally call the associated block.
     # @param [Block] &blk called when the connection is closed.
     def stop(&blk)
-      client.close if (client and client.connected?)
+      client.close if (client and (client.connected? || client.reconnecting?))
       blk.call if blk
       @@tried_autostart = {}
       @err_cb = nil
@@ -141,6 +142,12 @@ module NATS
     def connected?
       return false unless client
       client.connected?
+    end
+
+    # @return [Boolean] Reconnecting state
+    def reconnecting?
+      return false unless client
+      client.reconnecting?
     end
 
     # @return [Hash] Options
@@ -159,6 +166,12 @@ module NATS
     # @param [Block] &callback called when an error has been detected.
     def on_error(&callback)
       @err_cb, @err_cb_overridden = callback, true
+    end
+
+    # Set the default on_reconnect callback.
+    # @param [Block] &callback called when a reconnect attempt is made.
+    def on_reconnect(&callback)
+      @reconnect_cb = callback
     end
 
     # Publish a message using the default client connection.
@@ -276,6 +289,7 @@ module NATS
     @ssid, @subs = 1, {}
     @err_cb = NATS.err_cb
     @reconnect_timer, @needed = nil, nil
+    @reconnect_cb = NATS.reconnect_cb
     @connected, @closing, @reconnecting = false, false, false
     @msgs_received = @msgs_sent = @bytes_received = @bytes_sent = @pings = 0
     @pending_size = 0
@@ -389,7 +403,7 @@ module NATS
     @err_cb, @err_cb_overridden = callback, true
   end
 
-  # Define a callback to be called when a reconnect attempt is being made.
+  # Define a callback to be called when a reconnect attempt is made.
   # @param [Block] &blk called when the connection is closed.
   def on_reconnect(&callback)
     @reconnect_cb = callback
@@ -398,7 +412,9 @@ module NATS
   # Close the connection to the server.
   def close
     @closing = true
-    close_connection_after_writing
+    EM.cancel_timer(@reconnect_timer) if @reconnect_timer
+    close_connection_after_writing if connected?
+    process_disconnect if reconnecting?
   end
 
   # Return bytes outstanding waiting to be sent to server.
@@ -549,6 +565,7 @@ module NATS
   def schedule_reconnect(wait=RECONNECT_TIME_WAIT) #:nodoc:
     @reconnecting = true
     @reconnect_attempts = 0
+    @connected = false
     @reconnect_timer = EM.add_periodic_timer(wait) { attempt_reconnect }
   end
 
@@ -569,10 +586,10 @@ module NATS
     err_cb.call(NATS::ConnectError.new(disconnect_error_string)) if not closing? and @err_cb
   ensure
     EM.cancel_timer(@reconnect_timer) if @reconnect_timer
-    if (NATS.client == self and connected? and closing? and not NATS.reactor_was_running?)
-      EM.stop
+    if (NATS.client == self)
+      NATS.clear_client
+      EM.stop if ((connected? || reconnecting?) and closing? and not NATS.reactor_was_running?)
     end
-    NATS.clear_client if (NATS.client == self)
     @connected = @reconnecting = false
     true # Chaining
   end
@@ -580,6 +597,7 @@ module NATS
   def attempt_reconnect #:nodoc:
     process_disconnect and return if (@reconnect_attempts += 1) > @options[:max_reconnect_attempts]
     EM.reconnect(@uri.host, @uri.port, self)
+    @reconnect_cb.call unless @reconnect_cb.nil?
   end
 
   def send_command(command) #:nodoc:
