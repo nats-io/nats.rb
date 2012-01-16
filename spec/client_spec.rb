@@ -200,7 +200,7 @@ describe 'client specification' do
       NATS.subscribe('foo') { received = true; NATS.stop }
       new_conn = NATS.connect
       new_conn.publish('foo', 'hello')
-      timeout_nats_on_failure
+      timeout_nats_on_failure(1)
     }
     new_conn.should_not be_nil
     received.should be_true
