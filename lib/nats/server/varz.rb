@@ -16,18 +16,17 @@ module NATSD #:nodoc: all
         # Snapshot uptime
         @varz[:uptime] = uptime_string(Time.now - @varz[:start])
 
-          # Grab current cpu and memory usage.
-          rss, pcpu = `ps -o rss=,pcpu= -p #{Process.pid}`.split
-          @varz[:mem] = rss.to_i
-          @varz[:cpu] = pcpu.to_f
-          @varz[:connections] = num_connections
-          @varz[:in_msgs] = in_msgs
-          @varz[:out_msgs] = out_msgs
-          @varz[:in_bytes] = in_bytes
-          @varz[:out_bytes] = out_bytes
-          @varz[:routes] = num_routes
-          @last_varz_update = Time.now.to_f
-        end
+        # Grab current cpu and memory usage.
+        rss, pcpu = `ps -o rss=,pcpu= -p #{Process.pid}`.split
+        @varz[:mem] = rss.to_i
+        @varz[:cpu] = pcpu.to_f
+        @varz[:connections] = num_connections
+        @varz[:in_msgs] = in_msgs
+        @varz[:out_msgs] = out_msgs
+        @varz[:in_bytes] = in_bytes
+        @varz[:out_bytes] = out_bytes
+        @varz[:routes] = num_routes
+        @last_varz_update = Time.now.to_f
         varz
       end
 
