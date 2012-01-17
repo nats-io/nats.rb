@@ -1,7 +1,7 @@
 
 module NATSD #:nodoc:
 
-  VERSION  = '0.4.22.beta.4'
+  VERSION  = '0.4.22.beta.6'
   APP_NAME = 'nats-server'
 
   DEFAULT_PORT = 4222
@@ -44,6 +44,7 @@ module NATSD #:nodoc:
   UNKNOWN_OP          = "-ERR 'Unknown Protocol Operation'#{CR_LF}".freeze
   SLOW_CONSUMER       = "-ERR 'Slow consumer detected, connection dropped'#{CR_LF}".freeze
   UNRESPONSIVE        = "-ERR 'Unresponsive client detected, connection dropped'#{CR_LF}".freeze
+  MAX_CONNS_EXCEEDED  = "-ERR 'Maximum client connections exceeded, connection dropped'#{CR_LF}".freeze
 
   # Pedantic Mode
   SUB = /^([^\.\*>\s]+|>$|\*)(\.([^\.\*>\s]+|>$|\*))*$/
@@ -59,6 +60,12 @@ module NATSD #:nodoc:
 
   # Maximum outbound size per client
   MAX_PENDING_SIZE = (10*1024*1024)
+
+  # Maximum pending bucket size
+  MAX_WRITEV_SIZE = (64*1024)
+
+  # Maximum connections default
+  DEFAULT_MAX_CONNECTIONS = (64*1024)
 
   # TLS/SSL wait time
   SSL_TIMEOUT = 0.5

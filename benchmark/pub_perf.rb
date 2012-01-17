@@ -5,10 +5,16 @@ $:.unshift File.expand_path('../../lib', __FILE__)
 require 'nats/client'
 
 $count = 100000
-$batch = 10
+$batch = 100
+
+$delay = 0.00001
+$dmin  = 0.00001
+
+TRIP  = (2*1024*1024)
+TSIZE = 4*1024
 
 $sub  = 'test'
-$data_size = 128
+$data_size = 16
 
 $hash  = 2500
 
@@ -31,14 +37,16 @@ parser.parse(ARGV)
 trap("TERM") { exit! }
 trap("INT")  { exit! }
 
-NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
+NATS.on_error { |err| puts "Error: #{err}"; exit! }
 
 $data = Array.new($data_size) { "%01x" % rand(16) }.join('').freeze
 
-NATS.start do
+NATS.start(:fast_producer_error => true) do
 
   $start   = Time.now
   $to_send = $count
+
+  $batch = 10 if $data_size >= TSIZE
 
   def send_batch
     (0..$batch).each do
@@ -51,7 +59,14 @@ NATS.start do
       end
       printf('+') if $to_send.modulo($hash) == 0
     end
-    EM.next_tick { send_batch }
+
+    if (NATS.pending_data_size > TRIP)
+      $delay *= 2
+    elsif $delay > $dmin
+      $delay /= 2
+    end
+
+    EM.add_timer($delay) { send_batch }
   end
 
   def display_final_results

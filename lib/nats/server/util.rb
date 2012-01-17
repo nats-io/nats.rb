@@ -33,6 +33,14 @@ def uptime_string(delta)
   "#{days}d:#{hours}h:#{minutes}m:#{num_seconds}s"
 end
 
+def pretty_size(size, prec=1)
+  return 'NA' unless size
+  return "#{size}B" if size < 1024
+  return sprintf("%.#{prec}fK", size/1024.0) if size < (1024*1024)
+  return sprintf("%.#{prec}fM", size/(1024.0*1024.0)) if size < (1024*1024*1024)
+  return sprintf("%.#{prec}fG", size/(1024.0*1024.0*1024.0))
+end
+
 def num_cpu_cores
   if RUBY_PLATFORM =~ /linux/
     return `cat /proc/cpuinfo | grep processor | wc -l`.to_i

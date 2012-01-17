@@ -5,10 +5,16 @@ $:.unshift File.expand_path('../../lib', __FILE__)
 require 'nats/client'
 
 $count = 100000
-$batch = 10
+$batch = 100
+
+$delay = 0.00001
+$dmin  = 0.00001
+
+TRIP  = (2*1024*1024)
+TSIZE = 4*1024
 
 $sub  = 'test'
-$data_size = 32
+$data_size = 16
 
 $hash  = 2500
 
@@ -35,7 +41,9 @@ NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
 $data = Array.new($data_size) { "%01x" % rand(16) }.join('').freeze
 
-NATS.start do
+NATS.start(:fast_producer => true) do
+
+  $batch = 10 if $data_size >= TSIZE
 
   $received = 0
   NATS.subscribe($sub) { $received += 1 }
@@ -54,13 +62,20 @@ NATS.start do
       end
       printf('+') if $to_send.modulo($hash) == 0
     end
-    EM.next_tick { send_batch }
+
+    if (NATS.pending_data_size > TRIP)
+      $delay *= 2
+    elsif $delay > $dmin
+      $delay /= 2
+    end
+
+    EM.add_timer($delay) { send_batch }
   end
 
   def display_final_results
     elapsed = Time.now - $start
     mbytes = sprintf("%.1f", (($data_size*$count)/elapsed)/(1024*1024))
-    puts "\nTest completed : #{($count/elapsed).ceil} msgs/sec (#{mbytes} MB/sec)\n"
+    puts "\nTest completed : #{($count/elapsed).ceil} sent/received msgs/sec (#{mbytes} MB/sec)\n"
     puts "Received #{$received} messages\n"
     NATS.stop
   end

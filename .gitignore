@@ -2,6 +2,7 @@
 \#*\#
 .\#*
 *.rbc
+.rbx
 .bundle
 *.gem
 .DS_Store

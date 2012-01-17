@@ -87,6 +87,7 @@ module NATSD
         @options[:max_control_line] = config['max_control_line'] if config['max_control_line']
         @options[:max_payload] = config['max_payload'] if config['max_payload']
         @options[:max_pending] = config['max_pending'] if config['max_pending']
+        @options[:max_connections] = config['max_connections'] if config['max_connections']
 
         # just set
         @options[:noepoll]  = config['no_epoll'] if config['no_epoll']
@@ -145,6 +146,10 @@ module NATSD
         # Addr/Port
         @options[:port] ||= DEFAULT_PORT
         @options[:addr] ||= DEFAULT_HOST
+
+        # Max Connections
+        @options[:max_connections] ||= DEFAULT_MAX_CONNECTIONS
+        @max_connections = @options[:max_connections]
 
         # Debug and Tracing
         @debug_flag = @options[:debug]

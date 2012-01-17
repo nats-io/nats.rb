@@ -15,7 +15,7 @@ describe 'autostart' do
   it 'should not autostart a server if no flag is set' do
     expect do
       NATS.start(:uri => AUTO_START_SERVER) { NATS.stop }
-    end.to raise_error NATS::Error
+    end.to raise_error NATS::ConnectError
   end
 
   it 'should autostart a server if requested' do

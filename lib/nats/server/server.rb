@@ -8,7 +8,7 @@ module NATSD #:nodoc: all
     class << self
       attr_reader :id, :info, :log_time, :auth_required, :ssl_required, :debug_flag, :trace_flag, :options
       attr_reader :max_payload, :max_pending, :max_control_line, :auth_timeout, :ssl_timeout, :ping_interval, :ping_max
-      attr_accessor :varz, :healthz, :num_connections, :in_msgs, :out_msgs, :in_bytes, :out_bytes
+      attr_accessor :varz, :healthz, :max_connections, :num_connections, :in_msgs, :out_msgs, :in_bytes, :out_bytes
 
       alias auth_required? :auth_required
       alias ssl_required?  :ssl_required
@@ -47,6 +47,8 @@ module NATSD #:nodoc: all
 
         @info = {
           :server_id => Server.id,
+          :host => host,
+          :port => port,
           :version => VERSION,
           :auth_required => auth_required?,
           :ssl_required => ssl_required?,
@@ -105,16 +107,17 @@ module NATSD #:nodoc: all
           conn.out_bytes += mbs
         end
 
-        conn.send_data("MSG #{subject} #{sub.sid} #{reply}#{msg.bytesize}#{CR_LF}#{msg}#{CR_LF}")
+        conn.queue_data("MSG #{subject} #{sub.sid} #{reply}#{msg.bytesize}#{CR_LF}#{msg}#{CR_LF}")
 
         # Account for these response and check for auto-unsubscribe (pruning interest graph)
         sub.num_responses += 1
         conn.delete_subscriber(sub) if (sub.max_responses && sub.num_responses >= sub.max_responses)
 
         # Check the outbound queue here and react if need be..
-        if conn.get_outbound_data_size > NATSD::Server.max_pending
+        if (conn.get_outbound_data_size + conn.writev_size) > NATSD::Server.max_pending
           conn.error_close SLOW_CONSUMER
-          log "Slow consumer dropped, exceeded #{NATSD::Server.max_pending} bytes pending", conn.client_info
+          maxp = pretty_size(NATSD::Server.max_pending)
+          log "Slow consumer dropped, exceeded #{maxp} pending", conn.client_info
         end
       end
 

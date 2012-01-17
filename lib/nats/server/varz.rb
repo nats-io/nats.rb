@@ -13,10 +13,8 @@ module NATSD #:nodoc: all
     class << self
 
       def update_varz
-        @last_varz_update ||= 0
-        if Time.now.to_f - @last_varz_update >= 0.1
-          # Snapshot uptime
-          @varz[:uptime] = uptime_string(Time.now - @varz[:start])
+        # Snapshot uptime
+        @varz[:uptime] = uptime_string(Time.now - @varz[:start])
 
           # Grab current cpu and memory usage.
           rss, pcpu = `ps -o rss=,pcpu= -p #{Process.pid}`.split

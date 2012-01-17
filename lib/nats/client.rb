@@ -16,6 +16,11 @@ module NATS
   MAX_RECONNECT_ATTEMPTS = 10
   RECONNECT_TIME_WAIT = 2
 
+  MAX_PENDING_SIZE = 32768
+
+  # Maximum outbound size per client to trigger FP, 20MB
+  FAST_PRODUCER_THRESHOLD = (10*1024*1024)
+
   # Protocol
   # @private
   MSG      = /\AMSG\s+([^\s]+)\s+([^\s]+)\s+(([^\s]+)[^\S\r\n]+)?(\d+)\r\n/i #:nodoc:
@@ -50,19 +55,20 @@ module NATS
   # Duplicate autostart protection
   @@tried_autostart = {}
 
-  class Error < StandardError #:nodoc:
-  end
+  class Error < StandardError; end #:nodoc:
 
   # When the NATS server sends us an ERROR message, this is raised/passed by default
-  class ServerError < Error #:nodoc:
-  end
+  class ServerError < Error; end #:nodoc:
+
+  # When we detect error on the client side (e.g. Fast Producer)
+  class ClientError < Error; end #:nodoc:
 
   # When we cannot connect to the server (either initially or after a reconnect), this is raised/passed
-  class ConnectError < Error #:nodoc:
-  end
+  class ConnectError < Error; end #:nodoc:
 
   class << self
     attr_reader   :client, :reactor_was_running, :err_cb, :err_cb_overridden #:nodoc:
+    attr_reader   :reconnect_cb  #:nodoc
     attr_accessor :timeout_cb #:nodoc
 
     alias :reactor_was_running? :reactor_was_running
@@ -98,6 +104,7 @@ module NATS
       opts[:pedantic] = ENV['NATS_PEDANTIC'].downcase == 'true' unless ENV['NATS_PEDANTIC'].nil?
       opts[:debug] = ENV['NATS_DEBUG'].downcase == 'true' unless ENV['NATS_DEBUG'].nil?
       opts[:reconnect] = ENV['NATS_RECONNECT'].downcase == 'true' unless ENV['NATS_RECONNECT'].nil?
+      opts[:fast_producer_error] = ENV['NATS_FAST_PRODUCER'].downcase == 'true' unless ENV['NATS_FAST_PRODUCER'].nil?
       opts[:ssl] = ENV['NATS_SSL'].downcase == 'true' unless ENV['NATS_SSL'].nil?
       opts[:max_reconnect_attempts] = ENV['NATS_MAX_RECONNECT_ATTEMPTS'].to_i unless ENV['NATS_MAX_RECONNECT_ATTEMPTS'].nil?
       opts[:reconnect_time_wait] = ENV['NATS_RECONNECT_TIME_WAIT'].to_i unless ENV['NATS_RECONNECT_TIME_WAIT'].nil?
@@ -134,7 +141,7 @@ module NATS
     # Close the default client connection and optionally call the associated block.
     # @param [Block] &blk called when the connection is closed.
     def stop(&blk)
-      client.close if client
+      client.close if (client and (client.connected? || client.reconnecting?))
       blk.call if blk
       @@tried_autostart = {}
       @err_cb = nil
@@ -146,16 +153,34 @@ module NATS
       client.connected?
     end
 
+    # @return [Boolean] Reconnecting state
+    def reconnecting?
+      return false unless client
+      client.reconnecting?
+    end
+
     # @return [Hash] Options
     def options
       return {} unless client
       client.options
     end
 
+    # @return [Hash] Server information
+    def server_info
+      return nil unless client
+      client.server_info
+    end
+
     # Set the default on_error callback.
     # @param [Block] &callback called when an error has been detected.
     def on_error(&callback)
       @err_cb, @err_cb_overridden = callback, true
+    end
+
+    # Set the default on_reconnect callback.
+    # @param [Block] &callback called when a reconnect attempt is made.
+    def on_reconnect(&callback)
+      @reconnect_cb = callback
     end
 
     # Publish a message using the default client connection.
@@ -202,6 +227,12 @@ module NATS
       (@client ||= connect).flush(*args, &blk)
     end
 
+    # Return bytes outstanding for the default client connection.
+    # @see NATS#pending_data_size
+    def pending_data_size(*args)
+      (@client ||= connect).pending_data_size(*args)
+    end
+
     def wait_for_server(uri, max_wait = 5) # :nodoc:
       start = Time.now
       while (Time.now - start < max_wait) # Wait max_wait seconds max
@@ -217,6 +248,10 @@ module NATS
       return true
     rescue
       return false
+    end
+
+    def clear_client # :nodoc:
+      @client = nil
     end
 
     private
@@ -247,7 +282,7 @@ module NATS
   end
 
   attr_reader :connected, :connect_cb, :err_cb, :err_cb_overridden #:nodoc:
-  attr_reader :closing, :reconnecting, :server_pool, :options #:nodoc
+  attr_reader :closing, :reconnecting, :options, :server_info #:nodoc
   attr_reader :msgs_received, :msgs_sent, :bytes_received, :bytes_sent, :pings
 
   alias :connected? :connected
@@ -261,8 +296,10 @@ module NATS
     @ssid, @subs = 1, {}
     @err_cb = NATS.err_cb
     @reconnect_timer, @needed = nil, nil
+    @reconnect_cb = NATS.reconnect_cb
     @connected, @closing, @reconnecting = false, false, false
     @msgs_received = @msgs_sent = @bytes_received = @bytes_sent = @pings = 0
+    @pending_size = 0
     send_connect_command
   end
 
@@ -373,7 +410,7 @@ module NATS
     @err_cb, @err_cb_overridden = callback, true
   end
 
-  # Define a callback to be called when a reconnect attempt is being made.
+  # Define a callback to be called when a reconnect attempt is made.
   # @param [Block] &blk called when the connection is closed.
   def on_reconnect(&callback)
     @reconnect_cb = callback
@@ -382,12 +419,14 @@ module NATS
   # Close the connection to the server.
   def close
     @closing = true
-    if connected?
-      close_connection_after_writing
-    else
-      @connected = true # Allow disconnect to pop us out of a NATS.start if applicable
-      process_disconnect
-    end
+    EM.cancel_timer(@reconnect_timer) if @reconnect_timer
+    close_connection_after_writing if connected?
+    process_disconnect if reconnecting?
+  end
+
+  # Return bytes outstanding waiting to be sent to server.
+  def pending_data_size
+    get_outbound_data_size + @pending_size
   end
 
   def user_err_cb? # :nodoc:
@@ -444,54 +483,54 @@ module NATS
 
   def flush_pending #:nodoc:
     return unless @pending
-    @pending.each { |p| send_data(p) }
-    @pending = nil
+    send_data(@pending.join)
+    @pending, @pending_size = nil, 0
   end
 
   def receive_data(data) #:nodoc:
     @buf = @buf ? @buf << data : data
     while (@buf)
-        case @parse_state
-
-          when AWAITING_CONTROL_LINE
-            case @buf
-              when MSG
-                @buf = $'
-                @sub, @sid, @reply, @needed = $1, $2.to_i, $4, $5.to_i
-                @parse_state = AWAITING_MSG_PAYLOAD
-              when OK # No-op right now
-                @buf = $'
-              when ERR
-                @buf = $'
-                err_cb.call(NATS::ServerError.new($1))
-              when PING
-                @pings += 1
-                @buf = $'
-                send_command(PONG_RESPONSE)
-              when PONG
-                @buf = $'
-                cb = @pongs.shift
-                cb.call if cb
-              when INFO
-                @buf = $'
-                process_info($1)
-              when UNKNOWN
-                @buf = $'
-                err_cb.call(NATS::Error.new("Unknown protocol: $1"))
-              else
-                # If we are here we do not have a complete line yet that we understand.
-                return
-            end
-            @buf = nil if (@buf && @buf.empty?)
-
-          when AWAITING_MSG_PAYLOAD
-            return unless (@needed && @buf.bytesize >= (@needed + CR_LF_SIZE))
-            on_msg(@sub, @sid, @reply, @buf.slice(0, @needed))
-            @buf = @buf.slice((@needed + CR_LF_SIZE), @buf.bytesize)
-            @sub = @sid = @reply = @needed = nil
-            @parse_state = AWAITING_CONTROL_LINE
-            @buf = nil if (@buf && @buf.empty?)
+      case @parse_state
+      when AWAITING_CONTROL_LINE
+        case @buf
+        when MSG
+          @buf = $'
+          @sub, @sid, @reply, @needed = $1, $2.to_i, $4, $5.to_i
+          @parse_state = AWAITING_MSG_PAYLOAD
+        when OK # No-op right now
+          @buf = $'
+        when ERR
+          @buf = $'
+          err_cb.call(NATS::ServerError.new($1))
+        when PING
+          @pings += 1
+          @buf = $'
+          send_command(PONG_RESPONSE)
+        when PONG
+          @buf = $'
+          cb = @pongs.shift
+          cb.call if cb
+        when INFO
+          @buf = $'
+          process_info($1)
+        when UNKNOWN
+          @buf = $'
+          err_cb.call(NATS::ServerError.new("Unknown protocol: $1"))
+        else
+          # If we are here we do not have a complete line yet that we understand.
+          return
         end
+        @buf = nil if (@buf && @buf.empty?)
+
+      when AWAITING_MSG_PAYLOAD
+        return unless (@needed && @buf.bytesize >= (@needed + CR_LF_SIZE))
+        on_msg(@sub, @sid, @reply, @buf.slice(0, @needed))
+        @buf = @buf.slice((@needed + CR_LF_SIZE), @buf.bytesize)
+        @sub = @sid = @reply = @needed = nil
+        @parse_state = AWAITING_CONTROL_LINE
+        @buf = nil if (@buf && @buf.empty?)
+      end
+
     end
   end
 
@@ -501,9 +540,9 @@ module NATS
       start_tls
     else
       if @server_info[:ssl_required]
-        err_cb.call(NATS::Error.new("TLS/SSL required by server"))
+        err_cb.call(NATS::ClientError.new('TLS/SSL required by server'))
       elsif @ssl
-        err_cb.call(NATS::Error.new("TLS/SSL not supported by server"))
+        err_cb.call(NATS::ClientError.new('TLS/SSL not supported by server'))
       end
     end
     @server_info
@@ -538,12 +577,20 @@ module NATS
     @parse_state = AWAITING_CONTROL_LINE
   end
 
+<<<<<<< HEAD
   def should_delay_connect?(server)
     server[:was_connected] && server[:reconnect_attempts] >= 1
   end
 
   def schedule_reconnect #:nodoc:
     @reconnect_timer = EM.add_timer(@options[:reconnect_time_wait]) { attempt_reconnect }
+=======
+  def schedule_reconnect(wait=RECONNECT_TIME_WAIT) #:nodoc:
+    @reconnecting = true
+    @reconnect_attempts = 0
+    @connected = false
+    @reconnect_timer = EM.add_periodic_timer(wait) { attempt_reconnect }
+>>>>>>> master
   end
 
   def unbind #:nodoc:
@@ -581,9 +628,16 @@ module NATS
     err_cb.call(NATS::ConnectError.new(disconnect_error_string)) if not closing? and @err_cb
     true # Chaining
   ensure
+<<<<<<< HEAD
     cancel_reconnect_timer
     if (NATS.client == self and closing? and not NATS.reactor_was_running?)
       EM.stop
+=======
+    EM.cancel_timer(@reconnect_timer) if @reconnect_timer
+    if (NATS.client == self)
+      NATS.clear_client
+      EM.stop if ((connected? || reconnecting?) and closing? and not NATS.reactor_was_running?)
+>>>>>>> master
     end
     @connected = @reconnecting = false
   end
@@ -598,15 +652,17 @@ module NATS
     current[:reconnect_attempts] += 1 if current[:reconnect_attempts]
     send_connect_command
     EM.reconnect(@uri.host, @uri.port, self)
+    @reconnect_cb.call unless @reconnect_cb.nil?
   end
 
   def send_command(command) #:nodoc:
-    queue_command(command) and return unless connected?
-    send_data(command)
-  end
-
-  def queue_command(command) #:nodoc:
+    EM.next_tick { flush_pending } if (connected? && @pending.nil?)
     (@pending ||= []) << command
+    @pending_size += command.bytesize
+    flush_pending if (connected? && @pending_size > MAX_PENDING_SIZE)
+    if (@options[:fast_producer_error] && pending_data_size > FAST_PRODUCER_THRESHOLD)
+      err_cb.call(NATS::ClientError.new("Fast Producer: #{pending_data_size} bytes outstanding"))
+    end
     true
   end
 
