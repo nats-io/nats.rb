@@ -282,7 +282,7 @@ module NATS
   end
 
   attr_reader :connected, :connect_cb, :err_cb, :err_cb_overridden #:nodoc:
-  attr_reader :closing, :reconnecting, :options, :server_info #:nodoc
+  attr_reader :closing, :reconnecting, :server_pool, :options, :server_info #:nodoc
   attr_reader :msgs_received, :msgs_sent, :bytes_received, :bytes_sent, :pings
 
   alias :connected? :connected
@@ -419,7 +419,7 @@ module NATS
   # Close the connection to the server.
   def close
     @closing = true
-    EM.cancel_timer(@reconnect_timer) if @reconnect_timer
+    cancel_reconnect_timer
     close_connection_after_writing if connected?
     process_disconnect if reconnecting?
   end
@@ -577,20 +577,14 @@ module NATS
     @parse_state = AWAITING_CONTROL_LINE
   end
 
-<<<<<<< HEAD
   def should_delay_connect?(server)
     server[:was_connected] && server[:reconnect_attempts] >= 1
   end
 
   def schedule_reconnect #:nodoc:
-    @reconnect_timer = EM.add_timer(@options[:reconnect_time_wait]) { attempt_reconnect }
-=======
-  def schedule_reconnect(wait=RECONNECT_TIME_WAIT) #:nodoc:
     @reconnecting = true
-    @reconnect_attempts = 0
     @connected = false
-    @reconnect_timer = EM.add_periodic_timer(wait) { attempt_reconnect }
->>>>>>> master
+    @reconnect_timer = EM.add_timer(@options[:reconnect_time_wait]) { attempt_reconnect }
   end
 
   def unbind #:nodoc:
@@ -628,16 +622,10 @@ module NATS
     err_cb.call(NATS::ConnectError.new(disconnect_error_string)) if not closing? and @err_cb
     true # Chaining
   ensure
-<<<<<<< HEAD
     cancel_reconnect_timer
-    if (NATS.client == self and closing? and not NATS.reactor_was_running?)
-      EM.stop
-=======
-    EM.cancel_timer(@reconnect_timer) if @reconnect_timer
     if (NATS.client == self)
       NATS.clear_client
       EM.stop if ((connected? || reconnecting?) and closing? and not NATS.reactor_was_running?)
->>>>>>> master
     end
     @connected = @reconnecting = false
   end
@@ -693,6 +681,7 @@ module NATS
     # Dump the one we were trying if it wasn't connected
     current = server_pool.shift
     server_pool << current if can_reuse_server?(current)
+
     # If we are out of options, go ahead and disconnect.
     process_disconnect and return if server_pool.empty?
     # bind new one
