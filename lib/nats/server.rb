@@ -13,6 +13,7 @@ require "#{ep}/server/sublist"
 require "#{ep}/server/connection"
 require "#{ep}/server/options"
 require "#{ep}/server/cluster"
+require "#{ep}/server/route"
 require "#{ep}/server/const"
 require "#{ep}/server/util"
 require "#{ep}/server/varz"
@@ -25,7 +26,7 @@ NATSD::Server.setup(ARGV.dup)
 EM.run do
 
   log "Starting #{NATSD::APP_NAME} version #{NATSD::VERSION} on port #{NATSD::Server.port}"
-  log "TLS/SSL Support Enabled" if NATSD::Server.options[:ssl] 
+  log "TLS/SSL Support Enabled" if NATSD::Server.options[:ssl]
   begin
     EM.set_descriptor_table_size(32768) # Requires Root privileges
     EM.start_server(NATSD::Server.host, NATSD::Server.port, NATSD::Connection)
@@ -54,7 +55,7 @@ EM.run do
   if NATSD::Server.options[:cluster_port]
     begin
       log "Starting routing on port #{NATSD::Server.options[:cluster_port]}"
-      EM.start_server(NATSD::Server.host, NATSD::Server.options[:cluster_port], NATSD::Route, true)
+      EM.start_server(NATSD::Server.host, NATSD::Server.options[:cluster_port], NATSD::Route)
     rescue => e
       log "Could not start routing server on port #{NATSD::Server.options[:cluster_port]}"
       log_error
