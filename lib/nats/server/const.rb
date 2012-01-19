@@ -12,7 +12,7 @@ module NATSD #:nodoc:
   AWAITING_MSG_PAYLOAD  = 2
 
   # Ops - See protocol.txt for more info
-  INFO     = /\AINFO\s+([^\r\n]+)\r\n/i
+  INFO     = /\AINFO\s*([^\r\n]*)\r\n/i
   PUB_OP   = /\APUB\s+([^\s]+)\s+(([^\s]+)[^\S\r\n]+)?(\d+)\r\n/i
   MSG      = /\AMSG\s+([^\s]+)\s+([^\s]+)\s+(([^\s]+)[^\S\r\n]+)?(\d+)\r\n/i
   SUB_OP   = /\ASUB\s+([^\s]+)\s+(([^\s]+)[^\S\r\n]+)?([^\s]+)\r\n/i
