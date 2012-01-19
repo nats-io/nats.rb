@@ -113,9 +113,9 @@ module NATS
 
       # If they pass an array here just pass long to the real connection, and use first as the first attempt..
       # Real connection will do proper walk throughs etc..
-      if not uri.nil?
+      unless uri.nil?
         u = uri.kind_of?(Array) ? uri.first : uri
-        @uri = u.is_a?(URI) ? u : URI.parse(u)
+        @uri = u.is_a?(URI) ? u.dup : URI.parse(u)
       end
 
       @err_cb = proc { |e| raise e } unless err_cb
@@ -131,7 +131,7 @@ module NATS
     def start(*args, &blk)
       @reactor_was_running = EM.reactor_running?
       unless (@reactor_was_running || blk)
-        raise(Error, "EM needs to be running when NATS.start called without a run block")
+        raise(Error, "EM needs to be running when NATS.start is called without a run block")
       end
       # Setup optimized select versions
       EM.epoll; EM.kqueue
@@ -660,7 +660,7 @@ module NATS
     @server_pool = []
     uri = options[:uri] || options[:uris] || options[:servers]
     uri = uri.kind_of?(Array) ? uri : [uri]
-    uri.each { |u| server_pool << { :uri => URI.parse(u) } }
+    uri.each { |u| server_pool << { :uri => u.is_a?(URI) ? u.dup : URI.parse(u) } }
     bind_primary
   end
 

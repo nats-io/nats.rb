@@ -12,14 +12,20 @@ module NATSD #:nodoc:
   AWAITING_MSG_PAYLOAD  = 2
 
   # Ops - See protocol.txt for more info
-  INFO     = /\AINFO\s*\r\n/i
+  INFO     = /\AINFO\s+([^\r\n]+)\r\n/i
   PUB_OP   = /\APUB\s+([^\s]+)\s+(([^\s]+)[^\S\r\n]+)?(\d+)\r\n/i
+  MSG      = /\AMSG\s+([^\s]+)\s+([^\s]+)\s+(([^\s]+)[^\S\r\n]+)?(\d+)\r\n/i
   SUB_OP   = /\ASUB\s+([^\s]+)\s+(([^\s]+)[^\S\r\n]+)?([^\s]+)\r\n/i
   UNSUB_OP = /\AUNSUB\s+([^\s]+)\s*(\s+(\d+))?\r\n/i
   PING     = /\APING\s*\r\n/i
   PONG     = /\APONG\s*\r\n/i
+  INFO_REQ = /\AINFO_REQ\s*\r\n/i
+
   CONNECT  = /\ACONNECT\s+([^\r\n]+)\r\n/i
   UNKNOWN  = /\A(.*)\r\n/
+
+  ERR_RESP = /\A-ERR\s+('.+')?\r\n/i
+  OK_RESP  = /\A\+OK\s*\r\n/i #:nodoc:
 
   # RESPONSES
   CR_LF = "\r\n".freeze

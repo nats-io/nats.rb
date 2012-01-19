@@ -115,6 +115,7 @@ module NATSD
             @options[:cluster_pass] = auth['pass'] if @options[:cluster_pass].nil?
             @options[:cluster_token] = auth['token'] if @options[:cluster_token].nil?
             @options[:cluster_auth_timeout] = auth['timeout'] if @options[:cluster_auth_timeout].nil?
+            @route_auth_required = true
           end
           if routes = cluster['routes']
             @options[:cluster_routes] = routes if @options[:cluster_routes].nil?

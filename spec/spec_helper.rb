@@ -23,6 +23,7 @@ class NatsServerControl
   alias :was_running? :was_running
 
   class << self
+
     def kill_autostart_server
       pid ||= File.read(NATS::AUTOSTART_PID_FILE).chomp.to_i
       %x[kill -9 #{pid}] if pid
@@ -32,7 +33,11 @@ class NatsServerControl
 
     def init_with_config(config_file)
       config = File.open(config_file) { |f| YAML.load(f) }
-      uri = "nats://#{config['net']}:#{config['port']}"
+      if auth = config['authorization']
+        uri = "nats://#{auth['user']}:#{auth['password']}@#{config['net']}:#{config['port']}"
+      else
+        uri = "nats://#{config['net']}:#{config['port']}"
+      end
       NatsServerControl.new(uri, config['pid_file'], "-c #{config_file}")
     end
 
@@ -40,7 +45,7 @@ class NatsServerControl
 
   attr_reader :uri
 
-  def initialize(uri="nats://localhost:4222", pid_file='/tmp/test-nats.pid', flags=nil)
+  def initialize(uri='nats://localhost:4222', pid_file='/tmp/test-nats.pid', flags=nil)
     @uri = uri.is_a?(URI) ? uri : URI.parse(uri)
     @pid_file = pid_file
     @flags = flags

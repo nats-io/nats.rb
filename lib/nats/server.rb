@@ -47,9 +47,9 @@ EM.run do
     end
   end
 
-  ################
+  ###################
   # CLUSTER SETUP
-  ################
+  ###################
 
   # Check to see if we need to fire up a routing listen port
   if NATSD::Server.options[:cluster_port]

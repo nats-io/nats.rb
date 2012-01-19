@@ -87,12 +87,14 @@ module NATSD #:nodoc: all
         File.open(@options[:pid_file], 'w') { |f| f.puts "#{Process.pid}" } if @options[:pid_file]
       end
 
-      def subscribe(sub)
+      def subscribe(sub, is_route=false)
         @sublist.insert(sub.subject, sub)
+        broadcast_sub_to_routes(sub) unless is_route
       end
 
-      def unsubscribe(sub)
+      def unsubscribe(sub, is_route=false)
         @sublist.remove(sub.subject, sub)
+        broadcast_unsub_to_routes(sub) unless is_route
       end
 
       def deliver_to_subscriber(sub, subject, reply, msg)
@@ -121,7 +123,7 @@ module NATSD #:nodoc: all
         end
       end
 
-      def route_to_subscribers(subject, reply, msg)
+      def route_to_subscribers(subject, reply, msg, is_route=false)
         qsubs = nil
 
         # Allows nil reply to not have extra space
@@ -131,12 +133,19 @@ module NATSD #:nodoc: all
         @in_msgs += 1
         @in_bytes += msg.bytesize unless msg.nil?
 
+        # Routes
+        routes = Set.new
+
         @sublist.match(subject).each do |sub|
           # Skip anyone in the closing state
           next if sub.conn.closing
 
+          # Skip all routes if sourced from another route (1-hop)
+          next if (is_route && sub.conn.is_route?)
+
           unless sub[:qgroup]
-            deliver_to_subscriber(sub, subject, reply, msg)
+            deliver_to_subscriber(sub, subject, reply, msg) unless routes.include?(sub.conn)
+            routes << sub.conn if sub.conn.is_route?
           else
             if NATSD::Server.trace_flag?
               trace("Matched queue subscriber", sub[:subject], sub[:qgroup], sub[:sid], sub.conn.client_info)
