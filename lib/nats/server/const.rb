@@ -56,6 +56,9 @@ module NATSD #:nodoc:
   SUB = /^([^\.\*>\s]+|>$|\*)(\.([^\.\*>\s]+|>$|\*))*$/
   SUB_NO_WC = /^([^\.\*>\s]+)(\.([^\.\*>\s]+))*$/
 
+  # Router Subscription Identifiers
+  RSID = /RSID:(\d+):(\S+)/
+
   # Some sane default thresholds
 
   # 1k should be plenty since payloads sans connect string are separate

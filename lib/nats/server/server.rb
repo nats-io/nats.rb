@@ -8,7 +8,7 @@ module NATSD #:nodoc: all
     class << self
       attr_reader :id, :info, :log_time, :auth_required, :ssl_required, :debug_flag, :trace_flag, :options
       attr_reader :max_payload, :max_pending, :max_control_line, :auth_timeout, :ssl_timeout, :ping_interval, :ping_max
-      attr_accessor :varz, :healthz, :max_connections, :num_connections, :in_msgs, :out_msgs, :in_bytes, :out_bytes
+      attr_accessor :varz, :healthz, :connections, :max_connections, :num_connections, :in_msgs, :out_msgs, :in_bytes, :out_bytes
 
       alias auth_required? :auth_required
       alias ssl_required?  :ssl_required
@@ -39,6 +39,7 @@ module NATSD #:nodoc: all
         @id, @cid, @rid = fast_uuid, 1, 1
         @sublist = Sublist.new
 
+        @connections = {}
         @num_connections = 0
         @in_msgs = @out_msgs = 0
         @in_bytes = @out_bytes = 0
@@ -140,15 +141,16 @@ module NATSD #:nodoc: all
           # Skip anyone in the closing state
           next if sub.conn.closing
 
-          # Skip all routes if sourced from another route (1-hop)
+          # Skip all routes if sourced from another route (1-hop semantics)
           next if (is_route && sub.conn.is_route?)
 
-          unless sub[:qgroup]
+          if sub[:qgroup].nil?
+            # Only send messages once over a route
             deliver_to_subscriber(sub, subject, reply, msg) unless routes.include?(sub.conn)
             routes << sub.conn if sub.conn.is_route?
-          else
+          elsif !is_route
             if NATSD::Server.trace_flag?
-              trace("Matched queue subscriber", sub[:subject], sub[:qgroup], sub[:sid], sub.conn.client_info)
+              trace('Matched queue subscriber', sub[:subject], sub[:qgroup], sub[:sid], sub.conn.client_info)
             end
             # Queue this for post processing
             qsubs ||= Hash.new
@@ -163,7 +165,7 @@ module NATSD #:nodoc: all
           # Randomly pick a subscriber from the group
           sub = subs[rand*subs.size]
           if NATSD::Server.trace_flag?
-            trace("Selected queue subscriber", sub[:subject], sub[:qgroup], sub[:sid], sub.conn.client_info)
+            trace('Selected queue subscriber', sub[:subject], sub[:qgroup], sub[:sid], sub.conn.client_info)
           end
           deliver_to_subscriber(sub, subject, reply, msg)
         end

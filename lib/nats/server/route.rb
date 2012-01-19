@@ -50,7 +50,7 @@ module NATSD #:nodoc: all
             return connect_auth_timeout if @auth_pending
             @buf = $'
             @parse_state = AWAITING_MSG_PAYLOAD
-            @msg_sub, @msg_sid, @msg_reply, @msg_size = $1, $2.to_i, $4, $5.to_i
+            @msg_sub, @msg_sid, @msg_reply, @msg_size = $1, $2, $4, $5.to_i
             if (@msg_size > NATSD::Server.max_payload)
               debug_print_msg_too_big(@msg_size)
               error_close PAYLOAD_TOO_BIG
@@ -135,9 +135,21 @@ module NATSD #:nodoc: all
         when AWAITING_MSG_PAYLOAD
           return unless (@buf.bytesize >= (@msg_size + CR_LF_SIZE))
           msg = @buf.slice(0, @msg_size)
-          ctrace('Processing msg', @msg_sub, @msg_reply, msg) if NATSD::Server.trace_flag?
+
+          ctrace('Processing routed msg', @msg_sub, @msg_reply, msg) if NATSD::Server.trace_flag?
           queue_data(OK) if @verbose
-          Server.route_to_subscribers(@msg_sub, @msg_reply, msg, is_route?)
+
+          # We deliver normal subscriptions like a client publish, which
+          # eliminates the duplicate traversal over the route. However,
+          # qgroups are sent individually per group for only the route
+          # with the intended subscriber, since route interest is L2
+          # semantics, we deliver those direct.
+          if (sub = Server.rsid_qsub(@msg_sid))
+            Server.deliver_to_subscriber(sub, @msg_sub, @msg_reply, msg)
+          else
+            Server.route_to_subscribers(@msg_sub, @msg_reply, msg, is_route?)
+          end
+
           @in_msgs += 1
           @in_bytes += @msg_size
           @buf = @buf.slice((@msg_size + CR_LF_SIZE), @buf.bytesize)
@@ -166,13 +178,13 @@ module NATSD #:nodoc: all
       Server.route_auth_ok?(user, pass)
     end
 
-    def inc_connections(delta=1)
-      Server.num_routes += delta
+    def inc_connections
+      Server.num_routes += 1
       Server.add_route(self)
     end
 
-    def dec_connections(delta=1)
-      Server.num_routes -= delta
+    def dec_connections
+      Server.num_routes -= 1
       Server.remove_route(self)
     end
 

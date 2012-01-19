@@ -3,7 +3,7 @@ module NATSD #:nodoc: all
   module Connection #:nodoc: all
 
     attr_accessor :in_msgs, :out_msgs, :in_bytes, :out_bytes
-    attr_reader :cid, :closing, :last_activity, :writev_size
+    attr_reader :cid, :closing, :last_activity, :writev_size, :subscriptions
     alias :closing? :closing
 
     def flush_data
@@ -238,12 +238,14 @@ module NATSD #:nodoc: all
       debug "Message payload size exceeded (#{sizes}), closing connection"
     end
 
-    def inc_connections(delta=1)
-      Server.num_connections += delta
+    def inc_connections
+      Server.num_connections += 1
+      Server.connections[cid] = self
     end
 
-    def dec_connections(delta=1)
-      Server.num_connections -= delta
+    def dec_connections
+      Server.num_connections -= 1
+      Server.connections.delete(cid)
     end
 
     def unbind

@@ -64,12 +64,30 @@ module NATSD #:nodoc: all
         connected_routes.each { |r| r.queue_data(proto) }
       end
 
+      def rsid_qsub(rsid)
+        cid, sid = parse_rsid(rsid)
+        conn = Server.connections[cid]
+        sub = conn.subscriptions[sid]
+        sub if sub.qgroup
+      rescue
+        nil
+      end
+
+      def parse_rsid(rsid)
+        m = RSID.match(rsid)
+        return [m[1].to_i, m[2]] if m
+      end
+
       def routed_sid(sub)
-        "C#{sub.conn.cid}-#{sub.sid}"
+        "RSID:#{sub.conn.cid}:#{sub.sid}"
       end
 
       def broadcast_sub_to_routes(sub)
-        broadcast_proto_to_routes("SUB #{sub.subject} #{routed_sid(sub)}#{CR_LF}")
+        if sub.qgroup.nil?
+          broadcast_proto_to_routes("SUB #{sub.subject} #{routed_sid(sub)}#{CR_LF}")
+        else
+          broadcast_proto_to_routes("SUB #{sub.subject} #{sub.qgroup} #{routed_sid(sub)}#{CR_LF}")
+        end
       end
 
       def broadcast_unsub_to_routes(sub)
