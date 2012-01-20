@@ -351,6 +351,12 @@ module NATS
     @subs.delete(sid) unless (sub[:max] && (sub[:received] < sub[:max]))
   end
 
+  # Return the active subscription count.
+  # @return [Number]
+  def subscription_count
+    @subs.size
+  end
+
   # Setup a timeout for receiving messages for the subscription.
   # @param [Object] sid
   # @param [Number] timeout, float in seconds
@@ -463,6 +469,13 @@ module NATS
 
     # Check for auto_unsubscribe
     sub[:received] += 1
+    if sub[:max]
+      # Client side support in case server did not receive unsubscribe
+      return unsubscribe(sid) if (sub[:received] > sub[:max])
+      # cleanup here if we have hit the max..
+      @subs.delete(sid) if (sub[:received] == sub[:max])
+    end
+
     return unsubscribe(sid) if (sub[:max] && (sub[:received] > sub[:max]))
 
     if cb = sub[:callback]
