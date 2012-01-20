@@ -84,4 +84,38 @@ describe 'max responses and auto-unsubscribe' do
     received.should == 1
   end
 
+  it "should not leak subscriptions on request that auto-unsubscribe properly with :max" do
+    received = 0
+    NATS.start do
+      sid = NATS.subscribe('help') { |msg, reply| NATS.publish(reply, 'I can help!') }
+      (1..100).each do
+        NATS.request('help', 'help request', :max => 1) { received += 1 }
+      end
+      NATS.flush do
+        EM.add_timer(0.1) do
+          NATS.unsubscribe(sid)
+          NATS.client.subscription_count.should == 0
+          NATS.stop
+        end
+      end
+    end
+    received.should == 100
+  end
+
+  it "should not complain when unsunscribe called on auto-cleaned up subscription" do
+    NATS.start do
+      sid = NATS.subscribe('help') { |msg, reply| NATS.publish(reply, 'I can help!') }
+      rsid = NATS.request('help', 'help request', :max => 1) {}
+      NATS.flush do
+        EM.add_timer(0.1) do
+          NATS.client.subscription_count.should == 1
+          NATS.unsubscribe(sid)
+          NATS.client.subscription_count.should == 0
+          NATS.unsubscribe(rsid)
+          NATS.stop
+        end
+      end
+    end
+  end
+
 end
