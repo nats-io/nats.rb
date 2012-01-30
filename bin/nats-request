@@ -1,0 +1,41 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+require 'rubygems'
+require 'nats/client'
+
+['TERM', 'INT'].each { |s| trap(s) {  puts; exit! } }
+
+def usage
+  puts "Usage: nats-request <subject> <msg> [-s server] [-t] [-n responses]"; exit
+end
+
+args = ARGV.dup
+opts_parser = OptionParser.new do |opts|
+  opts.on('-s SERVER') { |server| $nats_server = server }
+  opts.on('-t') { $show_time = true }
+  opts.on('-n RESPONSES') { |responses| $responses = Integer(responses) if Integer(responses) > 0 }
+end
+args = opts_parser.parse!(args)
+
+subject, msg = args
+usage unless subject
+msg ||= 'Hello World'
+
+def time_prefix
+  "[#{Time.now}] " if $show_time
+end
+
+def header
+  $i=0 unless $i
+  "#{time_prefix}[\##{$i+=1}]"
+end
+
+NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
+
+NATS.start(:uri => $nats_server, :autostart => true) do
+  NATS.request(subject, msg) { |(msg, reply)|
+    puts "#{header} Replied with : '#{msg}'"
+    exit! if $responses && ($responses-=1) < 1
+  }
+end
