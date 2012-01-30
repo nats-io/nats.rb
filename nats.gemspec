@@ -23,7 +23,7 @@ spec = Gem::Specification.new do |s|
 
   s.require_paths = ['lib']
   s.bindir = 'bin'
-  s.executables = [NATSD::APP_NAME, 'nats-pub', 'nats-sub', 'nats-queue', 'nats-top']
+  s.executables = [NATSD::APP_NAME, 'nats-pub', 'nats-sub', 'nats-queue', 'nats-top', 'nats-request']
 
   s.files = %w[
     COPYING
@@ -36,6 +36,7 @@ spec = Gem::Specification.new do |s|
     bin/nats-pub
     bin/nats-queue
     bin/nats-top
+	bin/nats-request
     lib/nats/client.rb
     lib/nats/ext/bytesize.rb
     lib/nats/ext/em.rb
