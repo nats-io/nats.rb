@@ -73,3 +73,27 @@ class NatsServerControl
     end
   end
 end
+
+module EchoServer
+
+  HOST = "localhost".freeze
+  PORT = "9999".freeze
+  ECHO_SERVER = "http://#{HOST}:#{PORT}".freeze
+
+  def receive_data(data)
+    send_data(data)
+  end
+
+  class << self
+    def start(&blk)
+      EM.run {
+        EventMachine::start_server(HOST, PORT, self)
+        blk.call
+      }
+    end
+
+    def stop
+      EM.stop_event_loop
+    end
+  end
+end
