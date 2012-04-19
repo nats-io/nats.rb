@@ -1,4 +1,3 @@
-
 require 'optparse'
 require 'yaml'
 
@@ -107,7 +106,7 @@ module NATSD
 
       rescue => e
         log "Could not read configuration file:  #{e}"
-        exit
+        exit 1
       end
 
       def setup_logs
