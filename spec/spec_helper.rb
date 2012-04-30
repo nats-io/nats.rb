@@ -31,7 +31,7 @@ class NatsServerControl
     end
   end
 
-  def initialize(uri="nats://localhost:4222", pid_file='/tmp/test-nats.pid', flags=nil)
+  def initialize(uri='nats://localhost:4222', pid_file='/tmp/test-nats.pid', flags=nil)
     @uri = URI.parse(uri)
     @pid_file = pid_file
     @flags = flags
@@ -47,11 +47,11 @@ class NatsServerControl
     rss = (parts[1].to_i)/1024
   end
 
-  def start_server
+  def start_server(wait_for_server=true)
 
     if NATS.server_running? @uri
       @was_running = true
-      return
+      return 0
     end
 
     # daemonize really doesn't work on jruby, so should run servers manually to test on jruby
@@ -61,7 +61,9 @@ class NatsServerControl
     args += " #{@flags}" if @flags
     args += ' -d'
     %x[bundle exec nats-server #{args} 2> /dev/null]
-    NATS.wait_for_server(@uri, 10) #jruby can be slow on startup
+    exitstatus = $?.exitstatus
+    NATS.wait_for_server(@uri, 10) if wait_for_server #jruby can be slow on startup
+    exitstatus
   end
 
   def kill_server
