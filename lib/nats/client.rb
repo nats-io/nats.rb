@@ -560,7 +560,7 @@ module NATS
     if reconnecting?
       EM.cancel_timer(@reconnect_timer)
       send_connect_command
-      @subs.each_pair { |k, v| send_command("SUB #{v[:subject]} #{k}#{CR_LF}") }
+      @subs.each_pair { |k, v| send_command("SUB #{v[:subject]} #{v[:queue]} #{k}#{CR_LF}") }
     end
     flush_pending unless @ssl
     unless user_err_cb? or reconnecting?
