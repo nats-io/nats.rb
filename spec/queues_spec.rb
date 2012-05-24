@@ -139,7 +139,8 @@ describe "queue group support" do
     # Messages are distributed uniformly at random to queue subscribers. This
     # forms a binomal distribution with a probability of success (receiving a
     # message) of .5 in the two subscriber case. This verifies that the receive
-    # count of each subscriber is within 1 standard deviation of the mean.
-    buckets.values.each { |msg_count| msg_count.should be_within(250).of(500) }
+    # count of each subscriber is within 3 standard deviations of the mean.
+    # In theory, this means that the test will fail ~ .3% of the time.
+    buckets.values.each { |msg_count| msg_count.should be_within(150).of(500) }
   end
 end
