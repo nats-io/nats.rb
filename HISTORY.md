@@ -1,5 +1,11 @@
 # HISTORY
 
+## v0.4.24 (May 24, 2012)
+
+  - Persist queue groups across reconnects
+  - Proper exit codes for nats-server
+  - See full list @ https://github.com/derekcollison/nats/compare/v0.4.22...v0.4.24
+
 ## v0.4.22 (Mar 5, 2012)
 
   - HTTP based server monitoring (/varz, /connz, /healthz)
