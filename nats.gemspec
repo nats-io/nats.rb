@@ -8,17 +8,17 @@ require 'nats/server/const'
 spec = Gem::Specification.new do |s|
   s.name = 'nats'
   s.version = NATSD::VERSION
-  s.summary = 'A lightweight publish-subscribe and distributed queuing messaging system.'
+  s.summary = 'A lightweight cloud messaging system.'
   s.homepage = 'http://github.com/derekcollison/nats'
-  s.description = 'A lightweight publish-subscribe and distributed queuing messaging system.'
+  s.description = 'A lightweight cloud messaging system.'
   s.has_rdoc = true
 
   s.authors = ['Derek Collison']
   s.email = ['derek.collison@gmail.com']
 
   s.add_dependency('eventmachine', '>= 0.12.10')
-  s.add_dependency('json_pure', '>= 1.6.1')
-  s.add_dependency('daemons', '>= 1.1.4')
+  s.add_dependency('json_pure', '>= 1.7.3')
+  s.add_dependency('daemons', '>= 1.1.5')
   s.add_dependency('thin', '>= 1.3.1')
 
   s.require_paths = ['lib']
@@ -36,7 +36,7 @@ spec = Gem::Specification.new do |s|
     bin/nats-pub
     bin/nats-queue
     bin/nats-top
-	bin/nats-request
+    bin/nats-request
     lib/nats/client.rb
     lib/nats/ext/bytesize.rb
     lib/nats/ext/em.rb
