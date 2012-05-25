@@ -528,7 +528,7 @@ module NATS
           process_info($1)
         when UNKNOWN
           @buf = $'
-          err_cb.call(NATS::ServerError.new("Unknown protocol: $1"))
+          err_cb.call(NATS::ServerError.new("Unknown protocol: #{$1}"))
         else
           # If we are here we do not have a complete line yet that we understand.
           return
@@ -575,12 +575,15 @@ module NATS
 
     if reconnecting?
       cancel_reconnect_timer
-      @subs.each_pair { |k, v| send_command("SUB #{v[:subject]} #{k}#{CR_LF}") }
+      @subs.each_pair { |k, v| send_command("SUB #{v[:subject]} #{v[:queue]} #{k}#{CR_LF}") }
     end
+
     flush_pending unless @ssl
+
     unless user_err_cb? or reconnecting?
       @err_cb = proc { |e| raise e }
     end
+
     if (connect_cb and not reconnecting?)
       # We will round trip the server here to make sure all state from any pending commands
       # has been processed before calling the connect callback.

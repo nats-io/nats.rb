@@ -1,5 +1,5 @@
 
-- balance receive perf with send perf (EM issue, iovec)
+
 - do client blowup detection from sending in tight loop
 - allow port to also be listen_port in config file
 - queue groups allow selection, e.g. round robin vs random
@@ -13,6 +13,7 @@
 - [IN PROGRESS] tests!
 - [IN PROGRESS] JRuby support - works if you hand run servers for tests
 
+- [DONE] balance receive perf with send perf (EM issue, iovec)
 - [DONE] Time interval Pings from server..
 - [DONE] Ping/Pong time window
 - [DONE] monitoring

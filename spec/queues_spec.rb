@@ -83,4 +83,64 @@ describe "queue group support" do
     received_g2.should == 10
   end
 
+  it "should re-establish queue groups on reconnect" do
+    buckets = Hash.new(0)
+
+    num_to_send = 1000
+
+    reconnect_sid = false
+    reconnect_timer = nil
+
+    NATS.start(:reconnect_time_wait => 0.25) do |conn|
+
+      reconnect_sid = NATS.subscribe("reconnected_trigger") do
+        NATS.publish("control", "reconnected")
+        NATS.unsubscribe(reconnect_sid)
+        EM.cancel_timer(reconnect_timer)
+      end
+
+      2.times do |ii|
+        NATS.subscribe("test_queue", :queue => "test_queue") do
+          buckets[ii] += 1
+          NATS.publish("control", "ack")
+        end
+      end
+
+      # Don't hang indefinitely
+      EM.add_timer(30) { EM.stop }
+
+      total_acked = 0
+
+      # Ensure the queue subscribes have been processed
+      NATS.flush do
+        NATS.subscribe("control") do |state|
+          case state
+          when "start"
+            @s.kill_server
+            @s.start_server
+            reconnect_timer = EM.add_periodic_timer(0.25) do
+              NATS.publish("reconnected_trigger")
+            end
+          when "reconnected"
+            num_to_send.times { NATS.publish("test_queue") }
+          when "ack"
+            total_acked +=1
+            NATS.stop if total_acked == num_to_send
+          else
+            puts "Unexpected message: #{state}"
+            NATS.stop
+          end
+        end
+      end
+
+      NATS.flush { NATS.publish("control", "start") }
+    end
+
+    # Messages are distributed uniformly at random to queue subscribers. This
+    # forms a binomal distribution with a probability of success (receiving a
+    # message) of .5 in the two subscriber case. This verifies that the receive
+    # count of each subscriber is within 3 standard deviations of the mean.
+    # In theory, this means that the test will fail ~ .3% of the time.
+    buckets.values.each { |msg_count| msg_count.should be_within(150).of(500) }
+  end
 end

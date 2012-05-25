@@ -61,10 +61,10 @@ class NatsServerControl
     rss = (parts[1].to_i)/1024
   end
 
-  def start_server
+  def start_server(wait_for_server=true)
     if NATS.server_running? @uri
       @was_running = true
-      return
+      return 0
     end
 
     @pid = nil
@@ -76,7 +76,9 @@ class NatsServerControl
     args += " #{@flags}" if @flags
     args += ' -d'
     %x[bundle exec nats-server #{args} 2> /dev/null]
-    NATS.wait_for_server(@uri, 10) #jruby can be slow on startup
+    exitstatus = $?.exitstatus
+    NATS.wait_for_server(@uri, 10) if wait_for_server #jruby can be slow on startup
+    exitstatus
   end
 
   def kill_server
@@ -89,4 +91,28 @@ class NatsServerControl
     end
   end
 
+end
+
+module EchoServer
+
+  HOST = "localhost".freeze
+  PORT = "9999".freeze
+  ECHO_SERVER = "http://#{HOST}:#{PORT}".freeze
+
+  def receive_data(data)
+    send_data(data)
+  end
+
+  class << self
+    def start(&blk)
+      EM.run {
+        EventMachine::start_server(HOST, PORT, self)
+        blk.call
+      }
+    end
+
+    def stop
+      EM.stop_event_loop
+    end
+  end
 end

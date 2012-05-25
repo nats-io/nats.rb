@@ -1,6 +1,6 @@
 # HISTORY
 
-## v0.4.22.beta.6 (Jan 15, 2012)
+## v0.4.22 (Mar 5, 2012)
 
   - HTTP based server monitoring (/varz, /connz, /healthz)
   - Perfomance and Stability improvements
@@ -14,7 +14,7 @@
   - Client Fast Producer support
   - Client reconenct callbacks
   - Server Max Connections support
-  - See full list @ https://github.com/derekcollison/nats/compare/v0.4.10...v0.4.22.beta.6
+  - See full list @ https://github.com/derekcollison/nats/compare/v0.4.10...v0.4.22
 
 ## v0.4.10 (Apr 21, 2011)
 
