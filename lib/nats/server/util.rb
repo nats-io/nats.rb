@@ -5,17 +5,60 @@ def fast_uuid #:nodoc:
   "%04x%04x%04x%04x%04x%06x" % v
 end
 
-def log(*args) #:nodoc:
+def log_syslog(args, priority = Syslog::LOG_NOTICE) #:nodoc:
+  args.unshift(Time.now) if NATSD::Server.log_time
+  Syslog::log(priority, '%s', PP::pp(args.compact, '', 120))
+end
+
+def debug_syslog(args) #:nodoc:
+  if NATSD::Server.debug_flag?
+    priority = Syslog::LOG_INFO
+    log_syslog(args, priority)
+  end
+end
+
+def trace_syslog(args) #:nodoc:
+  if NATSD::Server.trace_flag?
+    priority = Syslog::LOG_DEBUG
+    log_syslog(args, priority)
+  end
+end
+
+def log_stdout(*args) #:nodoc:
   args.unshift(Time.now) if NATSD::Server.log_time
   PP::pp(args.compact, $stdout, 120)
 end
 
+def debug_stdout(*args) #:nodoc:
+  log_stdout(*args) if NATSD::Server.debug_flag?
+end
+
+def trace_stdout(*args) #:nodoc:
+  log_stdout(*args) if NATSD::Server.trace_flag?
+end
+
+def log(*args) #:nodoc:
+  if NATSD::Server.syslog
+    log_syslog(args)
+  else
+    log_stdout(*args)
+  end
+end
+
 def debug(*args) #:nodoc:
-  log(*args) if NATSD::Server.debug_flag?
+  if NATSD::Server.syslog
+    debug_syslog(args)
+  else
+    debug_stdout(*args)
+  end
 end
 
 def trace(*args) #:nodoc:
-  log(*args) if NATSD::Server.trace_flag?
+  if NATSD::Server.syslog
+    trace_syslog(args)
+  else
+    trace_stdout(*args)
+  end
 end
 
 def log_error(e=$!) #:nodoc:
@@ -56,6 +99,7 @@ end
 def shutdown #:nodoc:
   puts
   log 'Server exiting..'
+  NATSD::Server.close_syslog
   EM.stop
   if NATSD::Server.pid_file
     FileUtils.rm(NATSD::Server.pid_file) if File.exists? NATSD::Server.pid_file

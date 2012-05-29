@@ -6,7 +6,7 @@ module NATSD #:nodoc: all
   class Server
 
     class << self
-      attr_reader :id, :info, :log_time, :auth_required, :ssl_required, :debug_flag, :trace_flag, :options
+      attr_reader :id, :info, :log_time, :auth_required, :ssl_required, :debug_flag, :trace_flag, :syslog, :options
       attr_reader :max_payload, :max_pending, :max_control_line, :auth_timeout, :ssl_timeout, :ping_interval, :ping_max
       attr_accessor :varz, :healthz, :max_connections, :num_connections, :in_msgs, :out_msgs, :in_bytes, :out_bytes
 
@@ -75,6 +75,7 @@ module NATSD #:nodoc: all
         end
 
         setup_logs
+        open_syslog
 
         # Setup optimized select versions
         EM.epoll unless @options[:noepoll]

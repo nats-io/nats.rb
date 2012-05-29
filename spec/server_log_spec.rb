@@ -9,6 +9,9 @@ describe 'server log and pid files' do
     LOG_SERVER = 'nats://localhost:9299'
     LOG_LOG_FILE = '/tmp/nats_log_test.log'
     LOG_FLAGS = "-l #{LOG_LOG_FILE}"
+    LOG_SYSLOG_IDENT = "nats_syslog_test"
+    LOG_SYSLOG_FLAGS= "#{LOG_FLAGS} -S #{LOG_SYSLOG_IDENT}"
+
 
     FileUtils.rm_f(LOG_LOG_FILE)
     @s = NatsServerControl.new(LOG_SERVER, LOG_SERVER_PID, LOG_FLAGS)
@@ -37,6 +40,14 @@ describe 'server log and pid files' do
     @s.kill_server
     @s.start_server
     File.read(LOG_LOG_FILE).split("\n").size.should == 2
+  end
+
+  it 'should not output to the log file when enable syslog option' do
+    @s.kill_server
+    FileUtils.rm_f(LOG_LOG_FILE)
+    @s = NatsServerControl.new(LOG_SERVER, LOG_SERVER_PID, LOG_SYSLOG_FLAGS)
+    @s.start_server
+    File.read(LOG_LOG_FILE).split("\n").size.should == 0
   end
 
 end
