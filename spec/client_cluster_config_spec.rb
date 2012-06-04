@@ -164,10 +164,6 @@ describe 'client cluster config' do
     NATS.start(options) do
       NATS.client.connected_server.should == URI.parse(s1_uri)
 
-      NATS.on_reconnect do
-        puts "Reconnecting!!"
-      end
-
       kill_time = Time.now
       s1.kill_server
       EM.add_timer(0.25) { s1.start_server }
