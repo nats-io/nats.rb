@@ -62,7 +62,7 @@ describe 'client cluster config' do
   end
 
   it 'should connect to first entry' do
-    NATS.start(:uri => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223']) {  NATS.stop }
+    NATS.start(:uri => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223']) { NATS.stop }
   end
 
   it 'should fail to connect if no servers available' do
@@ -72,18 +72,18 @@ describe 'client cluster config' do
   end
 
   it 'should connect to another server if first is not available' do
-    NATS.start(:uri => ['nats://127.0.0.1:4224', 'nats://127.0.0.1:4222']) {  NATS.stop }
+    NATS.start(:uri => ['nats://127.0.0.1:4224', 'nats://127.0.0.1:4222']) { NATS.stop }
   end
 
   it 'should fail if all servers are not available' do
     expect do
-      NATS.start(:uri => ['nats://127.0.0.1:4224', 'nats://127.0.0.1:4223']) {  NATS.stop }
+      NATS.start(:uri => ['nats://127.0.0.1:4224', 'nats://127.0.0.1:4223']) { NATS.stop }
     end.to raise_error NATS::Error
   end
 
   it 'should fail if server available but do not have proper auth' do
     expect do
-      NATS.start(:uri => ['nats://127.0.0.1:4224', "nats://127.0.0.1:#{CLUSTER_AUTH_PORT}"]) {  NATS.stop }
+      NATS.start(:uri => ['nats://127.0.0.1:4224', "nats://127.0.0.1:#{CLUSTER_AUTH_PORT}"]) { NATS.stop }
     end.to raise_error NATS::Error
   end
 
@@ -163,12 +163,17 @@ describe 'client cluster config' do
 
     NATS.start(options) do
       NATS.client.connected_server.should == URI.parse(s1_uri)
+
+      NATS.on_reconnect do
+        puts "Reconnecting!!"
+      end
+
       kill_time = Time.now
       s1.kill_server
       EM.add_timer(0.25) { s1.start_server }
-      EM.add_timer(1) do
+      EM.add_timer(1.5) do
         time_diff = Time.now - kill_time
-        time_diff.should < 1.5
+        time_diff.should < 1.8
         NATS.client.connected_server.should == URI.parse(s1_uri)
         NATS.stop
       end
