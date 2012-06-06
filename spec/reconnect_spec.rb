@@ -32,6 +32,22 @@ describe 'client specification' do
       @s.kill_server
     end
     reconnect_cb.should be_true
+    @s.start_server
+  end
+
+  it 'should allow binding of callback on default client after initialization' do
+    reconnect_cb = false
+    NATS.start(:reconnect_time_wait => 0.25) do |c|
+      timeout_nats_on_failure(1)
+      NATS.on_reconnect do
+        reconnect_cb = true
+        NATS.connected?.should be_false
+        NATS.reconnecting?.should be_true
+        NATS.stop
+      end
+      @s.kill_server
+    end
+    reconnect_cb.should be_true
   end
 
 end
