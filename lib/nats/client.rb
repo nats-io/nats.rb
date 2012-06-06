@@ -109,9 +109,9 @@ module NATS
       opts[:max_reconnect_attempts] = ENV['NATS_MAX_RECONNECT_ATTEMPTS'].to_i unless ENV['NATS_MAX_RECONNECT_ATTEMPTS'].nil?
       opts[:reconnect_time_wait] = ENV['NATS_RECONNECT_TIME_WAIT'].to_i unless ENV['NATS_RECONNECT_TIME_WAIT'].nil?
 
-      uri = opts[:uri] || opts[:uris] || opts[:servers]
+      uri = opts[:uris] || opts[:servers] || opts[:uri]
 
-      # If they pass an array here just pass long to the real connection, and use first as the first attempt..
+      # If they pass an array here just pass along to the real connection, and use first as the first attempt..
       # Real connection will do proper walk throughs etc..
       unless uri.nil?
         u = uri.kind_of?(Array) ? uri.first : uri
@@ -181,6 +181,7 @@ module NATS
     # @param [Block] &callback called when a reconnect attempt is made.
     def on_reconnect(&callback)
       @reconnect_cb = callback
+      @client.on_reconnect(&callback) unless @client.nil?
     end
 
     # Publish a message using the default client connection.
@@ -674,7 +675,7 @@ module NATS
   # The server pool will contain both explicit and implicit members.
   def process_uri_options #:nodoc
     @server_pool = []
-    uri = options[:uri] || options[:uris] || options[:servers]
+    uri = options[:uris] || options[:servers] || options[:uri]
     uri = uri.kind_of?(Array) ? uri : [uri]
     uri.each { |u| server_pool << { :uri => u.is_a?(URI) ? u.dup : URI.parse(u) } }
     bind_primary
