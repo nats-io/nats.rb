@@ -27,7 +27,7 @@ cluster:
     timeout: 1
 
   routes:
-    nats-route://ruser:cafebabe@127.0.0.1:4262 # Connect to s1
+    - nats-route://ruser:cafebabe@127.0.0.1:4262 # Connect to s1
 
 pid_file: '/tmp/nats_cluster_s3.pid'
 #log_file: '/tmp/nats_cluster_s3.log'
