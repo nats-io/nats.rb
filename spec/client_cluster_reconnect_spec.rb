@@ -3,8 +3,6 @@ require 'yaml'
 
 describe 'client cluster reconnect' do
 
-  # FIXME, delete log files
-
   before(:all) do
     S1_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s1_cluster.yml'
     @s1 = NatsServerControl.init_with_config(S1_CONFIG_FILE)
