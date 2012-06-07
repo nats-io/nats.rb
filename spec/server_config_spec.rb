@@ -49,7 +49,6 @@ describe "server configuration" do
     opts[:pid_file].should == config['pid_file']
     opts[:log_file].should == config['log_file']
     opts[:log_time].should == config['logtime']
-    opts[:syslog].should == config['syslog']
     opts[:debug].should == config['debug']
     opts[:trace].should == config['trace']
     opts[:max_control_line].should == config['max_control_line']

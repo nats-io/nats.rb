@@ -31,5 +31,4 @@ max_connections: 128
 no_epoll:  false
 no_kqueue: true
 
-# Syslog
-syslog: nats_syslog_test
+
