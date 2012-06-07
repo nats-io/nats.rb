@@ -9,6 +9,8 @@
 - Allow clients to specify app/client name
 
 - [IN PROGRESS] clustering/routing
+  - Allow implicit route information to propogate to clients?
+  - Retry timers on routes
 
 - [IN PROGRESS] tests!
 - [IN PROGRESS] JRuby support - works if you hand run servers for tests
