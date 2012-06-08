@@ -16,17 +16,15 @@ def log(*args) #:nodoc:
 end
 
 def debug(*args) #:nodoc:
-  if NATSD::Server.debug_flag?
-    return syslog(args, Syslog::LOG_INFO) if NATSD::Server.syslog
-    log(*args)
-  end
+  return unless NATSD::Server.debug_flag?
+  return syslog(args, Syslog::LOG_INFO) if NATSD::Server.syslog
+  log(*args)
 end
 
 def trace(*args) #:nodoc:
-  if NATSD::Server.trace_flag?
-    return syslog(args, Syslog::LOG_DEBUG) if NATSD::Server.syslog
-    log(*args)
-  end
+  return unless NATSD::Server.trace_flag?
+  return syslog(args, Syslog::LOG_DEBUG) if NATSD::Server.syslog
+  log(*args)
 end
 
 def log_error(e=$!) #:nodoc:
