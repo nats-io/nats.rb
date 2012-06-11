@@ -6,6 +6,10 @@ def timeout_nats_on_failure(to=0.25)
   EM.add_timer(to) { NATS.stop }
 end
 
+def timeout_em_on_failure(to=0.25)
+  EM.add_timer(to) { EM.stop }
+end
+
 def wait_on_connections(conns)
   return unless conns
   expected, ready = conns.size, 0
