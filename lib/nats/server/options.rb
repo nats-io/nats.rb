@@ -120,14 +120,11 @@ module NATSD
 
       def open_syslog
         return unless @options[:syslog]
-        unless Syslog.opened?
-          Syslog.open("#{@options[:syslog]}", Syslog::LOG_PID,  Syslog::LOG_USER )
-        end
+        Syslog.open("#{@options[:syslog]}", Syslog::LOG_PID,  Syslog::LOG_USER ) unless Syslog.opened? 
       end
 
       def close_syslog
-        return unless @options[:syslog]
-        Syslog.close
+        Syslog.close unless @options[:syslog]
       end
 
       def symbolize_users(users)
@@ -159,7 +156,7 @@ module NATSD
         debug "DEBUG is on"
         trace "TRACE is on"
 
-        #Syslog
+        # Syslog
         @syslog = @options[:syslog]
 
         # Authorization
