@@ -124,7 +124,8 @@ module NATSD
       end
 
       def close_syslog
-        Syslog.close unless @options[:syslog]
+        return unless @options[:syslog]
+        Syslog.close
       end
 
       def symbolize_users(users)
