@@ -27,6 +27,7 @@ module NATSD
 
           opts.on("-l", "--log FILE", "File to redirect log output")           { |file| @options[:log_file] = file }
           opts.on("-T", "--logtime", "Timestamp log entries (default: false)") { @options[:log_time] = true }
+          opts.on("-S", "--syslog IDENT", "Enable Syslog output")              { |ident| @options[:syslog] = ident }
           opts.on("-D", "--debug", "Enable debugging output")                  { @options[:debug] = true }
           opts.on("-V", "--trace", "Trace the raw protocol")                   { @options[:trace] = true }
 
@@ -77,6 +78,7 @@ module NATSD
         @options[:pid_file] = config['pid_file'] if @options[:pid_file].nil?
         @options[:log_file] = config['log_file'] if @options[:log_file].nil?
         @options[:log_time] = config['logtime'] if @options[:log_time].nil?
+        @options[:syslog] = config['syslog'] if @options[:syslog].nil?
         @options[:debug] = config['debug'] if @options[:debug].nil?
         @options[:trace] = config['trace'] if @options[:trace].nil?
 
@@ -116,6 +118,15 @@ module NATSD
         $stderr.reopen($stdout)
       end
 
+      def open_syslog
+        return unless @options[:syslog]
+        Syslog.open("#{@options[:syslog]}", Syslog::LOG_PID,  Syslog::LOG_USER ) unless Syslog.opened? 
+      end
+
+      def close_syslog
+        Syslog.close if @options[:syslog]
+      end
+
       def symbolize_users(users)
         return nil unless users
         auth_users = []
@@ -144,6 +155,9 @@ module NATSD
         debug @options # Block pass?
         debug "DEBUG is on"
         trace "TRACE is on"
+
+        # Syslog
+        @syslog = @options[:syslog]
 
         # Authorization
 
