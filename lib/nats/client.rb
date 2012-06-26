@@ -439,7 +439,7 @@ module NATS
       cs[:pass] = @uri.password
     end
     cs[:ssl_required] = @ssl if @ssl
-    send_command("CONNECT #{cs.to_json}#{CR_LF}")
+    send_command("CONNECT #{cs.to_json}#{CR_LF}", true)
   end
 
   def queue_server_rt(&cb) #:nodoc:
@@ -613,9 +613,11 @@ module NATS
     @reconnect_cb.call unless @reconnect_cb.nil?
   end
 
-  def send_command(command) #:nodoc:
+  def send_command(command, priority = false) #:nodoc:
     EM.next_tick { flush_pending } if (connected? && @pending.nil?)
-    (@pending ||= []) << command
+    @pending ||= []
+    @pending << command unless priority
+    @pending.unshift(command) if priority
     @pending_size += command.bytesize
     flush_pending if (connected? && @pending_size > MAX_PENDING_SIZE)
     if (@options[:fast_producer_error] && pending_data_size > FAST_PRODUCER_THRESHOLD)
