@@ -579,6 +579,7 @@ module NATS
     @reconnecting = true
     @reconnect_attempts = 0
     @connected = false
+    @pending, @pending_size = nil, 0
     @reconnect_timer = EM.add_periodic_timer(wait) { attempt_reconnect }
   end
 
@@ -615,6 +616,7 @@ module NATS
 
   def send_command(command) #:nodoc:
     EM.next_tick { flush_pending } if (connected? && @pending.nil?)
+    return false if (reconnecting? && (command !~ /^CONNECT /))
     (@pending ||= []) << command
     @pending_size += command.bytesize
     flush_pending if (connected? && @pending_size > MAX_PENDING_SIZE)
