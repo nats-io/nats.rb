@@ -2,6 +2,7 @@
 require 'socket'
 require 'fileutils'
 require 'pp'
+require 'syslog'
 
 ep = File.expand_path(File.dirname(__FILE__))
 
