@@ -4,12 +4,12 @@ require 'yaml'
 describe 'cluster' do
 
   before(:all) do
-    S1_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s1_cluster.yml'
-    @s1 = NatsServerControl.init_with_config(S1_CONFIG_FILE)
+    SC1_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s1_cluster.yml'
+    @s1 = NatsServerControl.init_with_config(SC1_CONFIG_FILE)
     @s1.start_server
 
-    S2_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s2_cluster.yml'
-    @s2 = NatsServerControl.init_with_config(S2_CONFIG_FILE)
+    SC2_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s2_cluster.yml'
+    @s2 = NatsServerControl.init_with_config(SC2_CONFIG_FILE)
     @s2.start_server
   end
 

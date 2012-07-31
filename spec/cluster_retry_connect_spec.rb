@@ -4,16 +4,16 @@ require 'yaml'
 describe 'cluster retry connect' do
 
   before(:all) do
-    S1_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s1_cluster.yml'
-    @s1 = NatsServerControl.init_with_config(S1_CONFIG_FILE)
+    SR1_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s1_cluster.yml'
+    @s1 = NatsServerControl.init_with_config(SR1_CONFIG_FILE)
     @s1.start_server
 
-    S2_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s2_cluster.yml'
-    @s2 = NatsServerControl.init_with_config(S2_CONFIG_FILE)
+    SR2_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s2_cluster.yml'
+    @s2 = NatsServerControl.init_with_config(SR2_CONFIG_FILE)
     @s2.start_server
 
-    S3_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s3_cluster.yml'
-    @s3 = NatsServerControl.init_with_config(S3_CONFIG_FILE)
+    SR3_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s3_cluster.yml'
+    @s3 = NatsServerControl.init_with_config(SR3_CONFIG_FILE)
     @s3.start_server
   end
 
