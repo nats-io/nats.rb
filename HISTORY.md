@@ -1,5 +1,10 @@
 # HISTORY
 
+## v0.4.26 (July 30, 2012)
+  - Syslog support
+  - Fixed reconnect bug to authorized servers
+  - See full list @ https://github.com/derekcollison/nats/compare/v0.4.24...v0.4.26
+
 ## v0.4.24 (May 24, 2012)
 
   - Persist queue groups across reconnects

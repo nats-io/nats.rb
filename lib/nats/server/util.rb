@@ -5,17 +5,26 @@ def fast_uuid #:nodoc:
   "%04x%04x%04x%04x%04x%06x" % v
 end
 
+def syslog(args, priority) #:nodoc:
+  Syslog::log(priority, '%s', PP::pp(args.compact, '', 120))
+end
+
 def log(*args) #:nodoc:
+  return syslog(args, Syslog::LOG_NOTICE) if NATSD::Server.syslog
   args.unshift(Time.now) if NATSD::Server.log_time
   PP::pp(args.compact, $stdout, 120)
 end
 
 def debug(*args) #:nodoc:
-  log(*args) if NATSD::Server.debug_flag?
+  return unless NATSD::Server.debug_flag?
+  return syslog(args, Syslog::LOG_INFO) if NATSD::Server.syslog
+  log(*args)
 end
 
 def trace(*args) #:nodoc:
-  log(*args) if NATSD::Server.trace_flag?
+  return unless NATSD::Server.trace_flag?
+  return syslog(args, Syslog::LOG_DEBUG) if NATSD::Server.syslog
+  log(*args)
 end
 
 def log_error(e=$!) #:nodoc:
@@ -56,6 +65,7 @@ end
 def shutdown #:nodoc:
   puts
   log 'Server exiting..'
+  NATSD::Server.close_syslog
   EM.stop
   if NATSD::Server.pid_file
     FileUtils.rm(NATSD::Server.pid_file) if File.exists? NATSD::Server.pid_file
