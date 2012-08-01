@@ -34,10 +34,11 @@ describe 'cluster retry connect' do
     data = 'Hello World!'
     received = 0
     EM.run do
-      timeout_em_on_failure(1)
+      timeout_em_on_failure(5)
       c1 = NATS.connect(:uri => @s1.uri)
       c2 = NATS.connect(:uri => @s2.uri)
       wait_on_connections([c1, c2]) do
+
         c1.subscribe('foo') do |msg|
           msg.should == data
           received += 1
@@ -50,9 +51,14 @@ describe 'cluster retry connect' do
 
             @s1.kill_server
             @s1.start_server
+
+            # Dummy connection back to @s1 just so we know it is back up and functioning.
+            # Then wait for reconnect interval
             NATS.connect(:uri => @s1.uri) do
-              c1.connected_server.should == @s1.uri
-              c1.flush { c2.publish('foo', data) }
+              EM.add_timer(1.25) do
+                c1.connected_server.should == @s1.uri
+                c1.flush { c2.publish('foo', data) }
+              end
             end
           end
         end
@@ -61,7 +67,7 @@ describe 'cluster retry connect' do
 
       end
     end
-    #received.should == 2
+    received.should == 2
   end
 
 end
