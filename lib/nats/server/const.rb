@@ -86,6 +86,9 @@ module NATSD #:nodoc:
   DEFAULT_PING_INTERVAL = 120
   DEFAULT_PING_MAX = 2
 
+  # Route Reconnect
+  DEFAULT_ROUTE_RECONNECT_INTERVAL = 1.0
+
   # HTTP
   RACK_JSON_HDR = { 'Content-Type' => 'application/json' }
   RACK_TEXT_HDR = { 'Content-Type' => 'text/plain' }

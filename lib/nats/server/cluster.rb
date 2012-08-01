@@ -4,7 +4,7 @@ module NATSD #:nodoc: all
 
   class Server
     class << self
-      attr_reader :opt_routes, :route_auth_required, :route_ssl_required
+      attr_reader :opt_routes, :route_auth_required, :route_ssl_required, :reconnect_interval
       attr_accessor :num_routes
 
       alias route_auth_required? :route_auth_required
@@ -82,12 +82,13 @@ module NATSD #:nodoc: all
         "RSID:#{sub.conn.cid}:#{sub.sid}"
       end
 
+      def route_sub_proto(sub)
+        return "SUB #{sub.subject} #{routed_sid(sub)}#{CR_LF}" if sub.qgroup.nil?
+        return "SUB #{sub.subject} #{sub.qgroup} #{routed_sid(sub)}#{CR_LF}"
+      end
+
       def broadcast_sub_to_routes(sub)
-        if sub.qgroup.nil?
-          broadcast_proto_to_routes("SUB #{sub.subject} #{routed_sid(sub)}#{CR_LF}")
-        else
-          broadcast_proto_to_routes("SUB #{sub.subject} #{sub.qgroup} #{routed_sid(sub)}#{CR_LF}")
-        end
+        broadcast_proto_to_routes(route_sub_proto(sub))
       end
 
       def broadcast_unsub_to_routes(sub)

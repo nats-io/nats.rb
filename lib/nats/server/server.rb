@@ -1,3 +1,5 @@
+require 'set'
+
 module NATSD #:nodoc: all
 
   # Subscriber

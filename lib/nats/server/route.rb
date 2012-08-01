@@ -4,8 +4,9 @@ module NATSD #:nodoc: all
 
     include Connection
 
-    attr_reader :rid, :closing, :r_obj
+    attr_reader :rid, :closing, :r_obj, :reconnecting
     alias :peer_info :client_info
+    alias :reconnecting? :reconnecting
 
     def initialize(route=nil)
       @r_obj = route
@@ -13,6 +14,14 @@ module NATSD #:nodoc: all
 
     def solicited?
       r_obj != nil
+    end
+
+    def connection_completed
+      return unless reconnecting?
+      # Kill reconnect if we got here from there
+      cancel_reconnect
+      @buf, @closing = nil, false
+      post_init
     end
 
     def post_init
@@ -31,10 +40,21 @@ module NATSD #:nodoc: all
       end
 
       send_info
-      debug "#{type} connection created", peer_info, rid
+      debug "Route connection created", peer_info, rid
       @ping_timer = EM.add_periodic_timer(NATSD::Server.ping_interval) { send_ping }
       @pings_outstanding = 0
       inc_connections
+      send_local_subs_to_route
+    end
+
+    # TODO: Make sure max_requested is also propogated on reconnect
+    def send_local_subs_to_route
+      ObjectSpace.each_object(NATSD::Connection) do |c|
+        next if c.closing? || c.type != 'Client'
+        c.subscriptions.each_value do |sub|
+          queue_data(NATSD::Server.route_sub_proto(sub))
+        end
+      end
     end
 
     def receive_data(data)
@@ -186,6 +206,27 @@ module NATSD #:nodoc: all
     def dec_connections
       Server.num_routes -= 1
       Server.remove_route(self)
+    end
+
+    def try_reconnect
+      debug "Trying to reconnect route", peer_info, rid
+      EM.reconnect(r_obj[:uri].host, r_obj[:uri].port, self)
+    end
+
+    def cancel_reconnect
+      EM.cancel_timer(@reconnect_timer) if @reconnect_timer
+      @reconnect_timer = nil
+      @reconnecting = false
+    end
+
+    def unbind
+      return if reconnecting?
+      debug "Route connection closed", peer_info, rid
+      process_unbind
+      if solicited?
+        @reconnecting = true
+        @reconnect_timer = EM.add_periodic_timer(NATSD::DEFAULT_ROUTE_RECONNECT_INTERVAL) { try_reconnect }
+      end
     end
 
     def ctrace(*args)

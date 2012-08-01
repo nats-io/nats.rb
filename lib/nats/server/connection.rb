@@ -79,12 +79,12 @@ module NATSD #:nodoc: all
 
     def connect_auth_timeout
       error_close AUTH_REQUIRED
-      debug "Client connection timeout due to lack of auth credentials", cid
+      debug "#{type} connection timeout due to lack of auth credentials", cid
     end
 
     def connect_ssl_timeout
       error_close SSL_REQUIRED
-      debug "Connection timeout due to lack of TLS/SSL negotiations", cid
+      debug "#{type} connection timeout due to lack of TLS/SSL negotiations", cid
     end
 
     def receive_data(data)
@@ -248,18 +248,21 @@ module NATSD #:nodoc: all
       Server.connections.delete(cid)
     end
 
-    def unbind
-      debug "#{type} connection closed", client_info, cid
+    def process_unbind
       dec_connections
-      @subscriptions.each_value { |sub| Server.unsubscribe(sub) }
       EM.cancel_timer(@ssl_pending) if @ssl_pending
       @ssl_pending = nil
       EM.cancel_timer(@auth_pending) if @auth_pending
       @auth_pending = nil
       EM.cancel_timer(@ping_timer) if @ping_timer
       @ping_timer = nil
-
+      @subscriptions.each_value { |sub| Server.unsubscribe(sub) }
       @closing = true
+    end
+
+    def unbind
+      debug "Client connection closed", client_info, cid
+      process_unbind
     end
 
     def ssl_handshake_completed
