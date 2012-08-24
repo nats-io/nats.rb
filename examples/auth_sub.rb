@@ -16,5 +16,5 @@ NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
 NATS.start(:uri => uri) do
   puts "Listening on [#{subject}]"
-  NATS.subscribe(subject) { |msg, _, sub| puts "Received on [#{sub}] : '#{msg}'" }
+  NATS.subscribe(subject) { |msg, _, sub, user| puts "Received on [#{sub}] from [#{user}] : '#{msg}'" }
 end

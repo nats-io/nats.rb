@@ -248,49 +248,65 @@ describe 'NATS Protocol' do
     end
 
     it 'should process messages' do
+      str = "MSG@user foo 2 11\r\nHello World\r\n"
+      NATS::MSG =~ str
+      $1.should == 'user'
+      $2.should == 'foo'
+      $3.should == '2'
+      $5.should == nil
+      $6.to_i.should == 11
+      $'.should == "Hello World\r\n"
+    end
+
+    it 'should process messages without user' do
       str = "MSG foo 2 11\r\nHello World\r\n"
       NATS::MSG =~ str
-      $1.should == 'foo'
-      $2.should == '2'
-      $4.should == nil
-      $5.to_i.should == 11
+      $1.should == nil
+      $2.should == 'foo'
+      $3.should == '2'
+      $5.should == nil
+      $6.to_i.should == 11
       $'.should == "Hello World\r\n"
     end
 
     it 'should process messages with a reply' do
-      str = "MSG foo  2 reply_to_me 11\r\nHello World\r\n"
+      str = "MSG@user foo  2 reply_to_me 11\r\nHello World\r\n"
       NATS::MSG =~ str
-      $1.should == 'foo'
-      $2.should == '2'
-      $4.should == 'reply_to_me'
-      $5.to_i.should == 11
+      $1.should == 'user'
+      $2.should == 'foo'
+      $3.should == '2'
+      $5.should == 'reply_to_me'
+      $6.to_i.should == 11
       $'.should == "Hello World\r\n"
     end
 
     it 'should process messages with extra spaces' do
-      str = "MSG    foo  2     reply_to_me  11\r\nHello World\r\n"
+      str = "MSG@user    foo  2     reply_to_me  11\r\nHello World\r\n"
       NATS::MSG =~ str
-      $1.should == 'foo'
-      $2.should == '2'
-      $4.should == 'reply_to_me'
-      $5.to_i.should == 11
+      $1.should == 'user'
+      $2.should == 'foo'
+      $3.should == '2'
+      $5.should == 'reply_to_me'
+      $6.to_i.should == 11
       $'.should == "Hello World\r\n"
     end
 
     it 'should process multiple messages in a single read properly' do
-      str = "MSG foo 2 11\r\nHello World\r\nMSG foo  2 reply_to_me 2\r\nok\r\n"
+      str = "MSG@user foo 2 11\r\nHello World\r\nMSG foo  2 reply_to_me 2\r\nok\r\n"
       NATS::MSG =~ str
-      $1.should == 'foo'
-      $2.should == '2'
-      $4.should == nil
-      $5.to_i.should == 11
+      $1.should == 'user'
+      $2.should == 'foo'
+      $3.should == '2'
+      $5.should == nil
+      $6.to_i.should == 11
       str = $'
-      str = str.slice($5.to_i + NATSD::CR_LF_SIZE, str.bytesize)
+      str = str.slice($6.to_i + NATSD::CR_LF_SIZE, str.bytesize)
       NATS::MSG =~ str
-      $1.should == 'foo'
-      $2.should == '2'
-      $4.should == 'reply_to_me'
-      $5.to_i.should == 2
+      $1.should == nil
+      $2.should == 'foo'
+      $3.should == '2'
+      $5.should == 'reply_to_me'
+      $6.to_i.should == 2
       $'.should == "ok\r\n"
     end
 

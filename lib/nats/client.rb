@@ -23,7 +23,7 @@ module NATS
 
   # Protocol
   # @private
-  MSG      = /\AMSG\s+([^\s]+)\s+([^\s]+)\s+(([^\s]+)[^\S\r\n]+)?(\d+)\r\n/i #:nodoc:
+  MSG      = /\AMSG(?:@(\S+))?\s+([^\s]+)\s+([^\s]+)\s+(([^\s]+)[^\S\r\n]+)?(\d+)\r\n/i #:nodoc:
   OK       = /\A\+OK\s*\r\n/i #:nodoc:
   ERR      = /\A-ERR\s+('.+')?\r\n/i #:nodoc:
   PING     = /\APING\s*\r\n/i #:nodoc:
@@ -379,11 +379,12 @@ module NATS
   def request(subject, data=nil, opts={}, &cb)
     return unless subject
     inbox = NATS.create_inbox
-    s = subscribe(inbox, opts) { |msg, reply|
+    s = subscribe(inbox, opts) { |msg, reply, subject, sender_user|
       case cb.arity
         when 0 then cb.call
         when 1 then cb.call(msg)
-        else cb.call(msg, reply)
+        when 2 then cb.call(msg, reply)
+        else cb.call(msg, reply, sender_user)
       end
     }
     publish(subject, data, inbox)
@@ -448,7 +449,7 @@ module NATS
     send_command(PING_REQUEST)
   end
 
-  def on_msg(subject, sid, reply, msg) #:nodoc:
+  def on_msg(subject, sender_user, sid, reply, msg) #:nodoc:
 
     # Accounting - We should account for inbound even if they are not processed.
     @msgs_received += 1
@@ -472,7 +473,8 @@ module NATS
         when 0 then cb.call
         when 1 then cb.call(msg)
         when 2 then cb.call(msg, reply)
-        else cb.call(msg, reply, subject)
+        when 3 then cb.call(msg, reply, subject)
+        else cb.call(msg, reply, subject, sender_user)
       end
     end
 
@@ -497,7 +499,7 @@ module NATS
         case @buf
         when MSG
           @buf = $'
-          @sub, @sid, @reply, @needed = $1, $2.to_i, $4, $5.to_i
+          @sender_user, @sub, @sid, @reply, @needed = $1, $2, $3.to_i, $5, $6.to_i
           @parse_state = AWAITING_MSG_PAYLOAD
         when OK # No-op right now
           @buf = $'
@@ -526,9 +528,9 @@ module NATS
 
       when AWAITING_MSG_PAYLOAD
         return unless (@needed && @buf.bytesize >= (@needed + CR_LF_SIZE))
-        on_msg(@sub, @sid, @reply, @buf.slice(0, @needed))
+        on_msg(@sub, @sender_user, @sid, @reply, @buf.slice(0, @needed))
         @buf = @buf.slice((@needed + CR_LF_SIZE), @buf.bytesize)
-        @sub = @sid = @reply = @needed = nil
+        @sub = @sender_user, @sid = @reply = @needed = nil
         @parse_state = AWAITING_CONTROL_LINE
         @buf = nil if (@buf && @buf.empty?)
       end
