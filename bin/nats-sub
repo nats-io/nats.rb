@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 
+require 'eventmachine'
 require 'optparse'
 require 'rubygems'
 require 'nats/client'
@@ -30,9 +31,17 @@ def header
   "#{time_prefix}[\##{$i+=1}]"
 end
 
-NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
+NATS.on_error do |err|
+  puts "Server Error: #{err} #{err.err_obj.inspect}"
+  if err.err_obj.nil?
+    exit!
+  end
+end
 
-NATS.start(:uri => $nats_server, :autostart => true) do
-  puts "Listening on [#{subject}]"
-  NATS.subscribe(subject) { |msg, _, sub| puts "#{header} Received on [#{sub}] : '#{msg}'" }
+EM.run do
+  NATS.start(:uri => $nats_server, :autostart => true) do
+    puts "Listening on [#{subject}]"
+    NATS.subscribe(subject) { |msg, _, sub| puts "#{header} Received on [#{sub}] : '#{msg}'" }
+  end
+  raise 'PEW PEW PEW'
 end
