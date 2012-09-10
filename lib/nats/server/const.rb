@@ -1,7 +1,7 @@
 
 module NATSD #:nodoc:
 
-  VERSION  = '0.5.0'
+  VERSION  = '0.5.0.beta.1'
   APP_NAME = 'nats-server'
 
   DEFAULT_PORT = 4222
