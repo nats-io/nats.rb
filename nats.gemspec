@@ -16,7 +16,7 @@ spec = Gem::Specification.new do |s|
   s.authors = ['Derek Collison']
   s.email = ['derek.collison@gmail.com']
 
-  s.add_dependency('eventmachine', '>= 0.12.10')
+  s.add_dependency('eventmachine', '= 0.12.10')
   s.add_dependency('json_pure', '>= 1.7.3')
   s.add_dependency('daemons', '>= 1.1.5')
   s.add_dependency('thin', '>= 1.4.1')
