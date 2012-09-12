@@ -200,6 +200,16 @@ describe 'NATS Protocol' do
       $1.should == "{\"user\":\"derek\"}"
     end
 
+    it 'should process quit requests' do
+      str = "QUIT\r\n"
+      (NATSD::QUIT =~ str).should be_true
+    end
+
+    it 'should process quit requests with spaces' do
+      str = "QUIT  \r\n"
+      (NATSD::QUIT =~ str).should be_true
+    end
+
   end
 
   context 'mixed' do
