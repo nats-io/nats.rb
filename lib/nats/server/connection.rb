@@ -89,7 +89,6 @@ module NATSD #:nodoc: all
 
     def receive_data(data)
       @buf = @buf ? @buf << data : data
-      return close_connection if @buf =~ /(\006|\004)/ # ctrl+c or ctrl+d for telnet friendly
 
       # while (@buf && !@buf.empty? && !@closing)
       while (@buf && !@closing)
@@ -156,6 +155,10 @@ module NATSD #:nodoc: all
             return connect_auth_timeout if @auth_pending
             @buf = $'
             send_info
+          when QUIT
+            ctrace('QUIT OP', strip_op($&)) if NATSD::Server.trace_flag?
+            @buf = $'
+            close_connection
           when UNKNOWN
             ctrace('Unknown Op', strip_op($&)) if NATSD::Server.trace_flag?
             return connect_auth_timeout if @auth_pending
