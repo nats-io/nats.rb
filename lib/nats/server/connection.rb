@@ -89,9 +89,7 @@ module NATSD #:nodoc: all
 
     def receive_data(data)
       @buf = @buf ? @buf << data : data
-      return close_connection if @buf =~ /(\006|\004)/ # ctrl+c or ctrl+d for telnet friendly
 
-      # while (@buf && !@buf.empty? && !@closing)
       while (@buf && !@closing)
         case @parse_state
         when AWAITING_CONTROL_LINE
@@ -161,6 +159,12 @@ module NATSD #:nodoc: all
             return connect_auth_timeout if @auth_pending
             @buf = $'
             queue_data(UNKNOWN_OP)
+          when CTRL_C # ctrl+c or ctrl+d for telnet friendly
+            ctrace('CTRL-C encountered', strip_op($&)) if NATSD::Server.trace_flag?
+            return close_connection
+          when CTRL_D # ctrl+d for telnet friendly
+            ctrace('CTRL-D encountered', strip_op($&)) if NATSD::Server.trace_flag?
+            return close_connection
           else
             # If we are here we do not have a complete line yet that we understand.
             # If too big, cut the connection off.

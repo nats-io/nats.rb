@@ -20,6 +20,8 @@ module NATSD #:nodoc:
   PONG     = /\APONG\s*\r\n/i
   CONNECT  = /\ACONNECT\s+([^\r\n]+)\r\n/i
   UNKNOWN  = /\A(.*)\r\n/
+  CTRL_C   = /\006/
+  CTRL_D   = /\004/
 
   # RESPONSES
   CR_LF = "\r\n".freeze
