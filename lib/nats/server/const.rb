@@ -19,6 +19,7 @@ module NATSD #:nodoc:
   PING     = /\APING\s*\r\n/i
   PONG     = /\APONG\s*\r\n/i
   CONNECT  = /\ACONNECT\s+([^\r\n]+)\r\n/i
+  QUIT     = /\AQUIT\s*\r\n/i
   UNKNOWN  = /\A(.*)\r\n/
   CTRL_C   = /\006/
   CTRL_D   = /\004/
