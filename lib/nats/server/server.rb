@@ -93,7 +93,7 @@ module NATSD #:nodoc: all
         @sublist.remove(sub.subject, sub)
       end
 
-      def deliver_to_subscriber(sub, subject, reply, msg)
+      def deliver_to_subscriber(sub, subject, reply, msg, sender_user)
         conn = sub.conn
 
         # Accounting
@@ -105,7 +105,8 @@ module NATSD #:nodoc: all
           conn.out_bytes += mbs
         end
 
-        conn.queue_data("MSG #{subject} #{sub.sid} #{reply}#{msg.bytesize}#{CR_LF}#{msg}#{CR_LF}")
+        sender_user = "@#{sender_user}" if sender_user
+        conn.queue_data("MSG#{sender_user} #{subject} #{sub.sid} #{reply}#{msg.bytesize}#{CR_LF}#{msg}#{CR_LF}")
 
         # Account for these response and check for auto-unsubscribe (pruning interest graph)
         sub.num_responses += 1
@@ -119,7 +120,7 @@ module NATSD #:nodoc: all
         end
       end
 
-      def route_to_subscribers(subject, reply, msg)
+      def route_to_subscribers(subject, reply, msg, sender_user)
         qsubs = nil
 
         # Allows nil reply to not have extra space
@@ -134,7 +135,7 @@ module NATSD #:nodoc: all
           next if sub.conn.closing
 
           unless sub[:qgroup]
-            deliver_to_subscriber(sub, subject, reply, msg)
+            deliver_to_subscriber(sub, subject, reply, msg, sender_user)
           else
             if NATSD::Server.trace_flag?
               trace("Matched queue subscriber", sub[:subject], sub[:qgroup], sub[:sid], sub.conn.client_info)
@@ -154,7 +155,7 @@ module NATSD #:nodoc: all
           if NATSD::Server.trace_flag?
             trace("Selected queue subscriber", sub[:subject], sub[:qgroup], sub[:sid], sub.conn.client_info)
           end
-          deliver_to_subscriber(sub, subject, reply, msg)
+          deliver_to_subscriber(sub, subject, reply, msg, sender_user)
         end
       end
 

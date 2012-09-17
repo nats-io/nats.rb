@@ -3,7 +3,7 @@ module NATSD #:nodoc: all
   module Connection #:nodoc: all
 
     attr_accessor :in_msgs, :out_msgs, :in_bytes, :out_bytes
-    attr_reader :cid, :closing, :last_activity, :writev_size
+    attr_reader :cid, :closing, :last_activity, :writev_size, :auth_user
     alias :closing? :closing
 
     def flush_data
@@ -33,7 +33,8 @@ module NATSD #:nodoc: all
         :in_msgs => @in_msgs,
         :out_msgs => @out_msgs,
         :in_bytes => @in_bytes,
-        :out_bytes => @out_bytes
+        :out_bytes => @out_bytes,
+        :auth_user => @auth_user
       }
     end
 
@@ -60,6 +61,7 @@ module NATSD #:nodoc: all
         start_tls(:verify_peer => true) if Server.ssl_required?
       end
       @auth_pending = EM.add_timer(NATSD::Server.auth_timeout) { connect_auth_timeout } if Server.auth_required?
+      @uath_user = ''
       @ping_timer = EM.add_periodic_timer(NATSD::Server.ping_interval) { send_ping }
       @pings_outstanding = 0
       Server.num_connections += 1
@@ -177,7 +179,7 @@ module NATSD #:nodoc: all
           msg = @buf.slice(0, @msg_size)
           ctrace('Processing msg', @msg_sub, @msg_reply, msg) if NATSD::Server.trace_flag?
           queue_data(OK) if @verbose
-          Server.route_to_subscribers(@msg_sub, @msg_reply, msg)
+          Server.route_to_subscribers(@msg_sub, @msg_reply, msg, @auth_user)
           @in_msgs += 1
           @in_bytes += @msg_size
           @buf = @buf.slice((@msg_size + CR_LF_SIZE), @buf.bytesize)
@@ -201,6 +203,7 @@ module NATSD #:nodoc: all
       EM.cancel_timer(@auth_pending)
       if Server.auth_ok?(config['user'], config['pass'])
         queue_data(OK) if @verbose
+        @auth_user = config['user']
         @auth_pending = nil
       else
         error_close AUTH_FAILED

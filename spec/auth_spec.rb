@@ -52,4 +52,40 @@ describe 'authorization' do
     end.to_not raise_error NATS::Error
   end
 
+  it 'should include the user in published messages' do
+    received = nil
+    NATS.start(:uri => TEST_AUTH_SERVER) { |nc|
+      nc.subscribe('foo') { |msg, reply, subject, user|
+        received = true
+        msg.should == 'xxx'
+        subject.should == 'foo'
+        user.should == USER
+        NATS.stop
+      }
+      nc.publish('foo', 'xxx')
+      timeout_nats_on_failure
+    }
+    received.should be_true
+  end
+
+
+  it 'should include the repsonding user from a request' do
+    received = false
+    NATS.start(:uri => TEST_AUTH_SERVER) { |nc|
+      nc.subscribe('need_help') { |msg, reply|
+        msg.should == 'yyy'
+        nc.publish(reply, 'help')
+      }
+      nc.request('need_help', 'yyy') { |response, reply, user|
+        received=true
+        response.should == 'help'
+        user.should == USER
+        NATS.stop
+      }
+      timeout_nats_on_failure
+    }
+    received.should be_true
+  end
+
+
 end
