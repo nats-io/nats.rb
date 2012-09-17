@@ -12,7 +12,11 @@ This gem currently works on the following Ruby platforms:
 - Rubinius
 - JRuby
 
-There is a [Node.js](https://github.com/derekcollison/node_nats) client available as well.
+There are several other client language bindings as well.
+
+[Node.js](https://github.com/derekcollison/node_nats)  
+[Go - Apcera](https://github.com/apcera/nats)  
+[Go - CloudFoundry](https://github.com/cloudfoundry/gonats)  
 
 ## Getting Started
 
