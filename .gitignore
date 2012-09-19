@@ -6,4 +6,4 @@
 .bundle
 *.gem
 .DS_Store
-
+tags

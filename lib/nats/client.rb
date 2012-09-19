@@ -64,7 +64,13 @@ module NATS
   class ClientError < Error; end #:nodoc:
 
   # When we cannot connect to the server (either initially or after a reconnect), this is raised/passed
-  class ConnectError < Error; end #:nodoc:
+  class ConnectError < Error
+    attr_reader :err_obj
+    def initialize(err_obj)
+      super(err_obj.to_s)
+      @err_obj = err_obj
+    end
+  end #:nodoc:
 
   class << self
     attr_reader   :client, :reactor_was_running, :err_cb, :err_cb_overridden #:nodoc:
@@ -596,7 +602,13 @@ module NATS
   end
 
   def process_disconnect #:nodoc:
-    err_cb.call(NATS::ConnectError.new(disconnect_error_string)) if not closing? and @err_cb
+    if not closing? and @err_cb
+      if $!
+        err_cb.call(NATS::ConnectError.new($!))
+      else
+        err_cb.call(NATS::ConnectError.new(disconnect_error_string))
+      end
+    end
   ensure
     EM.cancel_timer(@reconnect_timer) if @reconnect_timer
     if (NATS.client == self)
