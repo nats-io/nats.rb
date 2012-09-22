@@ -23,6 +23,8 @@ module NATSD #:nodoc:
 
   CONNECT  = /\ACONNECT\s+([^\r\n]+)\r\n/i
   UNKNOWN  = /\A(.*)\r\n/
+  CTRL_C   = /\006/
+  CTRL_D   = /\004/
 
   ERR_RESP = /\A-ERR\s+('.+')?\r\n/i
   OK_RESP  = /\A\+OK\s*\r\n/i #:nodoc:
