@@ -1,5 +1,10 @@
 # HISTORY
 
+## v0.4.28 (September 22, 2012)
+  - Binary payload bug fix
+  - Lock EM to version 0.12.10, 1.0 does not pass tests currently.
+  - See full list @ https://github.com/derekcollison/nats/compare/v0.4.26...v0.4.28
+
 ## v0.4.26 (July 30, 2012)
   - Syslog support
   - Fixed reconnect bug to authorized servers
@@ -50,4 +55,3 @@
 ## v0.3.12 (Nov 21, 2010)
 
   - Initial Release
-
