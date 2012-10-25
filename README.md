@@ -17,6 +17,8 @@ There are several other client language bindings as well.
 [Node.js](https://github.com/derekcollison/node_nats)  
 [Go - Apcera](https://github.com/apcera/nats)  
 [Go - CloudFoundry](https://github.com/cloudfoundry/gonats)  
+[Java](https://github.com/tyagihas/java_nats)    
+[Java - Spring](https://github.com/mheath/jnats)      
 
 ## Getting Started
 
