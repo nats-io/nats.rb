@@ -16,11 +16,11 @@ parser = OptionParser.new do |opts|
   opts.separator ""
   opts.separator "options:"
 
-  opts.on("-n ITERATIONS", "iterations to expect (default: #{$expected}")    { |iter| $loop = iter.to_i }
+  opts.on("-n ITERATIONS", "iterations to expect (default: #{$loop})") { |iter| $loop = iter.to_i }
 end
 
 parser.parse(ARGV)
-$drain = $loop-1
+$drain = $loop
 
 trap("TERM") { exit! }
 trap("INT")  { exit! }
