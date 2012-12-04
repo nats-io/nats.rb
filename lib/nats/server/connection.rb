@@ -3,7 +3,7 @@ module NATSD #:nodoc: all
   module Connection #:nodoc: all
 
     attr_accessor :in_msgs, :out_msgs, :in_bytes, :out_bytes
-    attr_reader :cid, :closing, :last_activity, :writev_size
+    attr_reader :cid, :closing, :last_activity, :writev_size, :subscriptions
     alias :closing? :closing
 
     def flush_data
@@ -52,7 +52,7 @@ module NATSD #:nodoc: all
       @writev_size = 0
       @parse_state = AWAITING_CONTROL_LINE
       send_info
-      debug "Client connection created", client_info, cid
+      debug "#{type} connection created", client_info, cid
       if Server.ssl_required?
         debug "Starting TLS/SSL", client_info, cid
         flush_data
@@ -62,7 +62,7 @@ module NATSD #:nodoc: all
       @auth_pending = EM.add_timer(NATSD::Server.auth_timeout) { connect_auth_timeout } if Server.auth_required?
       @ping_timer = EM.add_periodic_timer(NATSD::Server.ping_interval) { send_ping }
       @pings_outstanding = 0
-      Server.num_connections += 1
+      inc_connections
       return if max_connections_exceeded?
     end
 
@@ -79,12 +79,12 @@ module NATSD #:nodoc: all
 
     def connect_auth_timeout
       error_close AUTH_REQUIRED
-      debug "Connection timeout due to lack of auth credentials", cid
+      debug "#{type} connection timeout due to lack of auth credentials", cid
     end
 
     def connect_ssl_timeout
       error_close SSL_REQUIRED
-      debug "Connection timeout due to lack of TLS/SSL negotiations", cid
+      debug "#{type} connection timeout due to lack of TLS/SSL negotiations", cid
     end
 
     def receive_data(data)
@@ -131,12 +131,12 @@ module NATSD #:nodoc: all
               queue_data(INVALID_SID_NOEXIST) if @pedantic
             end
           when PING
-            ctrace('PING OP', strip_op($&)) if NATSD::Server.trace_flag?
+            ctrace('PING OP') if NATSD::Server.trace_flag?
             @buf = $'
             queue_data(PONG_RESPONSE)
             flush_data
           when PONG
-            ctrace('PONG OP', strip_op($&)) if NATSD::Server.trace_flag?
+            ctrace('PONG OP') if NATSD::Server.trace_flag?
             @buf = $'
             @pings_outstanding -= 1
           when CONNECT
@@ -149,8 +149,8 @@ module NATSD #:nodoc: all
               queue_data(INVALID_CONFIG)
               log_error
             end
-          when INFO
-            ctrace('INFO OP', strip_op($&)) if NATSD::Server.trace_flag?
+          when INFO_REQ
+            ctrace('INFO_REQUEST OP') if NATSD::Server.trace_flag?
             return connect_auth_timeout if @auth_pending
             @buf = $'
             send_info
@@ -196,6 +196,14 @@ module NATSD #:nodoc: all
       queue_data("INFO #{Server.info_string}#{CR_LF}")
     end
 
+    # Placeholder
+    def process_info(info)
+    end
+
+    def auth_ok?(user, pass)
+      Server.auth_ok?(user, pass)
+    end
+
     def process_connect_config(config)
       @verbose  = config['verbose'] unless config['verbose'].nil?
       @pedantic = config['pedantic'] unless config['pedantic'].nil?
@@ -203,18 +211,18 @@ module NATSD #:nodoc: all
       return queue_data(OK) unless Server.auth_required?
 
       EM.cancel_timer(@auth_pending)
-      if Server.auth_ok?(config['user'], config['pass'])
+      if auth_ok?(config['user'], config['pass'])
         queue_data(OK) if @verbose
         @auth_pending = nil
       else
         error_close AUTH_FAILED
-        debug "Authorization failed for connection", cid
+        debug "Authorization failed for #{type.downcase} connection", cid
       end
     end
 
     def delete_subscriber(sub)
       ctrace('DELSUB OP', sub.subject, sub.qgroup, sub.sid) if NATSD::Server.trace_flag?
-      Server.unsubscribe(sub)
+      Server.unsubscribe(sub, is_route?)
       @subscriptions.delete(sub.sid)
     end
 
@@ -235,25 +243,38 @@ module NATSD #:nodoc: all
       debug "Message payload size exceeded (#{sizes}), closing connection"
     end
 
-    def unbind
-      debug "Client connection closed", client_info, cid
+    def inc_connections
+      Server.num_connections += 1
+      Server.connections[cid] = self
+    end
+
+    def dec_connections
       Server.num_connections -= 1
-      @subscriptions.each_value { |sub| Server.unsubscribe(sub) }
+      Server.connections.delete(cid)
+    end
+
+    def process_unbind
+      dec_connections
       EM.cancel_timer(@ssl_pending) if @ssl_pending
       @ssl_pending = nil
       EM.cancel_timer(@auth_pending) if @auth_pending
       @auth_pending = nil
       EM.cancel_timer(@ping_timer) if @ping_timer
       @ping_timer = nil
-
+      @subscriptions.each_value { |sub| Server.unsubscribe(sub) }
       @closing = true
+    end
+
+    def unbind
+      debug "Client connection closed", client_info, cid
+      process_unbind
     end
 
     def ssl_handshake_completed
       EM.cancel_timer(@ssl_pending)
       @ssl_pending = nil
       cert = get_peer_cert
-      debug "Client Certificate:", cert ? cert : 'N/A', cid
+      debug "#{type} Certificate:", cert ? cert : 'N/A', cid
     end
 
     # FIXME! Cert accepted by default
@@ -268,6 +289,15 @@ module NATSD #:nodoc: all
     def strip_op(op='')
       op.dup.sub(CR_LF, EMPTY)
     end
+
+    def is_route?
+      false
+    end
+
+    def type
+      'Client'
+    end
+
   end
 
 end

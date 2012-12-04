@@ -1,5 +1,10 @@
 # HISTORY
 
+## v0.5.0.beta.1 (Sept 10, 2012)
+  - Clustering support for nats-servers
+  - Reconnect client logic cluster aware (explicit servers only for now)
+  - See full list @ https://github.com/derekcollison/nats/compare/v0.4.26...v0.5.0.beta.1
+
 ## v0.4.28 (September 22, 2012)
   - Binary payload bug fix
   - Lock EM to version 0.12.10, 1.0 does not pass tests currently.

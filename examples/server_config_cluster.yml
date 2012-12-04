@@ -1,0 +1,66 @@
+
+---
+
+#
+# Sample Server Sonfiguration
+# nats-server -c ./server_config.yml
+#
+
+port: 4242
+net: localhost
+
+authorization:
+  user: derek
+  password: bella
+  token: deadbeef
+  timeout: 1
+
+# This is the cluster definition for NATS.
+#
+# NATS can support both full mesh and directive
+# acyclic graphs setups. Its up to the configuration
+# setup to avoid cycles.
+#
+# The port definition allows us to receive incoming connections.
+# Comment out if you want to suppress incoming connections.
+#
+# The server can solicit active connections via the routes definitions below.
+#
+# authorization is similar to client connection definitions.
+
+cluster:
+  port: 4244
+
+  authorization:
+    user: route_user
+    password: cafebabe
+    token: deadbeef
+    timeout: 1
+
+  # These are actively connected from this server. Other servers
+  # can connect to us if they supply the correct credentials from
+  # above.
+
+  routes:
+    nats-route://foo:bar@127.0.0.1:4220
+    nats-route://foo:bar@127.0.0.1:4221
+
+pid_file: '/tmp/nats_test.pid'
+# log_file: '/tmp/nats_test.log'
+
+# Debug Options
+
+logtime: true
+debug:   false
+trace:   false
+
+# Protocol/Limits
+max_control_line: 512
+max_payload:  512000
+max_pending: 2000000
+
+# EM/IO
+no_epoll:  false
+no_kqueue: true
+
+

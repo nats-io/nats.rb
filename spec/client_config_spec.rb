@@ -28,7 +28,7 @@ describe "client configuration" do
       options.should have_key :reconnect_time_wait
       options[:reconnect_time_wait].should == 5
       options.should have_key :uri
-      options[:uri].should.to_s == 'nats://127.0.0.1:4222'
+      options[:uri].to_s.should == 'nats://127.0.0.1:4222'
       NATS.stop
     end
   end
@@ -97,7 +97,7 @@ describe "client configuration" do
 
   it 'should respect the reconnect parameters' do
     expect do
-      NATS.start(:connect => true, :max_reconnect_attempts => 1, :reconnect_time_wait => 1) do
+      NATS.start(:max_reconnect_attempts => 1, :reconnect_time_wait => 1) do
         NATS.stop
       end
     end.to_not raise_error
@@ -105,16 +105,16 @@ describe "client configuration" do
     # Stop the server, make sure it can't connect and see that the time to fail make sense
     start_at = nil
     expect do
-      NATS.start(:reconnect => true, :max_reconnect_attempts => 1, :reconnect_time_wait => 1) do
-        @s.kill_server
+      NATS.start(:max_reconnect_attempts => 1, :reconnect_time_wait => 1) do
         start_at = Time.now
-        NATS.publish('test', 'test'){ NATS.stop }
+        @s.kill_server
+        timeout_nats_on_failure(2)
       end
     end.to raise_error
     time_diff = Time.now - start_at
 
     # Check if the reconnect took more than the expected 4 secs...
-    time_diff.should >= 2
+    time_diff.should > 1
     time_diff.should < 4
   end
 

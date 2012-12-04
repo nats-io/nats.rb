@@ -6,6 +6,10 @@ def timeout_nats_on_failure(to=0.25)
   EM.add_timer(to) { NATS.stop }
 end
 
+def timeout_em_on_failure(to=0.25)
+  EM.add_timer(to) { EM.stop }
+end
+
 def wait_on_connections(conns)
   return unless conns
   expected, ready = conns.size, 0
@@ -23,16 +27,30 @@ class NatsServerControl
   alias :was_running? :was_running
 
   class << self
+
     def kill_autostart_server
       pid ||= File.read(NATS::AUTOSTART_PID_FILE).chomp.to_i
       %x[kill -9 #{pid}] if pid
       %x[rm #{NATS::AUTOSTART_PID_FILE}]
       %x[rm #{NATS::AUTOSTART_LOG_FILE}]
     end
+
+    def init_with_config(config_file)
+      config = File.open(config_file) { |f| YAML.load(f) }
+      if auth = config['authorization']
+        uri = "nats://#{auth['user']}:#{auth['password']}@#{config['net']}:#{config['port']}"
+      else
+        uri = "nats://#{config['net']}:#{config['port']}"
+      end
+      NatsServerControl.new(uri, config['pid_file'], "-c #{config_file}")
+    end
+
   end
 
+  attr_reader :uri
+
   def initialize(uri='nats://localhost:4222', pid_file='/tmp/test-nats.pid', flags=nil)
-    @uri = URI.parse(uri)
+    @uri = uri.is_a?(URI) ? uri : URI.parse(uri)
     @pid_file = pid_file
     @flags = flags
   end
@@ -48,11 +66,12 @@ class NatsServerControl
   end
 
   def start_server(wait_for_server=true)
-
     if NATS.server_running? @uri
       @was_running = true
       return 0
     end
+
+    @pid = nil
 
     # daemonize really doesn't work on jruby, so should run servers manually to test on jruby
     args = "-p #{@uri.port} -P #{@pid_file}"
@@ -71,9 +90,11 @@ class NatsServerControl
       %x[kill -9 #{server_pid} 2> /dev/null]
       %x[rm #{@pid_file} 2> /dev/null]
       %x[rm #{NATS::AUTOSTART_LOG_FILE} 2> /dev/null]
+      sleep(0.1)
       @pid = nil
     end
   end
+
 end
 
 module EchoServer
