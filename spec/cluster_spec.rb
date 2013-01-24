@@ -19,7 +19,7 @@ describe 'cluster' do
   end
 
   it 'should bind a listen port for routes if configured' do
-    config = File.open(S1_CONFIG_FILE) { |f| YAML.load(f) }
+    config = File.open(SC1_CONFIG_FILE) { |f| YAML.load(f) }
     expect do
       begin
         s = TCPSocket.open(config['net'], config['cluster']['port'])
@@ -200,6 +200,42 @@ describe 'cluster' do
     c2a_received.should be_within(15).of(to_send)
     c1b_received.should be_within(15).of(to_send)
     c2b_received.should be_within(15).of(to_send)
+  end
+
+  it 'should properly route messages for distributed queues with reply subjects on different servers' do
+    data = 'Hello World!'
+    to_send = 100
+    received = c1_received = c2_received = 0
+    EM.run do
+      c1 = NATS.connect(:uri => @s1.uri)
+      c2 = NATS.connect(:uri => @s2.uri)
+      wait_on_connections([c1, c2]) do
+        c1.subscribe('foo', :queue => 'reply_test') do |msg|
+          msg.should == data
+          c1_received += 1
+          received += 1
+        end
+        c2.subscribe('foo', :queue => 'reply_test') do |msg|
+          msg.should == data
+          c2_received += 1
+          received += 1
+        end
+        c1.flush do #make sure sub1 registered
+          (1..to_send).each { c2.publish('foo', data, 'bar') }
+          c2.flush do #make sure published and received on c1
+            c1.flush do #make sure received on c1
+              EM.stop
+            end
+          end
+        end
+      end
+    end
+
+    received.should == to_send
+    c1_received.should be < to_send
+    c2_received.should be < to_send
+    c1_received.should be_within(15).of(to_send/2)
+    c2_received.should be_within(15).of(to_send/2)
   end
 
 end

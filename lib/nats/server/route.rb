@@ -165,7 +165,9 @@ module NATSD #:nodoc: all
           # with the intended subscriber, since route interest is L2
           # semantics, we deliver those direct.
           if (sub = Server.rsid_qsub(@msg_sid))
-            Server.deliver_to_subscriber(sub, @msg_sub, @msg_reply, msg)
+            # Allows nil reply to not have extra space
+            reply = @msg_reply + ' ' if @msg_reply
+            Server.deliver_to_subscriber(sub, @msg_sub, reply, msg)
           else
             Server.route_to_subscribers(@msg_sub, @msg_reply, msg, is_route?)
           end
