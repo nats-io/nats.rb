@@ -1,6 +1,7 @@
 
 - Contributing guidelines
 - cluster tests for travis-ci
+- Random on cluster client server pool
 
 - [IN PROGRESS] clustering/routing
   - Allow implicit route information to propogate to clients?
