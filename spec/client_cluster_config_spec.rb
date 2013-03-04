@@ -61,8 +61,33 @@ describe 'client cluster config' do
     c2.should_not be_nil
   end
 
+  it 'should randomize server pool list by default' do
+    servers = ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223', 'nats://127.0.0.1:4224']
+    NATS.start do
+      NATS.connect(:uri => servers) do |c|
+        sp_servers = []
+        c.server_pool.each { |s| sp_servers << s[:uri].to_s }
+        sp_servers.should_not == servers
+      end
+      timeout_nats_on_failure
+    end
+  end
+
+  it 'should not randomize server pool if options suppress' do
+    servers = ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223', 'nats://127.0.0.1:4224']
+    NATS.start do
+      NATS.connect(:dont_randomize_servers => true, :uri => servers) do |c|
+        sp_servers = []
+        c.server_pool.each { |s| sp_servers << s[:uri].to_s }
+        sp_servers.should == servers
+        NATS.stop
+      end
+      timeout_nats_on_failure
+    end
+  end
+
   it 'should connect to first entry if available' do
-    NATS.start(:uri => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223']) do
+    NATS.start(:dont_randomize_servers => true, :uri => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223']) do
       NATS.client.connected_server.should == URI.parse('nats://127.0.0.1:4222')
       NATS.stop
     end
@@ -75,7 +100,7 @@ describe 'client cluster config' do
   end
 
   it 'should connect to another server if first is not available' do
-    NATS.start(:uri => ['nats://127.0.0.1:4224', 'nats://127.0.0.1:4222']) do
+    NATS.start(:dont_randomize_servers => true, :uri => ['nats://127.0.0.1:4224', 'nats://127.0.0.1:4222']) do
       NATS.client.connected_server.should == URI.parse('nats://127.0.0.1:4222')
       NATS.stop
     end
@@ -87,14 +112,14 @@ describe 'client cluster config' do
     end.to raise_error NATS::Error
   end
 
-  it 'should fail if server available but do not have proper auth' do
+  it 'should fail if server is available but does not have proper auth' do
     expect do
       NATS.start(:uri => ['nats://127.0.0.1:4224', "nats://127.0.0.1:#{CLUSTER_AUTH_PORT}"]) { NATS.stop }
     end.to raise_error NATS::Error
   end
 
   it 'should succeed if proper credentials supplied with non-first uri' do
-    NATS.start(:uri => ['nats://127.0.0.1:4224', CLUSTER_AUTH_SERVER]) do
+    NATS.start(:dont_randomize_servers => true, :uri => ['nats://127.0.0.1:4224', CLUSTER_AUTH_SERVER]) do
       NATS.client.connected_server.should == URI.parse(CLUSTER_AUTH_SERVER)
       NATS.stop
     end
@@ -110,7 +135,7 @@ describe 'client cluster config' do
     s2 = NatsServerControl.new(s2_uri, '/tmp/nats_cluster_s2.pid')
     s2.start_server
 
-    NATS.start(:uri => [s1_uri, s2_uri]) do
+    NATS.start(:dont_randomize_servers => true, :uri => [s1_uri, s2_uri]) do
       NATS.client.connected_server.should == URI.parse(s1_uri)
       kill_time = Time.now
       s1.kill_server

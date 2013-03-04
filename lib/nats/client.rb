@@ -680,6 +680,7 @@ module NATS
     uri = options[:uris] || options[:servers] || options[:uri]
     uri = uri.kind_of?(Array) ? uri : [uri]
     uri.each { |u| server_pool << { :uri => u.is_a?(URI) ? u.dup : URI.parse(u) } }
+    server_pool.shuffle! unless options[:dont_randomize_servers]
     bind_primary
   end
 

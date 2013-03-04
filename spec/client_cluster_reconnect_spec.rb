@@ -32,7 +32,12 @@ describe 'client cluster reconnect' do
 
   it 'should call reconnect callback when current connection fails' do
     reconnect_cb = false
-    NATS.start(:reconnect_time_wait => 0.25, :uri => [@s1.uri, @s2.uri, @s3.uri]) do |c|
+    opts = {
+      :dont_randomize_servers => true,
+      :reconnect_time_wait => 0.25,
+      :uri => [@s1.uri, @s2.uri, @s3.uri]
+    }
+    NATS.start(opts) do |c|
       c.connected_server.should == @s1.uri
       timeout_nats_on_failure(0.5)
       c.on_reconnect do
@@ -45,7 +50,7 @@ describe 'client cluster reconnect' do
   end
 
   it 'should connect to another server if possible before reconnect' do
-    NATS.start(:servers => [@s1.uri, @s2.uri, @s3.uri]) do
+    NATS.start(:dont_randomize_servers => true, :servers => [@s1.uri, @s2.uri, @s3.uri]) do
       NATS.client.connected_server.should == @s1.uri
       kill_time = Time.now
       @s1.kill_server
@@ -59,7 +64,7 @@ describe 'client cluster reconnect' do
   end
 
   it 'should connect to a previous server if multiple servers exit' do
-    NATS.start(:servers => [@s1.uri, @s2.uri, @s3.uri]) do
+    NATS.start(:dont_randomize_servers => true, :servers => [@s1.uri, @s2.uri, @s3.uri]) do
       NATS.client.connected_server.should == @s1.uri
       kill_time = Time.now
       @s1.kill_server
@@ -84,6 +89,7 @@ describe 'client cluster reconnect' do
   it 'should use reconnect logic to connect to a previous server if multiple servers exit' do
     @s2.kill_server # Take this one offline
     options = {
+      :dont_randomize_servers => true,
       :servers => [@s1.uri, @s2.uri],
       :reconnect => true,
       :max_reconnect_attempts => 1,
