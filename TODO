@@ -1,12 +1,12 @@
 
 - Contributing guidelines
 - cluster tests for travis-ci
-- Random on cluster client server pool
 
 - [IN PROGRESS] clustering/routing
   - Allow implicit route information to propogate to clients?
   - Check with EM 1.0 not working
   - [DONE] Retry timers on routes
+  - [DONE] Random on cluster client server pool
 
 - do client blowup detection from sending in tight loop
 - allow port to also be listen_port in config file
