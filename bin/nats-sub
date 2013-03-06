@@ -7,14 +7,14 @@ require 'nats/client'
 ['TERM', 'INT'].each { |s| trap(s) {  puts; exit! } }
 
 def usage
-  puts "Usage: nats-sub <subject> [-s server] [-t]"; exit
+  puts "Usage: nats-sub <subject> [-s server] [-t] [-r]"; exit
 end
 
 args = ARGV.dup
 opts_parser = OptionParser.new do |opts|
   opts.on('-s SERVER') { |server| $nats_server = server }
-  opts.on('-t') { $show_time = true }
-
+  opts.on('-t','--time') { $show_time = true }
+  opts.on('-r','--raw') { $show_raw = true }
 end
 args = opts_parser.parse!(args)
 
@@ -30,9 +30,17 @@ def header
   "#{time_prefix}[\##{$i+=1}]"
 end
 
+def decorate sub, msg
+  if $show_raw
+    msg
+  else
+    "#{header} Received on [#{sub}] : '#{msg}'"
+  end
+end
+
 NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
 NATS.start(:uri => $nats_server, :autostart => true) do
-  puts "Listening on [#{subject}]"
-  NATS.subscribe(subject) { |msg, _, sub| puts "#{header} Received on [#{sub}] : '#{msg}'" }
+  puts "Listening on [#{subject}]" unless $show_raw
+  NATS.subscribe(subject) { |msg, _, sub| puts decorate(sub, msg) }
 end
