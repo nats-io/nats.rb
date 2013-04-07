@@ -21,6 +21,10 @@ module NATS
   # Maximum outbound size per client to trigger FP, 20MB
   FAST_PRODUCER_THRESHOLD = (10*1024*1024)
 
+  # Ping intervals
+  DEFAULT_PING_INTERVAL = 120
+  DEFAULT_PING_MAX = 2
+
   # Protocol
   # @private
   MSG      = /\AMSG\s+([^\s]+)\s+([^\s]+)\s+(([^\s]+)[^\S\r\n]+)?(\d+)\r\n/i #:nodoc:
@@ -87,6 +91,8 @@ module NATS
     # @option opts [Boolean] :ssl Boolean that is sent to server for setting TLS/SSL mode.
     # @option opts [Integer] :max_reconnect_attempts Integer that can be used to set the max number of reconnect tries
     # @option opts [Integer] :reconnect_time_wait Integer that can be used to set the number of seconds to wait between reconnect tries
+    # @option opts [Integer] :ping_interval Integer that can be used to set the ping interval in seconds.
+    # @option opts [Integer] :max_outstanding_pings Integer that can be used to set the max number of outstanding pings before declaring a connection closed.
     # @param [Block] &blk called when the connection is completed. Connection will be passed to the block.
     # @return [NATS] connection to the server.
     def connect(opts={}, &blk)
@@ -97,6 +103,8 @@ module NATS
       opts[:ssl] = false if opts[:ssl].nil?
       opts[:max_reconnect_attempts] = MAX_RECONNECT_ATTEMPTS if opts[:max_reconnect_attempts].nil?
       opts[:reconnect_time_wait] = RECONNECT_TIME_WAIT if opts[:reconnect_time_wait].nil?
+      opts[:ping_interval] = DEFAULT_PING_INTERVAL if opts[:ping_interval].nil?
+      opts[:max_outstanding_pings] = DEFAULT_PING_MAX if opts[:max_outstanding_pings].nil?
 
       # Override with ENV
       opts[:uri] ||= ENV['NATS_URI'] || DEFAULT_URI
@@ -108,6 +116,9 @@ module NATS
       opts[:ssl] = ENV['NATS_SSL'].downcase == 'true' unless ENV['NATS_SSL'].nil?
       opts[:max_reconnect_attempts] = ENV['NATS_MAX_RECONNECT_ATTEMPTS'].to_i unless ENV['NATS_MAX_RECONNECT_ATTEMPTS'].nil?
       opts[:reconnect_time_wait] = ENV['NATS_RECONNECT_TIME_WAIT'].to_i unless ENV['NATS_RECONNECT_TIME_WAIT'].nil?
+
+      opts[:ping_interval] = ENV['NATS_PING_INTERVAL'].to_i unless ENV['NATS_PING_INTERVAL'].nil?
+      opts[:max_outstanding_pings] = ENV['NATS_MAX_OUTSTANDING_PINGS'].to_i unless ENV['NATS_MAX_OUTSTANDING_PINGS'].nil?
 
       uri = opts[:uris] || opts[:servers] || opts[:uri]
 
