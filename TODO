@@ -3,9 +3,9 @@
 - cluster tests for travis-ci
 
 - [IN PROGRESS] clustering/routing
-  - [IN PROGRESS] Client ping timers
   - Allow implicit route information to propogate to clients?
   - Check with EM 1.0 not working
+  - [DONE] Client ping timers
   - [DONE] Retry timers on routes
   - [DONE] Random on cluster client server pool
 
