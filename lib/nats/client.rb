@@ -293,7 +293,7 @@ module NATS
 
   end
 
-  attr_reader :connected, :connect_cb, :err_cb, :err_cb_overridden #:nodoc:
+  attr_reader :connected, :connect_cb, :err_cb, :err_cb_overridden, :pongs_received #:nodoc:
   attr_reader :closing, :reconnecting, :server_pool, :options, :server_info #:nodoc
   attr_reader :msgs_received, :msgs_sent, :bytes_received, :bytes_sent, :pings
 
@@ -437,6 +437,7 @@ module NATS
   # Close the connection to the server.
   def close
     @closing = true
+    cancel_ping_timer
     cancel_reconnect_timer
     close_connection_after_writing if connected?
     process_disconnect if reconnecting?
@@ -578,6 +579,13 @@ module NATS
     flush_pending
   end
 
+  def cancel_ping_timer
+    if @ping_timer
+      EM.cancel_timer(@ping_timer)
+      @ping_timer = nil
+    end
+  end
+
   def connection_completed #:nodoc:
     @connected = true unless @ssl
 
@@ -603,6 +611,28 @@ module NATS
     end
     @reconnecting = false
     @parse_state = AWAITING_CONTROL_LINE
+
+    # Initialize ping timer and processing
+    @pings_outstanding = 0
+    @pongs_received = 0
+    @ping_timer = EM.add_periodic_timer(@options[:ping_interval]) { send_ping }
+  end
+
+  def send_ping #:nodoc:
+    return if @closing
+    if @pings_outstanding > @options[:max_outstanding_pings]
+      close_connection
+      #close
+      return
+    end
+    @pings_outstanding += 1
+    queue_server_rt { process_pong }
+    flush_pending
+  end
+
+  def process_pong
+    @pongs_received += 1
+    @pings_outstanding -= 1
   end
 
   def should_delay_connect?(server)
@@ -650,6 +680,7 @@ module NATS
     err_cb.call(NATS::ConnectError.new(disconnect_error_string)) if not closing? and @err_cb
     true # Chaining
   ensure
+    cancel_ping_timer
     cancel_reconnect_timer
     if (NATS.client == self)
       NATS.clear_client
