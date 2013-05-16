@@ -190,7 +190,7 @@ module NATSD
 
         @auth_required = (not @options[:user].nil?)
 
-        @ssl_required = (not @options[:ssl].nil?)
+        @ssl_required = @options[:ssl]
 
         # Pings
         @options[:ping_interval] ||= DEFAULT_PING_INTERVAL
