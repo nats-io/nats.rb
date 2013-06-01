@@ -12,12 +12,14 @@ This gem currently works on the following Ruby platforms:
 - Rubinius
 - JRuby
 
+## Additional Clients
+
 There are several other client language bindings as well.
 
-[Node.js](https://github.com/derekcollison/node_nats)  
-[Go - Apcera](https://github.com/apcera/nats)  
-[Java](https://github.com/tyagihas/java_nats)    
-[Java - Spring](https://github.com/mheath/jnats)      
+- [Node.js](https://github.com/derekcollison/node_nats)  
+- [Go](https://github.com/apcera/nats)  
+- [Java](https://github.com/tyagihas/java_nats)    
+- [Java - Spring](https://github.com/mheath/jnats)      
 
 ## Getting Started
 
