@@ -1,4 +1,5 @@
 require 'uri'
+require 'securerandom'
 
 ep = File.expand_path(File.dirname(__FILE__))
 
@@ -228,9 +229,7 @@ module NATS
     # Returns a subject that can be used for "directed" communications.
     # @return [String]
     def create_inbox
-      v = [rand(0x0010000),rand(0x0010000),rand(0x0010000),
-           rand(0x0010000),rand(0x0010000),rand(0x1000000)]
-      "_INBOX.%04x%04x%04x%04x%04x%06x" % v
+      "_INBOX.#{SecureRandom.hex(13)}"
     end
 
     # Flushes all messages and subscriptions in the default connection
