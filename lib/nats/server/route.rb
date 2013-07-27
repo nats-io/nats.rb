@@ -221,9 +221,7 @@ module NATSD #:nodoc: all
     end
 
     def process_info(info_json)
-      puts "Received an INFO from ROUTE!!"
       info = JSON.parse(info_json)
-      puts "#{info}"
       @remote_rid = info['server_id'] unless info['server_id'].nil?
       super(info_json)
     end
