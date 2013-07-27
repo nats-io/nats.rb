@@ -49,7 +49,7 @@ describe 'authorization' do
   it 'should take user and password as separate options' do
     expect do
       NATS.start(:uri => TEST_AUTH_SERVER_NO_CRED, :user => USER, :pass => PASS) { NATS.stop }
-    end.to_not raise_error NATS::Error
+    end.to_not raise_error
   end
 
 end
