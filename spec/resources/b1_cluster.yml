@@ -23,7 +23,7 @@ cluster:
 
   routes:
     - nats-route://route_user:cafebabe@127.0.0.1:6256
-
+    - nats-route://route_user:cafebabe@127.0.0.1:6256
 
 pid_file: '/tmp/nats_cluster_b1.pid'
 log_file: '/tmp/nats_cluster_b1.log'

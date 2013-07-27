@@ -4,7 +4,7 @@ module NATSD #:nodoc: all
 
     include Connection
 
-    attr_reader :rid, :closing, :r_obj, :reconnecting
+    attr_reader :rid, :remote_rid, :closing, :r_obj, :reconnecting
     alias :peer_info :client_info
     alias :reconnecting? :reconnecting
 
@@ -17,7 +17,9 @@ module NATSD #:nodoc: all
     end
 
     def connection_completed
+      debug "Route connected", rid
       return unless reconnecting?
+
       # Kill reconnect if we got here from there
       cancel_reconnect
       @buf, @closing = nil, false
@@ -31,8 +33,12 @@ module NATSD #:nodoc: all
       @writev_size = 0
       @parse_state = AWAITING_CONTROL_LINE
 
+      # Queue up auth if needed and we solicited the connection
+      debug "Route connection created", peer_info, rid
+
       # queue up auth if needed and we solicited the connection
       if solicited?
+        debug "Route sent authorization", rid if solicited?
         send_auth
       else
         # FIXME, separate variables for timeout?
@@ -40,7 +46,6 @@ module NATSD #:nodoc: all
       end
 
       send_info
-      debug "Route connection created", peer_info, rid
       @ping_timer = EM.add_periodic_timer(NATSD::Server.ping_interval) { send_ping }
       @pings_outstanding = 0
       inc_connections
@@ -55,6 +60,28 @@ module NATSD #:nodoc: all
           queue_data(NATSD::Server.route_sub_proto(sub))
         end
       end
+    end
+
+    def process_connect_route_config(config)
+      @verbose  = config['verbose'] unless config['verbose'].nil?
+      @pedantic = config['pedantic'] unless config['pedantic'].nil?
+
+      return queue_data(OK) unless Server.route_auth_required?
+
+      EM.cancel_timer(@auth_pending)
+      if auth_ok?(config['user'], config['pass'])
+        debug "Route received proper credentials", rid
+        queue_data(OK) if @verbose
+        @auth_pending = nil
+      else
+        error_close AUTH_FAILED
+        debug "Authorization failed for #{type.downcase} connection", rid
+      end
+    end
+
+    def connect_auth_timeout
+      error_close AUTH_REQUIRED
+      debug "#{type} connection timeout due to lack of auth credentials", rid
     end
 
     def receive_data(data)
@@ -115,7 +142,7 @@ module NATSD #:nodoc: all
             @buf = $'
             begin
               config = JSON.parse($1)
-              process_connect_config(config)
+              process_connect_route_config(config)
             rescue => e
               queue_data(INVALID_CONFIG)
               log_error
@@ -126,6 +153,7 @@ module NATSD #:nodoc: all
             @buf = $'
             send_info
           when INFO
+            ctrace('INFO OP', strip_op($&)) if NATSD::Server.trace_flag?
             return connect_auth_timeout if @auth_pending
             @buf = $'
             process_info($1)
@@ -192,8 +220,12 @@ module NATSD #:nodoc: all
       queue_data("INFO #{Server.route_info_string}#{CR_LF}")
     end
 
-    def process_info(info)
-      super(info)
+    def process_info(info_json)
+      puts "Received an INFO from ROUTE!!"
+      info = JSON.parse(info_json)
+      puts "#{info}"
+      @remote_rid = info['server_id'] unless info['server_id'].nil?
+      super(info_json)
     end
 
     def auth_ok?(user, pass)
