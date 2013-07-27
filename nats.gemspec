@@ -16,10 +16,10 @@ spec = Gem::Specification.new do |s|
   s.authors = ['Derek Collison']
   s.email = ['derek.collison@gmail.com']
 
-  s.add_dependency('eventmachine', '= 0.12.10')
-  s.add_dependency('json_pure', '>= 1.7.3')
-  s.add_dependency('daemons', '>= 1.1.5')
-  s.add_dependency('thin', '>= 1.4.1')
+  s.add_dependency('eventmachine', '>= 1.0.3')
+  s.add_dependency('json_pure', '>= 1.8.0')
+  s.add_dependency('daemons', '>= 1.1.9')
+  s.add_dependency('thin', '>= 1.5.0')
 
   s.require_paths = ['lib']
   s.bindir = 'bin'
