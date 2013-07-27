@@ -188,7 +188,12 @@ describe 'cluster' do
           (1..to_send).each { c1.publish('foo', data) }
 
           wait_on_connections([c1, c2]) do
-            EM.add_timer(0.2) { EM.stop }
+            EM.add_timer(0.2) do
+              # No clue why these are needed to pop out EM.run
+              c1.close
+              c2.close
+              EM.stop
+            end
           end
         end
 

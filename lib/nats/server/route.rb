@@ -1,6 +1,7 @@
 module NATSD #:nodoc: all
 
-  module Route #:nodoc:
+  # Need to make this a class with EM > 1.0
+  class Route < EventMachine::Connection #:nodoc:
 
     include Connection
 

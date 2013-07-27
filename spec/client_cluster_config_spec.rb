@@ -126,7 +126,6 @@ describe 'client cluster config' do
   end
 
   it 'should honor auth credentials properly for listed servers' do
-
     s1_uri = 'nats://derek:foo@localhost:9290'
     s1 = NatsServerControl.new(s1_uri, '/tmp/nats_cluster_s1.pid')
     s1.start_server
@@ -159,7 +158,6 @@ describe 'client cluster config' do
   end
 
   it 'should allow user/pass overrides' do
-
     s_uri = "nats://localhost:#{CLUSTER_AUTH_PORT}"
 
     expect do
