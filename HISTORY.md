@@ -1,5 +1,10 @@
 # HISTORY
 
+## v0.5.0.beta.11 (July 26, 2013)
+  - Bi-directional Route designation
+  - Upgrade to EM 1.x
+  - See full list @ https://github.com/derekcollison/nats/compare/v0.5.0.beta.1...v0.5.0.beta.11
+
 ## v0.5.0.beta.1 (Sept 10, 2012)
   - Clustering support for nats-servers
   - Reconnect client logic cluster aware (explicit servers only for now)
