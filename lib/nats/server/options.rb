@@ -137,7 +137,7 @@ module NATSD
 
       def open_syslog
         return unless @options[:syslog]
-        Syslog.open("#{@options[:syslog]}", Syslog::LOG_PID,  Syslog::LOG_USER ) unless Syslog.opened? 
+        Syslog.open("#{@options[:syslog]}", Syslog::LOG_PID, Syslog::LOG_USER) unless Syslog.opened?
       end
 
       def close_syslog
