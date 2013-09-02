@@ -488,8 +488,6 @@ module NATS
       @subs.delete(sid) if (sub[:received] == sub[:max])
     end
 
-    return unsubscribe(sid) if (sub[:max] && (sub[:received] > sub[:max]))
-
     if cb = sub[:callback]
       case cb.arity
         when 0 then cb.call
