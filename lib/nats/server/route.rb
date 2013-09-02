@@ -39,7 +39,7 @@ module NATSD #:nodoc: all
 
       # queue up auth if needed and we solicited the connection
       if solicited?
-        debug "Route sent authorization", rid if solicited?
+        debug "Route sent authorization", rid
         send_auth
       else
         # FIXME, separate variables for timeout?
