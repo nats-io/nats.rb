@@ -62,7 +62,9 @@ describe 'client cluster config' do
   end
 
   it 'should randomize server pool list by default' do
-    servers = ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223', 'nats://127.0.0.1:4224']
+    servers = ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223',
+               'nats://127.0.0.1:4224', 'nats://127.0.0.1:4225',
+               'nats://127.0.0.1:4226', 'nats://127.0.0.1:4227']
     NATS.start do
       NATS.connect(:uri => servers) do |c|
         sp_servers = []
@@ -74,7 +76,9 @@ describe 'client cluster config' do
   end
 
   it 'should not randomize server pool if options suppress' do
-    servers = ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223', 'nats://127.0.0.1:4224']
+    servers = ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223',
+               'nats://127.0.0.1:4224', 'nats://127.0.0.1:4225',
+               'nats://127.0.0.1:4226', 'nats://127.0.0.1:4227']
     NATS.start do
       NATS.connect(:dont_randomize_servers => true, :uri => servers) do |c|
         sp_servers = []
