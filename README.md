@@ -16,10 +16,10 @@ This gem currently works on the following Ruby platforms:
 
 There are several other client language bindings as well.
 
-- [Node.js](https://github.com/derekcollison/node_nats)  
-- [Go](https://github.com/apcera/nats)  
-- [Java](https://github.com/tyagihas/java_nats)    
-- [Java - Spring](https://github.com/mheath/jnats)      
+- [Node.js](https://github.com/derekcollison/node_nats)
+- [Go](https://github.com/apcera/nats)
+- [Java](https://github.com/tyagihas/java_nats)
+- [Java - Spring](https://github.com/mheath/jnats)
 
 ## Getting Started
 
@@ -115,7 +115,7 @@ See examples and benchmarks for more information..
 
 (The MIT License)
 
-Copyright (c) 2010-2012 Derek Collison
+Copyright (c) 2010-2013 Derek Collison
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to
