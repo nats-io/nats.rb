@@ -38,6 +38,7 @@ describe 'cluster' do
           c2.publish('foo', data)
           c2.flush do #make sure published
             c1.flush do #make sure received
+              sleep(0.25)
               EM.stop
             end
           end
