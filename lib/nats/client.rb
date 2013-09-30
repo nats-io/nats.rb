@@ -30,6 +30,7 @@ module NATS
   # @private
   MSG      = /\AMSG\s+([^\s]+)\s+([^\s]+)\s+(([^\s]+)[^\S\r\n]+)?(\d+)\r\n/i #:nodoc:
   OK       = /\A\+OK\s*\r\n/i #:nodoc:
+  AUTH_OK  = /\A\+AUTH_OK\s*\r\n/i #:nodoc:
   ERR      = /\A-ERR\s+('.+')?\r\n/i #:nodoc:
   PING     = /\APING\s*\r\n/i #:nodoc:
   PONG     = /\APONG\s*\r\n/i #:nodoc:
@@ -522,6 +523,9 @@ module NATS
           @parse_state = AWAITING_MSG_PAYLOAD
         when OK # No-op right now
           @buf = $'
+        when AUTH_OK # Start ping timer after auth is ok
+          @buf = $'
+          add_ping_timer
         when ERR
           @buf = $'
           err_cb.call(NATS::ServerError.new($1))
@@ -576,6 +580,12 @@ module NATS
     flush_pending
   end
 
+  def add_ping_timer
+     @pings_outstanding = 0
+     @pongs_received = 0
+     @ping_timer = EM.add_periodic_timer(@options[:ping_interval]) { send_ping } 
+  end
+
   def cancel_ping_timer
     if @ping_timer
       EM.cancel_timer(@ping_timer)
@@ -588,7 +598,7 @@ module NATS
 
     current = server_pool.first
     current[:was_connected] = true
-    current[:reconnect_attempts] = 0
+    current[:reconnect_attempts] ||= 0
 
     if reconnecting?
       cancel_reconnect_timer
@@ -609,10 +619,6 @@ module NATS
     @reconnecting = false
     @parse_state = AWAITING_CONTROL_LINE
 
-    # Initialize ping timer and processing
-    @pings_outstanding = 0
-    @pongs_received = 0
-    @ping_timer = EM.add_periodic_timer(@options[:ping_interval]) { send_ping }
   end
 
   def send_ping #:nodoc:

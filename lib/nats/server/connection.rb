@@ -208,11 +208,11 @@ module NATSD #:nodoc: all
       @verbose  = config['verbose'] unless config['verbose'].nil?
       @pedantic = config['pedantic'] unless config['pedantic'].nil?
 
-      return queue_data(OK) unless Server.auth_required?
+      return queue_data(AUTH_OK) unless Server.auth_required?
 
       EM.cancel_timer(@auth_pending)
       if auth_ok?(config['user'], config['pass'])
-        queue_data(OK) if @verbose
+        queue_data(AUTH_OK)
         @auth_pending = nil
       else
         error_close AUTH_FAILED

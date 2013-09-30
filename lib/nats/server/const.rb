@@ -34,6 +34,7 @@ module NATSD #:nodoc:
   CR_LF_SIZE = CR_LF.bytesize
   EMPTY = ''.freeze
   OK = "+OK#{CR_LF}".freeze
+  AUTH_OK = "+AUTH_OK#{CR_LF}".freeze
   PING_RESPONSE = "PING#{CR_LF}".freeze
   PONG_RESPONSE = "PONG#{CR_LF}".freeze
   INFO_RESPONSE = "#{CR_LF}".freeze

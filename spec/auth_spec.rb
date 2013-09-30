@@ -34,6 +34,26 @@ describe 'authorization' do
     end.to raise_error NATS::Error
   end
 
+  it 'should giveup reconnect to an authorized server without proper credentials after max attempt'  do
+    EM.set_max_timers(100)
+    expect do
+      EM.run do
+        NATS.on_error do |e|
+          if e.kind_of? NATS::ConnectError
+            EM.stop
+          else
+            p "NATS problem, #{e}"
+          end
+        end   
+        NATS.start(:uri => TEST_AUTH_SERVER_NO_CRED, :max_reconnect_attempts => 2) { 
+          EM.add_timer(10){
+          EM.stop 
+          }
+        }
+      end
+    end.to_not raise_error
+  end
+
   it 'should autostart an authorized server correctly' do
     expect do
       NATS.start(:uri => TEST_AUTH_AUTOSTART_SERVER, :autostart => true) { NATS.stop }
