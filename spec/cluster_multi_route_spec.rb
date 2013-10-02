@@ -34,11 +34,12 @@ describe 'cluster' do
           received += 1
         end
         c1.flush do #make sure sub1 registered
+          sleep(0.25)
           c2.publish('foo', data)
           c2.publish('foo', data)
           c2.flush do #make sure published
+            sleep(0.25)
             c1.flush do #make sure received
-              sleep(0.25)
               EM.stop
             end
           end
