@@ -1,5 +1,11 @@
 # HISTORY
 
+## v0.5.0.beta.12 (October 1, 2013)
+  - Fixed issue #58, reconnects not stopped on auth failures
+  - Fixed leaking ping timers on auth failures
+  - Created AuthError
+  - See full list @ https://github.com/derekcollison/nats/compare/v0.5.0.beta.11...v0.5.0.beta.12
+
 ## v0.5.0.beta.11 (July 26, 2013)
   - Bi-directional Route designation
   - Upgrade to EM 1.x
