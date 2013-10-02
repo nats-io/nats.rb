@@ -71,6 +71,9 @@ module NATS
   # When we cannot connect to the server (either initially or after a reconnect), this is raised/passed
   class ConnectError < Error; end #:nodoc:
 
+  # When we cannot connect to the server because authorization failed.
+  class AuthError < ConnectError; end #:nodoc:
+
   class << self
     attr_reader   :client, :reactor_was_running, :err_cb, :err_cb_overridden #:nodoc:
     attr_reader   :reconnect_cb  #:nodoc
@@ -308,7 +311,7 @@ module NATS
     @err_cb = NATS.err_cb
     @reconnect_timer, @needed = nil, nil
     @reconnect_cb = NATS.reconnect_cb
-    @connected, @closing, @reconnecting = false, false, false
+    @connected, @closing, @reconnecting, @conn_cb_called = false, false, false, false
     @msgs_received = @msgs_sent = @bytes_received = @bytes_sent = @pings = 0
     @pending_size = 0
     send_connect_command
@@ -451,9 +454,13 @@ module NATS
     err_cb_overridden || NATS.err_cb_overridden
   end
 
+  def auth_connection?
+    !@uri.user.nil?
+  end
+
   def connect_command #:nodoc:
     cs = { :verbose => @options[:verbose], :pedantic => @options[:pedantic] }
-    if @uri.user
+    if auth_connection?
       cs[:user] = @uri.user
       cs[:pass] = @uri.password
     end
@@ -524,7 +531,13 @@ module NATS
           @buf = $'
         when ERR
           @buf = $'
-          err_cb.call(NATS::ServerError.new($1))
+          current = server_pool.first
+          current[:error_received] = true
+          if current[:auth_required] && !current[:auth_ok]
+            err_cb.call(NATS::AuthError.new($1))
+          else
+            err_cb.call(NATS::ServerError.new($1))
+          end
         when PING
           @pings += 1
           @buf = $'
@@ -568,6 +581,12 @@ module NATS
         err_cb.call(NATS::ClientError.new('TLS/SSL not supported by server'))
       end
     end
+    if @server_info[:auth_required]
+      current = server_pool.first
+      current[:auth_required] = true
+      queue_server_rt { current[:auth_ok] = true }
+      flush_pending
+    end
     @server_info
   end
 
@@ -595,16 +614,19 @@ module NATS
       @subs.each_pair { |k, v| send_command("SUB #{v[:subject]} #{v[:queue]} #{k}#{CR_LF}") }
     end
 
-    flush_pending unless @ssl
-
     unless user_err_cb? or reconnecting?
       @err_cb = proc { |e| raise e }
     end
 
-    if (connect_cb and not reconnecting?)
+    flush_pending unless @ssl
+
+    if (connect_cb and not @conn_cb_called)
       # We will round trip the server here to make sure all state from any pending commands
       # has been processed before calling the connect callback.
-      queue_server_rt { connect_cb.call(self) }
+      queue_server_rt do
+        connect_cb.call(self)
+        @conn_cb_called = true
+      end
     end
     @reconnecting = false
     @parse_state = AWAITING_CONTROL_LINE
@@ -649,12 +671,17 @@ module NATS
     @reconnecting = true if connected?
     @connected = false
     @pending = @pongs = nil
+    cancel_ping_timer
 
     schedule_primary_and_connect
   end
 
   def multiple_servers_available?
     server_pool && server_pool.size > 1
+  end
+
+  def had_error?
+    server_pool.first && server_pool.first[:error_received]
   end
 
   def should_not_reconnect?
@@ -739,8 +766,7 @@ module NATS
   def schedule_primary_and_connect #:nodoc:
     # Dump the one we were trying if it wasn't connected
     current = server_pool.shift
-    server_pool << current if can_reuse_server?(current)
-
+    server_pool << current if (current && can_reuse_server?(current) && !current[:error_received])
     # If we are out of options, go ahead and disconnect.
     process_disconnect and return if server_pool.empty?
     # bind new one

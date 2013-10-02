@@ -52,4 +52,46 @@ describe 'authorization' do
     end.to_not raise_error
   end
 
+  it 'should not continue to try to connect on unauthorized access' do
+    auth_error_callbacks = 0
+    connect_error_callbacks = 0
+    EM.run do
+      # Default error handler raises, so we trap here.
+      NATS.on_error do |e|
+        # disconnects
+        connect_error_callbacks += 1 if e.instance_of? NATS::ConnectError
+        # authorization
+        auth_error_callbacks +=1 if e.instance_of? NATS::AuthError
+      end
+
+      NATS.connect(:uri => TEST_AUTH_SERVER_NO_CRED)
+      # Time limit bad behavior
+      EM.add_timer(0.25) do
+        NATS.stop
+        EM.next_tick { EM.stop }
+      end
+    end
+    auth_error_callbacks.should == 1
+    connect_error_callbacks.should == 1
+  end
+
+  it 'should remove server from the pool on unauthorized access' do
+    error_cb = 0
+    connect_cb = false
+    EM.run do
+      # Default error handler raises, so we trap here.
+      NATS.on_error { error_cb += 1 }
+      connected = false
+      NATS.start(:dont_randomize_servers => true, :servers => [TEST_AUTH_SERVER_NO_CRED, TEST_AUTH_SERVER]) do
+        connect_cb = true
+        EM.stop
+      end
+    end
+    error_cb.should == 1
+    connect_cb.should be_true
+    NATS.client.should_not == nil
+    NATS.client.server_pool.size.should == 1
+    NATS.stop # clears err_cb
+  end
+
 end
