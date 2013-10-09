@@ -1,14 +1,17 @@
 
+- Contributing guidelines
+- cluster tests for travis-ci
+
+- [IN PROGRESS] clustering/routing
+  - Allow implicit route information to propogate to clients?
+  - Check with EM 1.0 not working
+  - [DONE] Retry timers on routes
 
 - do client blowup detection from sending in tight loop
 - allow port to also be listen_port in config file
 - queue groups allow selection, e.g. round robin vs random
-
 - Logger rotation should work
-
 - Allow clients to specify app/client name
-
-- [IN PROGRESS] clustering/routing
 
 - [IN PROGRESS] tests!
 - [IN PROGRESS] JRuby support - works if you hand run servers for tests

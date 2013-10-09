@@ -20,6 +20,8 @@ module NATSD
 
           opts.on("-m", "--http_port PORT", "Use HTTP PORT ")                  { |port| @options[:http_port] = port.to_i }
 
+          opts.on("-r", "--cluster_port PORT", "Use Cluster PORT ")            { |port| @options[:cluster_port] = port.to_i }
+
           opts.on("-c", "--config FILE", "Configuration File")                 { |file| @options[:config_file] = file }
 
           opts.separator ""
@@ -106,6 +108,21 @@ module NATSD
           @options[:ping_max] = ping['max_outstanding'] if @options[:ping_max].nil?
         end
 
+        if cluster = config['cluster']
+          @options[:cluster_port] = cluster['port'] if @options[:cluster_port].nil?
+          if auth = cluster['authorization']
+            @options[:cluster_user] = auth['user'] if @options[:cluster_user].nil?
+            @options[:cluster_pass] = auth['password'] if @options[:cluster_pass].nil?
+            @options[:cluster_pass] = auth['pass'] if @options[:cluster_pass].nil?
+            @options[:cluster_token] = auth['token'] if @options[:cluster_token].nil?
+            @options[:cluster_auth_timeout] = auth['timeout'] if @options[:cluster_auth_timeout].nil?
+            @route_auth_required = true
+          end
+          if routes = cluster['routes']
+            @options[:cluster_routes] = routes if @options[:cluster_routes].nil?
+          end
+        end
+
       rescue => e
         log "Could not read configuration file:  #{e}"
         exit 1
@@ -173,7 +190,7 @@ module NATSD
 
         @auth_required = (not @options[:user].nil?)
 
-        @ssl_required = @options[:ssl]
+        @ssl_required = (not @options[:ssl].nil?)
 
         # Pings
         @options[:ping_interval] ||= DEFAULT_PING_INTERVAL

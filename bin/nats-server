@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
-# NATS command line interface script.
-# Run <tt>nats-server -h</tt> to get more usage.
-
+## NATS command line interface script.
+## Run <tt>nats-server -h</tt> to get more usage.
+libdir = "/home/work/nats/bin/nats/lib"
+$LOAD_PATH.unshift(libdir) unless $LOAD_PATH.include?(libdir)
 require 'nats/server'

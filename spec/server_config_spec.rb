@@ -85,42 +85,4 @@ describe "server configuration" do
     NATSD::Server.log_time.should be_true
   end
 
-  describe "NATSD::Server.finalize_options" do
-    before do
-      NATSD::Server.process_options
-    end
-
-    context "ssl setting is nothing" do
-      before do
-        NATSD::Server.options[:ssl] = nil
-      end
-
-      it "shoud properly set @ssl_required to nil" do
-        NATSD::Server.finalize_options
-        NATSD::Server.ssl_required.should be_false
-      end
-    end
-
-    context "ssl setting is false" do
-      before do
-        NATSD::Server.options[:ssl] = false
-      end
-
-      it "should properly set @ssl_required to false" do
-        NATSD::Server.finalize_options
-        NATSD::Server.ssl_required.should be_false
-      end
-    end
-
-    context "ssl setting is true" do
-      before do
-        NATSD::Server.options[:ssl] = true
-      end
-
-      it "should properly set @ssl_required to true" do
-        NATSD::Server.finalize_options
-        NATSD::Server.ssl_required.should be_true
-      end
-    end
-  end
 end

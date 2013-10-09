@@ -24,6 +24,7 @@ describe 'monitor' do
 
   after(:all) do
     @s.kill_server
+    FileUtils.rm_f(LOG_FILE)
   end
 
   it 'should process simple command line arguments for http port' do
@@ -82,6 +83,7 @@ describe 'monitor' do
     varz.should have_key :cpu
     varz.should have_key :cores
     varz.should have_key :connections
+    varz.should have_key :routes
     varz.should have_key :in_msgs
     varz.should have_key :in_bytes
     varz.should have_key :out_msgs

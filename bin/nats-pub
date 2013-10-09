@@ -1,4 +1,4 @@
-#!/usr/bin/env ruby
+#!/home/work/nats/env/ruby192/bin/ruby
 
 require 'optparse'
 require 'rubygems'

@@ -1,7 +1,7 @@
 
 module NATSD #:nodoc:
 
-  VERSION  = '0.4.28'
+  VERSION  = '0.5.0.beta.4'
   APP_NAME = 'nats-server'
 
   DEFAULT_PORT = 4222
@@ -12,16 +12,22 @@ module NATSD #:nodoc:
   AWAITING_MSG_PAYLOAD  = 2
 
   # Ops - See protocol.txt for more info
-  INFO     = /\AINFO\s*\r\n/i
+  INFO     = /\AINFO\s*([^\r\n]*)\r\n/i
   PUB_OP   = /\APUB\s+([^\s]+)\s+(([^\s]+)[^\S\r\n]+)?(\d+)\r\n/i
+  MSG      = /\AMSG\s+([^\s]+)\s+([^\s]+)\s+(([^\s]+)[^\S\r\n]+)?(\d+)\r\n/i
   SUB_OP   = /\ASUB\s+([^\s]+)\s+(([^\s]+)[^\S\r\n]+)?([^\s]+)\r\n/i
   UNSUB_OP = /\AUNSUB\s+([^\s]+)\s*(\s+(\d+))?\r\n/i
   PING     = /\APING\s*\r\n/i
   PONG     = /\APONG\s*\r\n/i
+  INFO_REQ = /\AINFO_REQ\s*\r\n/i
+
   CONNECT  = /\ACONNECT\s+([^\r\n]+)\r\n/i
   UNKNOWN  = /\A(.*)\r\n/
   CTRL_C   = /\006/
   CTRL_D   = /\004/
+
+  ERR_RESP = /\A-ERR\s+('.+')?\r\n/i
+  OK_RESP  = /\A\+OK\s*\r\n/i #:nodoc:
 
   # RESPONSES
   CR_LF = "\r\n".freeze
@@ -52,6 +58,9 @@ module NATSD #:nodoc:
   SUB = /^([^\.\*>\s]+|>$|\*)(\.([^\.\*>\s]+|>$|\*))*$/
   SUB_NO_WC = /^([^\.\*>\s]+)(\.([^\.\*>\s]+))*$/
 
+  # Router Subscription Identifiers
+  RSID = /RSID:(\d+):(\S+)/
+
   # Some sane default thresholds
 
   # 1k should be plenty since payloads sans connect string are separate
@@ -64,7 +73,9 @@ module NATSD #:nodoc:
   MAX_PENDING_SIZE = (10*1024*1024)
 
   # Maximum pending bucket size
-  MAX_WRITEV_SIZE = (64*1024)
+  #MAX_WRITEV_SIZE = (64*1024)
+
+  MAX_WRITEV_SIZE = (200)
 
   # Maximum connections default
   DEFAULT_MAX_CONNECTIONS = (64*1024)
@@ -78,6 +89,9 @@ module NATSD #:nodoc:
   # Ping intervals
   DEFAULT_PING_INTERVAL = 120
   DEFAULT_PING_MAX = 2
+
+  # Route Reconnect
+  DEFAULT_ROUTE_RECONNECT_INTERVAL = 1.0
 
   # HTTP
   RACK_JSON_HDR = { 'Content-Type' => 'application/json' }

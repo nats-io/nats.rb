@@ -34,7 +34,7 @@ describe 'server attacks' do
       NATS.start(:uri => TEST_SERVER, :autostart => false, :reconnect => false) do
         NATS.publish('foo', BIG_MSG) { NATS.stop }
       end
-    end.to raise_error
+    end.to raise_error NATS::ServerError
     NATS.connected?.should be_false
   end
 

@@ -1,3 +1,5 @@
+require 'set'
+
 module NATSD #:nodoc: all
 
   # Subscriber
@@ -8,7 +10,7 @@ module NATSD #:nodoc: all
     class << self
       attr_reader :id, :info, :log_time, :auth_required, :ssl_required, :debug_flag, :trace_flag, :syslog, :options
       attr_reader :max_payload, :max_pending, :max_control_line, :auth_timeout, :ssl_timeout, :ping_interval, :ping_max
-      attr_accessor :varz, :healthz, :max_connections, :num_connections, :in_msgs, :out_msgs, :in_bytes, :out_bytes
+      attr_accessor :varz, :healthz, :connections, :max_connections, :num_connections, :in_msgs, :out_msgs, :in_bytes, :out_bytes
 
       alias auth_required? :auth_required
       alias ssl_required?  :ssl_required
@@ -36,12 +38,15 @@ module NATSD #:nodoc: all
       def setup(argv)
         process_options(argv)
 
-        @id, @cid = fast_uuid, 1
+        @id, @cid, @rid = fast_uuid, 1, 1
         @sublist = Sublist.new
 
+        @connections = {}
         @num_connections = 0
         @in_msgs = @out_msgs = 0
         @in_bytes = @out_bytes = 0
+
+        @num_routes = 0
 
         @info = {
           :server_id => Server.id,
@@ -62,6 +67,7 @@ module NATSD #:nodoc: all
             # These log messages visible to controlling TTY
             log "Starting #{NATSD::APP_NAME} version #{NATSD::VERSION} on port #{NATSD::Server.port}"
             log "Starting http monitor on port #{@options[:http_port]}" if @options[:http_port]
+            log "Starting routing on port #{@options[:cluster_port]}" if @options[:cluster_port]
             log "Switching to daemon mode"
           end
           opts = {
@@ -85,12 +91,14 @@ module NATSD #:nodoc: all
         File.open(@options[:pid_file], 'w') { |f| f.puts "#{Process.pid}" } if @options[:pid_file]
       end
 
-      def subscribe(sub)
+      def subscribe(sub, is_route=false)
         @sublist.insert(sub.subject, sub)
+        broadcast_sub_to_routes(sub) unless is_route
       end
 
-      def unsubscribe(sub)
+      def unsubscribe(sub, is_route=false)
         @sublist.remove(sub.subject, sub)
+        broadcast_unsub_to_routes(sub) unless is_route
       end
 
       def deliver_to_subscriber(sub, subject, reply, msg)
@@ -119,7 +127,7 @@ module NATSD #:nodoc: all
         end
       end
 
-      def route_to_subscribers(subject, reply, msg)
+      def route_to_subscribers(subject, reply, msg, is_route=false)
         qsubs = nil
 
         # Allows nil reply to not have extra space
@@ -129,15 +137,23 @@ module NATSD #:nodoc: all
         @in_msgs += 1
         @in_bytes += msg.bytesize unless msg.nil?
 
+        # Routes
+        routes = Set.new
+
         @sublist.match(subject).each do |sub|
           # Skip anyone in the closing state
           next if sub.conn.closing
 
-          unless sub[:qgroup]
-            deliver_to_subscriber(sub, subject, reply, msg)
-          else
+          # Skip all routes if sourced from another route (1-hop semantics)
+          next if (is_route && sub.conn.is_route?)
+
+          if sub[:qgroup].nil?
+            # Only send messages once over a route
+            deliver_to_subscriber(sub, subject, reply, msg) unless routes.include?(sub.conn)
+            routes << sub.conn if sub.conn.is_route?
+          elsif !is_route
             if NATSD::Server.trace_flag?
-              trace("Matched queue subscriber", sub[:subject], sub[:qgroup], sub[:sid], sub.conn.client_info)
+              trace('Matched queue subscriber', sub[:subject], sub[:qgroup], sub[:sid], sub.conn.client_info)
             end
             # Queue this for post processing
             qsubs ||= Hash.new
@@ -152,7 +168,7 @@ module NATSD #:nodoc: all
           # Randomly pick a subscriber from the group
           sub = subs[rand*subs.size]
           if NATSD::Server.trace_flag?
-            trace("Selected queue subscriber", sub[:subject], sub[:qgroup], sub[:sid], sub.conn.client_info)
+            trace('Selected queue subscriber', sub[:subject], sub[:qgroup], sub[:sid], sub.conn.client_info)
           end
           deliver_to_subscriber(sub, subject, reply, msg)
         end
@@ -165,6 +181,10 @@ module NATSD #:nodoc: all
 
       def cid
         @cid += 1
+      end
+
+      def rid
+        @rid += 1
       end
 
       def info_string
