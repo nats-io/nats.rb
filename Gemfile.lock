@@ -5,7 +5,7 @@ PATH
       daemons (>= 1.1.5)
       eventmachine (= 0.12.10)
       json_pure (>= 1.7.3)
-      thin (>= 1.4.1)
+      thin (>= 1.4.1, < 1.6)
 
 GEM
   remote: http://rubygems.org/
@@ -41,4 +41,4 @@ DEPENDENCIES
   nats!
   rake
   rspec (>= 2.11.0)
-  thin (>= 1.4.1)
+  thin (>= 1.4.1, < 1.6)
