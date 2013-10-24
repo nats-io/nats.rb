@@ -119,7 +119,7 @@ module NATSD
             @route_auth_required = true
           end
           if routes = cluster['routes']
-            @options[:cluster_routes] = routes if @options[:cluster_routes].nil?
+            @options[:cluster_routes] = routes.split(' ') if @options[:cluster_routes].nil?
           end
         end
 
