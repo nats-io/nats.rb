@@ -7,15 +7,21 @@ describe 'client specification' do
     R_PASS = 'mypassword'
     R_TEST_AUTH_SERVER = "nats://#{R_USER}:#{R_PASS}@localhost:9333"
     R_TEST_SERVER_PID = '/tmp/nats_reconnect_authorization.pid'
+    E_TEST_SERVER = "nats://localhost:9666"
+    E_TEST_SERVER_PID = '/tmp/nats_reconnect_exception_test.pid'
+    
     @as = NatsServerControl.new(R_TEST_AUTH_SERVER, R_TEST_SERVER_PID)
     @as.start_server
     @s = NatsServerControl.new
     @s.start_server
+    @es = NatsServerControl.new(E_TEST_SERVER, E_TEST_SERVER_PID)
+    @es.start_server
   end
 
   after(:all) do
     @s.kill_server
     @as.kill_server
+    @es.kill_server
   end
 
   it 'should properly report connected after connect callback' do
@@ -26,6 +32,23 @@ describe 'client specification' do
     end
   end
 
+  it 'should properly handle exceptions thrown by eventmachine during reconnects' do
+    reconnect_cb = false
+    NATS.start(:uri => E_TEST_SERVER, :reconnect_time_wait => 0.25) do |c|
+      # Change the uri to simulate a DNS failure which will make EM.reconnect throw an exception
+      c.instance_eval('@uri = URI.parse("nats://does.not.exist:4222/")')
+      timer=timeout_nats_on_failure(1)
+      c.on_reconnect do
+        reconnect_cb = true
+        NATS.connected?.should be_false
+        NATS.reconnecting?.should be_true
+        NATS.stop
+      end
+      @es.kill_server
+    end
+    reconnect_cb.should be_true
+  end
+  
   it 'should report a reconnecting event when trying to reconnect' do
     reconnect_cb = false
     NATS.start(:reconnect_time_wait => 0.25) do |c|
