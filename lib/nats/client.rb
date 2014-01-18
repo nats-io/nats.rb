@@ -606,7 +606,10 @@ module NATS
 
   def attempt_reconnect #:nodoc:
     process_disconnect and return if (@reconnect_attempts += 1) > @options[:max_reconnect_attempts]
-    EM.reconnect(@uri.host, @uri.port, self)
+    begin
+      EM.reconnect(@uri.host, @uri.port, self)
+    rescue
+    end
     @reconnect_cb.call unless @reconnect_cb.nil?
   end
 
