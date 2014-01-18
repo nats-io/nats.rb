@@ -718,11 +718,15 @@ module NATS
   end
 
   def attempt_reconnect #:nodoc:
+<<<<<<< HEAD
     @reconnect_timer = nil
     current = server_pool.first
     current[:reconnect_attempts] += 1 if current[:reconnect_attempts]
     send_connect_command
-    EM.reconnect(@uri.host, @uri.port, self)
+    begin
+      EM.reconnect(@uri.host, @uri.port, self)
+    rescue
+    end
     @reconnect_cb.call unless @reconnect_cb.nil?
   end
 
