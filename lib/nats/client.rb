@@ -718,7 +718,6 @@ module NATS
   end
 
   def attempt_reconnect #:nodoc:
-<<<<<<< HEAD
     @reconnect_timer = nil
     current = server_pool.first
     current[:reconnect_attempts] += 1 if current[:reconnect_attempts]
