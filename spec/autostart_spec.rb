@@ -25,7 +25,7 @@ describe 'autostart' do
         NATS.subscribe('foo') { received += 1 }
         NATS.publish('foo') {  NATS.stop }
       }
-    end.to_not raise_error NATS::Error
+    end.to_not raise_error
     received.should == 1
   end
 

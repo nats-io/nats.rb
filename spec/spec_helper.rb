@@ -67,7 +67,7 @@ class NatsServerControl
   end
 
   def kill_server
-    if File.exists? @pid_file
+    if File.exist? @pid_file
       %x[kill -9 #{server_pid} 2> /dev/null]
       %x[rm #{@pid_file} 2> /dev/null]
       %x[rm #{NATS::AUTOSTART_LOG_FILE} 2> /dev/null]

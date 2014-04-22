@@ -27,15 +27,15 @@ describe 'server log and pid files' do
   end
 
   it 'should create the log file' do
-    File.exists?(LOG_LOG_FILE).should be_true
+    File.exist?(LOG_LOG_FILE).should be_true
   end
 
   it 'should create the pid file' do
-    File.exists?(LOG_SERVER_PID).should be_true
+    File.exist?(LOG_SERVER_PID).should be_true
   end
 
   it 'should not leave a daemonized pid file in current directory' do
-    File.exists?("./#{NATSD::APP_NAME}.pid").should be_false
+    File.exist?("./#{NATSD::APP_NAME}.pid").should be_false
   end
 
   it 'should append to the log file after restart' do
