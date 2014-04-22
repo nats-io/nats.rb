@@ -39,7 +39,7 @@ describe 'ssl' do
   it 'should run TLS/SSL negotiation' do
     expect do
       NATS.start(:uri => TEST_SERVER_SSL, :ssl => true) { NATS.stop }
-    end.to_not raise_error NATS::Error
+    end.to_not raise_error
   end
 
   it 'should not run TLS/SSL negotiation' do
