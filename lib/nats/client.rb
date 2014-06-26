@@ -671,6 +671,7 @@ module NATS
     @reconnecting = true if connected?
     @connected = false
     @pending = @pongs = nil
+    @buf = nil
     cancel_ping_timer
 
     schedule_primary_and_connect
