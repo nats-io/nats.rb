@@ -239,8 +239,8 @@ describe 'cluster' do
     received.should == to_send
     c1_received.should be < to_send
     c2_received.should be < to_send
-    c1_received.should be_within(15).of(to_send/2)
-    c2_received.should be_within(15).of(to_send/2)
+    c1_received.should be_within(25).of(to_send/2)
+    c2_received.should be_within(25).of(to_send/2)
   end
 
 end
