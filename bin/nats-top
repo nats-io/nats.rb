@@ -1,4 +1,4 @@
-#!/home/work/nats/env/ruby192/bin/ruby
+#!/usr/bin/env ruby
 
 require 'optparse'
 require 'net/http'

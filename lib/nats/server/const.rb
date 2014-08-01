@@ -1,11 +1,7 @@
 
 module NATSD #:nodoc:
 
-<<<<<<< HEAD
-  VERSION  = '0.5.0.beta.4'
-=======
   VERSION  = '0.5.0.beta.14'
->>>>>>> upstream/cluster
   APP_NAME = 'nats-server'
 
   DEFAULT_PORT = 4222
@@ -77,9 +73,7 @@ module NATSD #:nodoc:
   MAX_PENDING_SIZE = (10*1024*1024)
 
   # Maximum pending bucket size
-  #MAX_WRITEV_SIZE = (64*1024)
-
-  MAX_WRITEV_SIZE = (200)
+  MAX_WRITEV_SIZE = (64*1024)
 
   # Maximum connections default
   DEFAULT_MAX_CONNECTIONS = (64*1024)

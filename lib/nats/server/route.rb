@@ -1,19 +1,11 @@
 module NATSD #:nodoc: all
 
-<<<<<<< HEAD
-  module Route #:nodoc:
-
-    include Connection
-
-    attr_reader :rid, :closing, :r_obj, :reconnecting
-=======
   # Need to make this a class with EM > 1.0
   class Route < EventMachine::Connection #:nodoc:
 
     include Connection
 
     attr_reader :rid, :remote_rid, :closing, :r_obj, :reconnecting
->>>>>>> upstream/cluster
     alias :peer_info :client_info
     alias :reconnecting? :reconnecting
 
@@ -26,13 +18,9 @@ module NATSD #:nodoc: all
     end
 
     def connection_completed
-<<<<<<< HEAD
-      return unless reconnecting?
-=======
       debug "Route connected", rid
       return unless reconnecting?
 
->>>>>>> upstream/cluster
       # Kill reconnect if we got here from there
       cancel_reconnect
       @buf, @closing = nil, false
@@ -46,17 +34,12 @@ module NATSD #:nodoc: all
       @writev_size = 0
       @parse_state = AWAITING_CONTROL_LINE
 
-<<<<<<< HEAD
-      # queue up auth if needed and we solicited the connection
-      if solicited?
-=======
       # Queue up auth if needed and we solicited the connection
       debug "Route connection created", peer_info, rid
 
       # queue up auth if needed and we solicited the connection
       if solicited?
         debug "Route sent authorization", rid
->>>>>>> upstream/cluster
         send_auth
       else
         # FIXME, separate variables for timeout?
@@ -64,10 +47,6 @@ module NATSD #:nodoc: all
       end
 
       send_info
-<<<<<<< HEAD
-      debug "Route connection created", peer_info, rid
-=======
->>>>>>> upstream/cluster
       @ping_timer = EM.add_periodic_timer(NATSD::Server.ping_interval) { send_ping }
       @pings_outstanding = 0
       inc_connections
@@ -84,8 +63,6 @@ module NATSD #:nodoc: all
       end
     end
 
-<<<<<<< HEAD
-=======
     def process_connect_route_config(config)
       @verbose  = config['verbose'] unless config['verbose'].nil?
       @pedantic = config['pedantic'] unless config['pedantic'].nil?
@@ -108,7 +85,6 @@ module NATSD #:nodoc: all
       debug "#{type} connection timeout due to lack of auth credentials", rid
     end
 
->>>>>>> upstream/cluster
     def receive_data(data)
       @buf = @buf ? @buf << data : data
       return close_connection if @buf =~ /(\006|\004)/ # ctrl+c or ctrl+d for telnet friendly
@@ -167,11 +143,7 @@ module NATSD #:nodoc: all
             @buf = $'
             begin
               config = JSON.parse($1)
-<<<<<<< HEAD
-              process_connect_config(config)
-=======
               process_connect_route_config(config)
->>>>>>> upstream/cluster
             rescue => e
               queue_data(INVALID_CONFIG)
               log_error
@@ -182,10 +154,7 @@ module NATSD #:nodoc: all
             @buf = $'
             send_info
           when INFO
-<<<<<<< HEAD
-=======
             ctrace('INFO OP', strip_op($&)) if NATSD::Server.trace_flag?
->>>>>>> upstream/cluster
             return connect_auth_timeout if @auth_pending
             @buf = $'
             process_info($1)
@@ -252,15 +221,10 @@ module NATSD #:nodoc: all
       queue_data("INFO #{Server.route_info_string}#{CR_LF}")
     end
 
-<<<<<<< HEAD
-    def process_info(info)
-      super(info)
-=======
     def process_info(info_json)
       info = JSON.parse(info_json)
       @remote_rid = info['server_id'] unless info['server_id'].nil?
       super(info_json)
->>>>>>> upstream/cluster
     end
 
     def auth_ok?(user, pass)

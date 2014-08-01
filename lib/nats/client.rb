@@ -9,11 +9,7 @@ require "#{ep}/ext/json"
 
 module NATS
 
-<<<<<<< HEAD
-  VERSION = "0.5.0.beta.4".freeze
-=======
   VERSION = "0.5.0.beta.14".freeze
->>>>>>> upstream/cluster
 
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
@@ -125,12 +121,9 @@ module NATS
       opts[:max_reconnect_attempts] = ENV['NATS_MAX_RECONNECT_ATTEMPTS'].to_i unless ENV['NATS_MAX_RECONNECT_ATTEMPTS'].nil?
       opts[:reconnect_time_wait] = ENV['NATS_RECONNECT_TIME_WAIT'].to_i unless ENV['NATS_RECONNECT_TIME_WAIT'].nil?
 
-<<<<<<< HEAD
-=======
       opts[:ping_interval] = ENV['NATS_PING_INTERVAL'].to_i unless ENV['NATS_PING_INTERVAL'].nil?
       opts[:max_outstanding_pings] = ENV['NATS_MAX_OUTSTANDING_PINGS'].to_i unless ENV['NATS_MAX_OUTSTANDING_PINGS'].nil?
 
->>>>>>> upstream/cluster
       uri = opts[:uris] || opts[:servers] || opts[:uri]
 
       # If they pass an array here just pass along to the real connection, and use first as the first attempt..
@@ -302,11 +295,7 @@ module NATS
 
   end
 
-<<<<<<< HEAD
-  attr_reader :connected, :connect_cb, :err_cb, :err_cb_overridden #:nodoc:
-=======
   attr_reader :connected, :connect_cb, :err_cb, :err_cb_overridden, :pongs_received #:nodoc:
->>>>>>> upstream/cluster
   attr_reader :closing, :reconnecting, :server_pool, :options, :server_info #:nodoc
   attr_reader :msgs_received, :msgs_sent, :bytes_received, :bytes_sent, :pings
 
@@ -450,10 +439,7 @@ module NATS
   # Close the connection to the server.
   def close
     @closing = true
-<<<<<<< HEAD
-=======
     cancel_ping_timer
->>>>>>> upstream/cluster
     cancel_reconnect_timer
     close_connection_after_writing if connected?
     process_disconnect if reconnecting?
@@ -468,13 +454,10 @@ module NATS
     err_cb_overridden || NATS.err_cb_overridden
   end
 
-<<<<<<< HEAD
-=======
   def auth_connection?
     !@uri.user.nil?
   end
 
->>>>>>> upstream/cluster
   def connect_command #:nodoc:
     cs = { :verbose => @options[:verbose], :pedantic => @options[:pedantic] }
     if auth_connection?
@@ -631,22 +614,13 @@ module NATS
       @subs.each_pair { |k, v| send_command("SUB #{v[:subject]} #{v[:queue]} #{k}#{CR_LF}") }
     end
 
-<<<<<<< HEAD
-    flush_pending unless @ssl
-
-=======
->>>>>>> upstream/cluster
     unless user_err_cb? or reconnecting?
       @err_cb = proc { |e| raise e }
     end
 
-<<<<<<< HEAD
-    if (connect_cb and not reconnecting?)
-=======
     flush_pending unless @ssl
 
     if (connect_cb and not @conn_cb_called)
->>>>>>> upstream/cluster
       # We will round trip the server here to make sure all state from any pending commands
       # has been processed before calling the connect callback.
       queue_server_rt do
@@ -675,14 +649,11 @@ module NATS
     flush_pending
   end
 
-<<<<<<< HEAD
-=======
   def process_pong
     @pongs_received += 1
     @pings_outstanding -= 1
   end
 
->>>>>>> upstream/cluster
   def should_delay_connect?(server)
     server[:was_connected] && server[:reconnect_attempts] >= 1
   end
@@ -700,11 +671,8 @@ module NATS
     @reconnecting = true if connected?
     @connected = false
     @pending = @pongs = nil
-<<<<<<< HEAD
-=======
     @buf = nil
     cancel_ping_timer
->>>>>>> upstream/cluster
 
     schedule_primary_and_connect
   end
@@ -713,13 +681,10 @@ module NATS
     server_pool && server_pool.size > 1
   end
 
-<<<<<<< HEAD
-=======
   def had_error?
     server_pool.first && server_pool.first[:error_received]
   end
 
->>>>>>> upstream/cluster
   def should_not_reconnect?
     !@options[:reconnect]
   end
@@ -740,10 +705,7 @@ module NATS
     err_cb.call(NATS::ConnectError.new(disconnect_error_string)) if not closing? and @err_cb
     true # Chaining
   ensure
-<<<<<<< HEAD
-=======
     cancel_ping_timer
->>>>>>> upstream/cluster
     cancel_reconnect_timer
     if (NATS.client == self)
       NATS.clear_client
@@ -757,14 +719,10 @@ module NATS
   end
 
   def attempt_reconnect #:nodoc:
-<<<<<<< HEAD
-    process_disconnect and return if (@reconnect_attempts += 1) > @options[:max_reconnect_attempts]
-=======
     @reconnect_timer = nil
     current = server_pool.first
     current[:reconnect_attempts] += 1 if current[:reconnect_attempts]
     send_connect_command
->>>>>>> upstream/cluster
     begin
       EM.reconnect(@uri.host, @uri.port, self)
     rescue
@@ -792,10 +750,7 @@ module NATS
     uri = options[:uris] || options[:servers] || options[:uri]
     uri = uri.kind_of?(Array) ? uri : [uri]
     uri.each { |u| server_pool << { :uri => u.is_a?(URI) ? u.dup : URI.parse(u) } }
-<<<<<<< HEAD
-=======
     server_pool.shuffle! unless options[:dont_randomize_servers]
->>>>>>> upstream/cluster
     bind_primary
   end
 
@@ -815,12 +770,7 @@ module NATS
   def schedule_primary_and_connect #:nodoc:
     # Dump the one we were trying if it wasn't connected
     current = server_pool.shift
-<<<<<<< HEAD
-    server_pool << current if can_reuse_server?(current)
-
-=======
     server_pool << current if (current && can_reuse_server?(current) && !current[:error_received])
->>>>>>> upstream/cluster
     # If we are out of options, go ahead and disconnect.
     process_disconnect and return if server_pool.empty?
     # bind new one
