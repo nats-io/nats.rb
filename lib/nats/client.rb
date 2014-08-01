@@ -477,8 +477,6 @@ module NATS
       @subs.delete(sid) if (sub[:received] == sub[:max])
     end
 
-    return unsubscribe(sid) if (sub[:max] && (sub[:received] > sub[:max]))
-
     if cb = sub[:callback]
       case cb.arity
         when 0 then cb.call
@@ -652,11 +650,11 @@ module NATS
   end
 
   def attempt_reconnect #:nodoc:
-    @reconnect_timer = nil
-    current = server_pool.first
-    current[:reconnect_attempts] += 1 if current[:reconnect_attempts]
-    send_connect_command
-    EM.reconnect(@uri.host, @uri.port, self)
+    process_disconnect and return if (@reconnect_attempts += 1) > @options[:max_reconnect_attempts]
+    begin
+      EM.reconnect(@uri.host, @uri.port, self)
+    rescue
+    end
     @reconnect_cb.call unless @reconnect_cb.nil?
   end
 
