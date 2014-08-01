@@ -1,4 +1,5 @@
 require 'uri'
+require 'securerandom'
 
 ep = File.expand_path(File.dirname(__FILE__))
 
@@ -8,7 +9,11 @@ require "#{ep}/ext/json"
 
 module NATS
 
+<<<<<<< HEAD
   VERSION = "0.5.0.beta.4".freeze
+=======
+  VERSION = "0.5.0.beta.14".freeze
+>>>>>>> upstream/cluster
 
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
@@ -20,6 +25,10 @@ module NATS
 
   # Maximum outbound size per client to trigger FP, 20MB
   FAST_PRODUCER_THRESHOLD = (10*1024*1024)
+
+  # Ping intervals
+  DEFAULT_PING_INTERVAL = 120
+  DEFAULT_PING_MAX = 2
 
   # Protocol
   # @private
@@ -66,6 +75,9 @@ module NATS
   # When we cannot connect to the server (either initially or after a reconnect), this is raised/passed
   class ConnectError < Error; end #:nodoc:
 
+  # When we cannot connect to the server because authorization failed.
+  class AuthError < ConnectError; end #:nodoc:
+
   class << self
     attr_reader   :client, :reactor_was_running, :err_cb, :err_cb_overridden #:nodoc:
     attr_reader   :reconnect_cb  #:nodoc
@@ -87,6 +99,8 @@ module NATS
     # @option opts [Boolean] :ssl Boolean that is sent to server for setting TLS/SSL mode.
     # @option opts [Integer] :max_reconnect_attempts Integer that can be used to set the max number of reconnect tries
     # @option opts [Integer] :reconnect_time_wait Integer that can be used to set the number of seconds to wait between reconnect tries
+    # @option opts [Integer] :ping_interval Integer that can be used to set the ping interval in seconds.
+    # @option opts [Integer] :max_outstanding_pings Integer that can be used to set the max number of outstanding pings before declaring a connection closed.
     # @param [Block] &blk called when the connection is completed. Connection will be passed to the block.
     # @return [NATS] connection to the server.
     def connect(opts={}, &blk)
@@ -97,6 +111,8 @@ module NATS
       opts[:ssl] = false if opts[:ssl].nil?
       opts[:max_reconnect_attempts] = MAX_RECONNECT_ATTEMPTS if opts[:max_reconnect_attempts].nil?
       opts[:reconnect_time_wait] = RECONNECT_TIME_WAIT if opts[:reconnect_time_wait].nil?
+      opts[:ping_interval] = DEFAULT_PING_INTERVAL if opts[:ping_interval].nil?
+      opts[:max_outstanding_pings] = DEFAULT_PING_MAX if opts[:max_outstanding_pings].nil?
 
       # Override with ENV
       opts[:uri] ||= ENV['NATS_URI'] || DEFAULT_URI
@@ -109,6 +125,12 @@ module NATS
       opts[:max_reconnect_attempts] = ENV['NATS_MAX_RECONNECT_ATTEMPTS'].to_i unless ENV['NATS_MAX_RECONNECT_ATTEMPTS'].nil?
       opts[:reconnect_time_wait] = ENV['NATS_RECONNECT_TIME_WAIT'].to_i unless ENV['NATS_RECONNECT_TIME_WAIT'].nil?
 
+<<<<<<< HEAD
+=======
+      opts[:ping_interval] = ENV['NATS_PING_INTERVAL'].to_i unless ENV['NATS_PING_INTERVAL'].nil?
+      opts[:max_outstanding_pings] = ENV['NATS_MAX_OUTSTANDING_PINGS'].to_i unless ENV['NATS_MAX_OUTSTANDING_PINGS'].nil?
+
+>>>>>>> upstream/cluster
       uri = opts[:uris] || opts[:servers] || opts[:uri]
 
       # If they pass an array here just pass along to the real connection, and use first as the first attempt..
@@ -217,9 +239,7 @@ module NATS
     # Returns a subject that can be used for "directed" communications.
     # @return [String]
     def create_inbox
-      v = [rand(0x0010000),rand(0x0010000),rand(0x0010000),
-           rand(0x0010000),rand(0x0010000),rand(0x1000000)]
-      "_INBOX.%04x%04x%04x%04x%04x%06x" % v
+      "_INBOX.#{SecureRandom.hex(13)}"
     end
 
     # Flushes all messages and subscriptions in the default connection
@@ -282,7 +302,11 @@ module NATS
 
   end
 
+<<<<<<< HEAD
   attr_reader :connected, :connect_cb, :err_cb, :err_cb_overridden #:nodoc:
+=======
+  attr_reader :connected, :connect_cb, :err_cb, :err_cb_overridden, :pongs_received #:nodoc:
+>>>>>>> upstream/cluster
   attr_reader :closing, :reconnecting, :server_pool, :options, :server_info #:nodoc
   attr_reader :msgs_received, :msgs_sent, :bytes_received, :bytes_sent, :pings
 
@@ -298,7 +322,7 @@ module NATS
     @err_cb = NATS.err_cb
     @reconnect_timer, @needed = nil, nil
     @reconnect_cb = NATS.reconnect_cb
-    @connected, @closing, @reconnecting = false, false, false
+    @connected, @closing, @reconnecting, @conn_cb_called = false, false, false, false
     @msgs_received = @msgs_sent = @bytes_received = @bytes_sent = @pings = 0
     @pending_size = 0
     send_connect_command
@@ -426,6 +450,10 @@ module NATS
   # Close the connection to the server.
   def close
     @closing = true
+<<<<<<< HEAD
+=======
+    cancel_ping_timer
+>>>>>>> upstream/cluster
     cancel_reconnect_timer
     close_connection_after_writing if connected?
     process_disconnect if reconnecting?
@@ -440,9 +468,16 @@ module NATS
     err_cb_overridden || NATS.err_cb_overridden
   end
 
+<<<<<<< HEAD
+=======
+  def auth_connection?
+    !@uri.user.nil?
+  end
+
+>>>>>>> upstream/cluster
   def connect_command #:nodoc:
     cs = { :verbose => @options[:verbose], :pedantic => @options[:pedantic] }
-    if @uri.user
+    if auth_connection?
       cs[:user] = @uri.user
       cs[:pass] = @uri.password
     end
@@ -513,7 +548,13 @@ module NATS
           @buf = $'
         when ERR
           @buf = $'
-          err_cb.call(NATS::ServerError.new($1))
+          current = server_pool.first
+          current[:error_received] = true
+          if current[:auth_required] && !current[:auth_ok]
+            err_cb.call(NATS::AuthError.new($1))
+          else
+            err_cb.call(NATS::ServerError.new($1))
+          end
         when PING
           @pings += 1
           @buf = $'
@@ -557,12 +598,25 @@ module NATS
         err_cb.call(NATS::ClientError.new('TLS/SSL not supported by server'))
       end
     end
+    if @server_info[:auth_required]
+      current = server_pool.first
+      current[:auth_required] = true
+      queue_server_rt { current[:auth_ok] = true }
+      flush_pending
+    end
     @server_info
   end
 
   def ssl_handshake_completed
     @connected = true
     flush_pending
+  end
+
+  def cancel_ping_timer
+    if @ping_timer
+      EM.cancel_timer(@ping_timer)
+      @ping_timer = nil
+    end
   end
 
   def connection_completed #:nodoc:
@@ -577,21 +631,58 @@ module NATS
       @subs.each_pair { |k, v| send_command("SUB #{v[:subject]} #{v[:queue]} #{k}#{CR_LF}") }
     end
 
+<<<<<<< HEAD
     flush_pending unless @ssl
 
+=======
+>>>>>>> upstream/cluster
     unless user_err_cb? or reconnecting?
       @err_cb = proc { |e| raise e }
     end
 
+<<<<<<< HEAD
     if (connect_cb and not reconnecting?)
+=======
+    flush_pending unless @ssl
+
+    if (connect_cb and not @conn_cb_called)
+>>>>>>> upstream/cluster
       # We will round trip the server here to make sure all state from any pending commands
       # has been processed before calling the connect callback.
-      queue_server_rt { connect_cb.call(self) }
+      queue_server_rt do
+        connect_cb.call(self)
+        @conn_cb_called = true
+      end
     end
     @reconnecting = false
     @parse_state = AWAITING_CONTROL_LINE
+
+    # Initialize ping timer and processing
+    @pings_outstanding = 0
+    @pongs_received = 0
+    @ping_timer = EM.add_periodic_timer(@options[:ping_interval]) { send_ping }
   end
 
+  def send_ping #:nodoc:
+    return if @closing
+    if @pings_outstanding > @options[:max_outstanding_pings]
+      close_connection
+      #close
+      return
+    end
+    @pings_outstanding += 1
+    queue_server_rt { process_pong }
+    flush_pending
+  end
+
+<<<<<<< HEAD
+=======
+  def process_pong
+    @pongs_received += 1
+    @pings_outstanding -= 1
+  end
+
+>>>>>>> upstream/cluster
   def should_delay_connect?(server)
     server[:was_connected] && server[:reconnect_attempts] >= 1
   end
@@ -609,6 +700,11 @@ module NATS
     @reconnecting = true if connected?
     @connected = false
     @pending = @pongs = nil
+<<<<<<< HEAD
+=======
+    @buf = nil
+    cancel_ping_timer
+>>>>>>> upstream/cluster
 
     schedule_primary_and_connect
   end
@@ -617,6 +713,13 @@ module NATS
     server_pool && server_pool.size > 1
   end
 
+<<<<<<< HEAD
+=======
+  def had_error?
+    server_pool.first && server_pool.first[:error_received]
+  end
+
+>>>>>>> upstream/cluster
   def should_not_reconnect?
     !@options[:reconnect]
   end
@@ -637,6 +740,10 @@ module NATS
     err_cb.call(NATS::ConnectError.new(disconnect_error_string)) if not closing? and @err_cb
     true # Chaining
   ensure
+<<<<<<< HEAD
+=======
+    cancel_ping_timer
+>>>>>>> upstream/cluster
     cancel_reconnect_timer
     if (NATS.client == self)
       NATS.clear_client
@@ -650,7 +757,14 @@ module NATS
   end
 
   def attempt_reconnect #:nodoc:
+<<<<<<< HEAD
     process_disconnect and return if (@reconnect_attempts += 1) > @options[:max_reconnect_attempts]
+=======
+    @reconnect_timer = nil
+    current = server_pool.first
+    current[:reconnect_attempts] += 1 if current[:reconnect_attempts]
+    send_connect_command
+>>>>>>> upstream/cluster
     begin
       EM.reconnect(@uri.host, @uri.port, self)
     rescue
@@ -678,6 +792,10 @@ module NATS
     uri = options[:uris] || options[:servers] || options[:uri]
     uri = uri.kind_of?(Array) ? uri : [uri]
     uri.each { |u| server_pool << { :uri => u.is_a?(URI) ? u.dup : URI.parse(u) } }
+<<<<<<< HEAD
+=======
+    server_pool.shuffle! unless options[:dont_randomize_servers]
+>>>>>>> upstream/cluster
     bind_primary
   end
 
@@ -697,8 +815,12 @@ module NATS
   def schedule_primary_and_connect #:nodoc:
     # Dump the one we were trying if it wasn't connected
     current = server_pool.shift
+<<<<<<< HEAD
     server_pool << current if can_reuse_server?(current)
 
+=======
+    server_pool << current if (current && can_reuse_server?(current) && !current[:error_received])
+>>>>>>> upstream/cluster
     # If we are out of options, go ahead and disconnect.
     process_disconnect and return if server_pool.empty?
     # bind new one

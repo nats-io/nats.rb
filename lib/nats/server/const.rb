@@ -1,7 +1,11 @@
 
 module NATSD #:nodoc:
 
+<<<<<<< HEAD
   VERSION  = '0.5.0.beta.4'
+=======
+  VERSION  = '0.5.0.beta.14'
+>>>>>>> upstream/cluster
   APP_NAME = 'nats-server'
 
   DEFAULT_PORT = 4222

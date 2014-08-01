@@ -137,7 +137,7 @@ module NATSD
 
       def open_syslog
         return unless @options[:syslog]
-        Syslog.open("#{@options[:syslog]}", Syslog::LOG_PID,  Syslog::LOG_USER ) unless Syslog.opened? 
+        Syslog.open("#{@options[:syslog]}", Syslog::LOG_PID, Syslog::LOG_USER) unless Syslog.opened?
       end
 
       def close_syslog
@@ -190,7 +190,7 @@ module NATSD
 
         @auth_required = (not @options[:user].nil?)
 
-        @ssl_required = (not @options[:ssl].nil?)
+        @ssl_required = @options[:ssl]
 
         # Pings
         @options[:ping_interval] ||= DEFAULT_PING_INTERVAL

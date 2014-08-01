@@ -36,6 +36,7 @@ describe 'max connections support' do
         c.on_error do |err|
           err_received = true
           err.should be_an_instance_of NATS::ServerError
+          c.close
           conns.each { |c| c.close }
           EM.stop
         end

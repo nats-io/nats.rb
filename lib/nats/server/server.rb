@@ -138,7 +138,11 @@ module NATSD #:nodoc: all
         @in_bytes += msg.bytesize unless msg.nil?
 
         # Routes
+<<<<<<< HEAD
         routes = Set.new
+=======
+        routes = nil
+>>>>>>> upstream/cluster
 
         @sublist.match(subject).each do |sub|
           # Skip anyone in the closing state
@@ -148,9 +152,20 @@ module NATSD #:nodoc: all
           next if (is_route && sub.conn.is_route?)
 
           if sub[:qgroup].nil?
+<<<<<<< HEAD
             # Only send messages once over a route
             deliver_to_subscriber(sub, subject, reply, msg) unless routes.include?(sub.conn)
             routes << sub.conn if sub.conn.is_route?
+=======
+            if sub.conn.is_route?
+              # Only send messages once over a given route
+              routes ||= Set.new
+              deliver_to_subscriber(sub, subject, reply, msg) unless routes.include?(sub.conn.remote_rid)
+              routes << sub.conn.remote_rid
+            else
+              deliver_to_subscriber(sub, subject, reply, msg)
+            end
+>>>>>>> upstream/cluster
           elsif !is_route
             if NATSD::Server.trace_flag?
               trace('Matched queue subscriber', sub[:subject], sub[:qgroup], sub[:sid], sub.conn.client_info)

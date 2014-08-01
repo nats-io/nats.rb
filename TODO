@@ -5,7 +5,10 @@
 - [IN PROGRESS] clustering/routing
   - Allow implicit route information to propogate to clients?
   - Check with EM 1.0 not working
+  - [DONE] Client ping timers
   - [DONE] Retry timers on routes
+  - [DONE] Random on cluster client server pool
+>>>>>>> upstream/cluster
 
 - do client blowup detection from sending in tight loop
 - allow port to also be listen_port in config file

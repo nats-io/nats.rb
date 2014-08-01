@@ -53,6 +53,31 @@ describe "client configuration" do
     end
   end
 
+  it 'should have default ping options' do
+    NATS.start do
+      options = NATS.options
+      options.should be_an_instance_of Hash
+      options.should have_key :ping_interval
+      options[:ping_interval].should == NATS::DEFAULT_PING_INTERVAL
+      options.should have_key :max_outstanding_pings
+      options[:max_outstanding_pings].should == NATS::DEFAULT_PING_MAX
+      NATS.stop
+    end
+  end
+
+  it 'should allow overrides of ping variables' do
+    NATS.start(:ping_interval => 30, :max_outstanding_pings => 4) do
+      options = NATS.options
+      options.should be_an_instance_of Hash
+      options.should have_key :ping_interval
+      options[:ping_interval].should == 30
+      options.should have_key :max_outstanding_pings
+      options[:max_outstanding_pings].should == 4
+      NATS.stop
+    end
+  end
+
+
   it 'should honor environment vars options' do
     ENV['NATS_VERBOSE'] = 'true'
     ENV['NATS_PEDANTIC'] = 'true'

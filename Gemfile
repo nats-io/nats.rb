@@ -2,12 +2,12 @@ source "http://rubygems.org"
 
 gemspec
 
-gem 'eventmachine', '= 0.12.10'
-gem 'daemons', '>= 1.1.5'
-gem 'json_pure', '>= 1.7.3', :require => 'json'
-gem 'thin', '>= 1.4.1', '< 1.6'
+gem 'eventmachine', '>= 1.0.3'
+gem 'daemons', '>= 1.1.9'
+gem 'json_pure', '>= 1.8.1', :require => 'json'
+gem 'thin', '>= 1.6.0'
 
 group :test do
   gem 'rake'
-  gem 'rspec', '>= 2.11.0'
+  gem 'rspec', '< 3.0.0'
 end

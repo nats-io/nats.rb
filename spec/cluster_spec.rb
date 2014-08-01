@@ -188,7 +188,16 @@ describe 'cluster' do
           (1..to_send).each { c1.publish('foo', data) }
 
           wait_on_connections([c1, c2]) do
+<<<<<<< HEAD
             EM.add_timer(0.2) { EM.stop }
+=======
+            EM.add_timer(0.2) do
+              # No clue why these are needed to pop out EM.run
+              c1.close
+              c2.close
+              EM.stop
+            end
+>>>>>>> upstream/cluster
           end
         end
 
@@ -234,8 +243,13 @@ describe 'cluster' do
     received.should == to_send
     c1_received.should be < to_send
     c2_received.should be < to_send
+<<<<<<< HEAD
     c1_received.should be_within(15).of(to_send/2)
     c2_received.should be_within(15).of(to_send/2)
+=======
+    c1_received.should be_within(25).of(to_send/2)
+    c2_received.should be_within(25).of(to_send/2)
+>>>>>>> upstream/cluster
   end
 
 end

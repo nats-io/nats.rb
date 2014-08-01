@@ -312,10 +312,68 @@ describe 'client specification' do
     end
   end
 
+  it 'should receive a pong from a server after ping_interval' do
+    NATS.start(:ping_interval => 0.25) do
+      NATS.client.pongs_received.should == 0
+      EM.add_timer(0.5) do
+        NATS.client.pongs_received.should == 1
+        NATS.stop
+      end
+    end
+  end
+
+  it 'should disconnect from the server when pongs not received' do
+    EM.run do
+      NATS.connect(:ping_interval => 0.1, :max_outstanding_pings => 1, :reconnect => false) do |c|
+        c.on_error { NATS.stop }
+        def c.process_pong
+          # override to not process counters
+        end
+      end
+      EM.add_timer(0.5) do
+        NATS.connected?.should be_false
+        EM.stop
+      end
+    end
+  end
+
+  it 'should stop the ping timer when disconnected or closed' do
+    EM.run do
+      $pings_received = 0
+      NATS.connect(:ping_interval => 0.1) do |c|
+        def c.send_ping
+          $pings_received += 1
+          close
+        end
+      end
+      EM.add_timer(0.5) do
+        $pings_received.should == 1
+        EM.stop
+      end
+    end
+  end
+
   it 'should accept the same option set twice' do
     opts = {:uri => 'nats://localhost:4222'}
     NATS.start(opts) { NATS.stop }
     NATS.start(opts) { NATS.stop }
   end
 
+  describe '#create_inbox' do
+    it 'create the expected format' do
+      expect(NATS.create_inbox).to match(/_INBOX\.[a-f0-9]{12}/)
+    end
+
+    context 'when Kernel.srand is regularly reset to the same value' do
+      it 'should generate a unique inbox name' do
+        Kernel.srand 5555
+        first_inbox_name = NATS.create_inbox
+
+        Kernel.srand 5555
+        second_inbox_name = NATS.create_inbox
+
+        expect(second_inbox_name).to_not eq(first_inbox_name)
+      end
+    end
+  end
 end

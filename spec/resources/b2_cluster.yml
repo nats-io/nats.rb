@@ -1,0 +1,36 @@
+port: 6244
+net: localhost
+
+authorization:
+  user: derek
+  password: bella
+  token: deadbeef
+  timeout: 1
+
+# This is the cluster definition for NATS.
+
+cluster:
+  port: 6256
+
+  authorization:
+    user: route_user
+    password: cafebabe
+    timeout: 1
+
+  # These are actively connected from this server. Other servers
+  # can connect to us if they supply the correct credentials from
+  # above.
+
+  routes:
+    - nats-route://route_user:cafebabe@127.0.0.1:6254
+
+
+pid_file: '/tmp/nats_cluster_b2.pid'
+log_file: '/tmp/nats_cluster_b2.log'
+
+# Debug Options
+
+logtime: true
+debug:   true
+trace:   true
+

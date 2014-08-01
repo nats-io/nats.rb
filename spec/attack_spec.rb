@@ -18,7 +18,7 @@ describe 'server attacks' do
   end
 
   it "should not let us write large control line buffers" do
-    BAD_BUFFER = 'a' * 1024 * 1024
+    BAD_BUFFER = 'a' * 10 * 1024 * 1024
     begin
       uri = URI.parse(TEST_SERVER)
       s = TCPSocket.open(uri.host, uri.port)

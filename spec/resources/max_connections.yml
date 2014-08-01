@@ -4,6 +4,6 @@ port: 9272
 net: localhost
 
 # Protocol/Limits
-max_connections: 100
+max_connections: 32
 
 
