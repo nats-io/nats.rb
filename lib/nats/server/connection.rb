@@ -20,7 +20,8 @@ module NATSD #:nodoc: all
     end
 
     def client_info
-      @client_info ||= (get_peername.nil? ? 'N/A' : Socket.unpack_sockaddr_in(get_peername))
+      cur_peername = get_peername
+      @client_info ||= (cur_peername.nil? ? 'N/A' : Socket.unpack_sockaddr_in(cur_peername))
     end
 
     def info
