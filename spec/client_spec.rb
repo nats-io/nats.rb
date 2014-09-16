@@ -242,7 +242,7 @@ describe 'client specification' do
     EM.run do
       expect do
         NATS.start
-        EM.next_tick { NATS.stop { EM.stop } }
+        EM.add_timer(0.1) { NATS.stop { EM.stop } }
       end.to_not raise_error
     end
   end
