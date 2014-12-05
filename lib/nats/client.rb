@@ -129,7 +129,9 @@ module NATS
       # If they pass an array here just pass along to the real connection, and use first as the first attempt..
       # Real connection will do proper walk throughs etc..
       unless uri.nil?
-        u = uri.kind_of?(Array) ? uri.first : uri
+        uris = uri.kind_of?(Array) ? uri : [uri]
+        uris.shuffle! unless opts[:dont_randomize_servers]
+        u = uris.first
         @uri = u.is_a?(URI) ? u.dup : URI.parse(u)
       end
 
@@ -750,7 +752,6 @@ module NATS
     uri = options[:uris] || options[:servers] || options[:uri]
     uri = uri.kind_of?(Array) ? uri : [uri]
     uri.each { |u| server_pool << { :uri => u.is_a?(URI) ? u.dup : URI.parse(u) } }
-    server_pool.shuffle! unless options[:dont_randomize_servers]
     bind_primary
   end
 

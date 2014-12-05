@@ -24,7 +24,7 @@ describe 'client cluster config' do
   end
 
   it 'should properly process :uri option for multiple servers' do
-    NATS.start(:uri => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223']) do
+    NATS.start(:uri => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223'], :dont_randomize_servers => true) do
       options = NATS.options
       options.should be_an_instance_of Hash
       options.should have_key :uri
@@ -34,14 +34,14 @@ describe 'client cluster config' do
   end
 
   it 'should allow :uris and :servers as aliases' do
-    NATS.start(:uris => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223']) do
+    NATS.start(:uris => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223'], :dont_randomize_servers => true) do
       options = NATS.options
       options.should be_an_instance_of Hash
       options.should have_key :uris
       options[:uris].should == ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223']
       NATS.stop
     end
-    NATS.start(:servers => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223']) do
+    NATS.start(:servers => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223'], :dont_randomize_servers => true) do
       options = NATS.options
       options.should be_an_instance_of Hash
       options.should have_key :servers
@@ -53,8 +53,8 @@ describe 'client cluster config' do
   it 'should allow aliases on instance connections' do
     c1 = c2 = nil
     NATS.start do
-      c1 = NATS.connect(:uris => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223'])
-      c2 = NATS.connect(:servers => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223'])
+      c1 = NATS.connect(:uris => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4222'])
+      c2 = NATS.connect(:servers => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4222'])
       timeout_nats_on_failure
     end
     c1.should_not be_nil
@@ -134,7 +134,7 @@ describe 'client cluster config' do
     s1 = NatsServerControl.new(s1_uri, '/tmp/nats_cluster_s1.pid')
     s1.start_server
 
-    s2_uri = 'nats://ruth:bar@localhost:9298'
+    s2_uri = 'nats://sarah:bar@localhost:9298'
     s2 = NatsServerControl.new(s2_uri, '/tmp/nats_cluster_s2.pid')
     s2.start_server
 
