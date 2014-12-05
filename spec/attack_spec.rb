@@ -35,7 +35,7 @@ describe 'server attacks' do
         NATS.publish('foo', BIG_MSG) { NATS.stop }
       end
     end.to raise_error NATS::ServerError
-    NATS.connected?.should be_false
+    NATS.connected?.should == false
   end
 
   it "should complain if we can't kill our server that we started" do

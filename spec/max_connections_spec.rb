@@ -17,7 +17,7 @@ describe 'max connections support' do
 
   after(:all) do
     @s.kill_server
-    NATS.server_running?(MC_SERVER).should be_false
+    NATS.server_running?(MC_SERVER).should be_falsey
     FileUtils.rm_f(MC_LOG_FILE)
   end
 
@@ -42,7 +42,7 @@ describe 'max connections support' do
         end
       end
     end
-    err_received.should be_true
+    err_received.should be_truthy
   end
 
 end

@@ -46,7 +46,7 @@ describe 'client cluster reconnect' do
       end
       @s1.kill_server
     end
-    reconnect_cb.should be_true
+    reconnect_cb.should be_truthy
   end
 
   it 'should connect to another server if possible before reconnect' do

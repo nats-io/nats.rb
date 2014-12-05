@@ -88,7 +88,7 @@ describe 'authorization' do
       end
     end
     error_cb.should == 1
-    connect_cb.should be_true
+    connect_cb.should be_truthy
     NATS.client.should_not == nil
     NATS.client.server_pool.size.should == 1
     NATS.stop # clears err_cb

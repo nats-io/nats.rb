@@ -22,20 +22,20 @@ describe 'server log and pid files' do
 
   after(:all) do
     @s.kill_server
-    NATS.server_running?(LOG_SERVER).should be_false
+    NATS.server_running?(LOG_SERVER).should be_falsey
     FileUtils.rm_f(LOG_LOG_FILE)
   end
 
   it 'should create the log file' do
-    File.exists?(LOG_LOG_FILE).should be_true
+    File.exists?(LOG_LOG_FILE).should be_truthy
   end
 
   it 'should create the pid file' do
-    File.exists?(LOG_SERVER_PID).should be_true
+    File.exists?(LOG_SERVER_PID).should be_truthy
   end
 
   it 'should not leave a daemonized pid file in current directory' do
-    File.exists?("./#{NATSD::APP_NAME}.pid").should be_false
+    File.exists?("./#{NATSD::APP_NAME}.pid").should be_falsey
   end
 
   it 'should append to the log file after restart' do

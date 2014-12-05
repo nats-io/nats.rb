@@ -31,7 +31,7 @@ describe 'subscriptions with timeouts' do
       NATS.timeout(sid, TIMEOUT) { timeout_recvd = true }
       EM.add_timer(WAIT) { NATS.stop }
     end
-    timeout_recvd.should be_true
+    timeout_recvd.should be_truthy
     received.should == 0
   end
 
@@ -43,7 +43,7 @@ describe 'subscriptions with timeouts' do
       c.timeout(sid, TIMEOUT) { timeout_recvd = true }
       EM.add_timer(WAIT) { NATS.stop }
     end
-    timeout_recvd.should be_true
+    timeout_recvd.should be_truthy
     received.should == 0
   end
 
@@ -57,7 +57,7 @@ describe 'subscriptions with timeouts' do
       NATS.publish('foo')
       EM.add_timer(WAIT) { NATS.stop }
     end
-    timeout_recvd.should be_false
+    timeout_recvd.should be_falsey
     received.should == 2
   end
 
@@ -71,7 +71,7 @@ describe 'subscriptions with timeouts' do
       NATS.publish('foo')
       EM.add_timer(WAIT) { NATS.stop }
     end
-    timeout_recvd.should be_false
+    timeout_recvd.should be_falsey
     received.should == 2
   end
 
@@ -84,7 +84,7 @@ describe 'subscriptions with timeouts' do
       NATS.publish('foo')
       EM.add_timer(WAIT) { NATS.publish('foo') { NATS.stop} }
     end
-    timeout_recvd.should be_true
+    timeout_recvd.should be_truthy
     received.should == 1
   end
 
@@ -96,7 +96,7 @@ describe 'subscriptions with timeouts' do
       NATS.timeout(sid, TIMEOUT, :auto_unsubscribe => false) { timeout_recvd = true }
       EM.add_timer(WAIT) { NATS.publish('foo') { NATS.stop} }
     end
-    timeout_recvd.should be_true
+    timeout_recvd.should be_truthy
     received.should == 1
   end
 

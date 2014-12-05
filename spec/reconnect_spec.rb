@@ -9,7 +9,7 @@ describe 'client specification' do
     R_TEST_SERVER_PID = '/tmp/nats_reconnect_authorization.pid'
     E_TEST_SERVER = "nats://localhost:9666"
     E_TEST_SERVER_PID = '/tmp/nats_reconnect_exception_test.pid'
-    
+
     @as = NatsServerControl.new(R_TEST_AUTH_SERVER, R_TEST_SERVER_PID)
     @as.start_server
     @s = NatsServerControl.new
@@ -26,8 +26,8 @@ describe 'client specification' do
 
   it 'should properly report connected after connect callback' do
     NATS.start do
-      NATS.connected?.should be_true
-      NATS.reconnecting?.should be_false
+      NATS.connected?.should be_truthy
+      NATS.reconnecting?.should be_falsey
       NATS.stop
     end
   end
@@ -40,28 +40,28 @@ describe 'client specification' do
       timer=timeout_nats_on_failure(1)
       c.on_reconnect do
         reconnect_cb = true
-        NATS.connected?.should be_false
-        NATS.reconnecting?.should be_true
+        NATS.connected?.should be_falsey
+        NATS.reconnecting?.should be_truthy
         NATS.stop
       end
       @es.kill_server
     end
-    reconnect_cb.should be_true
+    reconnect_cb.should be_truthy
   end
-  
+
   it 'should report a reconnecting event when trying to reconnect' do
     reconnect_cb = false
     NATS.start(:reconnect_time_wait => 0.25) do |c|
       timeout_nats_on_failure(1)
       c.on_reconnect do
         reconnect_cb = true
-        NATS.connected?.should be_false
-        NATS.reconnecting?.should be_true
+        NATS.connected?.should be_falsey
+        NATS.reconnecting?.should be_truthy
         NATS.stop
       end
       @s.kill_server
     end
-    reconnect_cb.should be_true
+    reconnect_cb.should be_truthy
     @s.start_server
   end
 
@@ -71,13 +71,13 @@ describe 'client specification' do
       timeout_nats_on_failure(1)
       NATS.on_reconnect do
         reconnect_cb = true
-        NATS.connected?.should be_false
-        NATS.reconnecting?.should be_true
+        NATS.connected?.should be_falsey
+        NATS.reconnecting?.should be_truthy
         NATS.stop
       end
       @s.kill_server
     end
-    reconnect_cb.should be_true
+    reconnect_cb.should be_truthy
   end
 
   it 'should do publish without error even if reconnected to an authorized server' do

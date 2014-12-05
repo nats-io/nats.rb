@@ -42,6 +42,6 @@ describe 'partial message behavior' do
       end
     end.to_not raise_exception
 
-    got_message.should be_true
+    got_message.should be_truthy
   end
 end

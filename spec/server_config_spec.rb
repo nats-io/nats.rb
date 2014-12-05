@@ -82,7 +82,7 @@ describe "server configuration" do
     config = File.open(config_file) { |f| YAML.load(f) }
     NATSD::Server.process_options("-c #{config_file}".split)
     NATSD::Server.finalize_options
-    NATSD::Server.log_time.should be_true
+    NATSD::Server.log_time.should be_truthy
   end
 
   describe "NATSD::Server.finalize_options" do
@@ -97,7 +97,7 @@ describe "server configuration" do
 
       it "shoud properly set @ssl_required to nil" do
         NATSD::Server.finalize_options
-        NATSD::Server.ssl_required.should be_false
+        NATSD::Server.ssl_required.should be_falsey
       end
     end
 
@@ -108,7 +108,7 @@ describe "server configuration" do
 
       it "should properly set @ssl_required to false" do
         NATSD::Server.finalize_options
-        NATSD::Server.ssl_required.should be_false
+        NATSD::Server.ssl_required.should be_falsey
       end
     end
 
@@ -119,7 +119,7 @@ describe "server configuration" do
 
       it "should properly set @ssl_required to true" do
         NATSD::Server.finalize_options
-        NATSD::Server.ssl_required.should be_true
+        NATSD::Server.ssl_required.should be_truthy
       end
     end
   end

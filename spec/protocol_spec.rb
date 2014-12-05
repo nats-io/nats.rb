@@ -39,7 +39,7 @@ describe 'NATS Protocol' do
 
     it 'should care about extra spaces at end' do
       str = "SUB    foo  bargroup   1   \r\n"
-      (NATSD::SUB_OP =~ str).should be_false
+      (NATSD::SUB_OP =~ str).should be_falsey
     end
 
     it 'should properly match first one when multiple present' do
@@ -148,7 +148,7 @@ describe 'NATS Protocol' do
 
     it 'should care about extra spaces at end' do
       str = "PUB  foo     bar  2   \r\nok\r\n"
-      (NATSD::PUB_OP =~ str).should be_false
+      (NATSD::PUB_OP =~ str).should be_falsey
     end
 
     it 'should properly match first one when multiple present' do
@@ -166,32 +166,32 @@ describe 'NATS Protocol' do
 
     it 'should process ping requests' do
       str = "PING\r\n"
-      (NATSD::PING =~ str).should be_true
+      (NATSD::PING =~ str).should be_truthy
     end
 
     it 'should process ping requests with spaces' do
       str = "PING  \r\n"
-      (NATSD::PING =~ str).should be_true
+      (NATSD::PING =~ str).should be_truthy
     end
 
     it 'should process pong responses' do
       str = "PONG\r\n"
-      (NATSD::PONG =~ str).should be_true
+      (NATSD::PONG =~ str).should be_truthy
     end
 
     it 'should process ping responses with spaces' do
       str = "PONG  \r\n"
-      (NATSD::PONG =~ str).should be_true
+      (NATSD::PONG =~ str).should be_truthy
     end
 
     it 'should process info requests' do
       str = "INFO\r\n"
-      (NATSD::INFO =~ str).should be_true
+      (NATSD::INFO =~ str).should be_truthy
     end
 
     it 'should process info requests with spaces' do
       str = "INFO  \r\n"
-      (NATSD::INFO =~ str).should be_true
+      (NATSD::INFO =~ str).should be_truthy
     end
 
     it 'should process connect requests' do
@@ -225,25 +225,25 @@ describe 'NATS Protocol' do
 
     it 'should process ping and pong responsess' do
       str = "PING\r\n"
-      (NATS::PING =~ str).should be_true
+      (NATS::PING =~ str).should be_truthy
       str = "PING \r\n"
-      (NATS::PING =~ str).should be_true
+      (NATS::PING =~ str).should be_truthy
       str = "PONG\r\n"
-      (NATS::PONG =~ str).should be_true
+      (NATS::PONG =~ str).should be_truthy
       str = "PONG \r\n"
-      (NATS::PONG =~ str).should be_true
+      (NATS::PONG =~ str).should be_truthy
     end
 
     it 'should process ok responses' do
       str = "+OK\r\n"
-      (NATS::OK =~ str).should be_true
+      (NATS::OK =~ str).should be_truthy
       str = "+OK \r\n"
-      (NATS::OK =~ str).should be_true
+      (NATS::OK =~ str).should be_truthy
     end
 
     it 'should process err responses' do
       str = "-ERR 'string too long'\r\n"
-      (NATS::ERR =~ str).should be_true
+      (NATS::ERR =~ str).should be_truthy
       $1.should == "'string too long'"
     end
 

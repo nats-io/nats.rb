@@ -18,9 +18,9 @@ describe 'client specification' do
   end
 
   it 'should complain if NATS.start is called without EM running and no block was given' do
-    EM.reactor_running?.should be_false
+    EM.reactor_running?.should be_falsey
     expect { NATS.start }.to raise_error(NATS::Error)
-    NATS.connected?.should be_false
+    NATS.connected?.should be_falsey
   end
 
   it 'should perform basic block start and stop' do
@@ -29,7 +29,7 @@ describe 'client specification' do
 
   it 'should signal connected state' do
     NATS.start {
-      NATS.connected?.should be_true
+      NATS.connected?.should be_truthy
       NATS.stop
     }
   end
@@ -95,7 +95,7 @@ describe 'client specification' do
       nc.publish('foo', 'xxx')
       timeout_nats_on_failure
     }
-    received.should be_true
+    received.should be_truthy
   end
 
   it 'should receive a message that it has a wildcard subscription to' do
@@ -109,7 +109,7 @@ describe 'client specification' do
       nc.publish('foo', 'xxx')
       timeout_nats_on_failure
     }
-    received.should be_true
+    received.should be_truthy
   end
 
   it 'should not receive a message that it has unsubscribed from' do
@@ -140,7 +140,7 @@ describe 'client specification' do
       }
       timeout_nats_on_failure
     }
-    received.should be_true
+    received.should be_truthy
   end
 
   it 'should perform similar using class mirror functions' do
@@ -159,7 +159,7 @@ describe 'client specification' do
       }
       timeout_nats_on_failure
     }
-    received.should be_true
+    received.should be_truthy
   end
 
   it 'should return inside closure on publish when server received msg' do
@@ -171,7 +171,7 @@ describe 'client specification' do
       }
     timeout_nats_on_failure
     }
-    received_pub_closure.should be_true
+    received_pub_closure.should be_truthy
   end
 
   it 'should return inside closure in ordered fashion when server received msg' do
@@ -189,7 +189,7 @@ describe 'client specification' do
       }
       timeout_nats_on_failure
     }
-    received_pub_closure.should be_true
+    received_pub_closure.should be_truthy
     replies.should == expected
   end
 
@@ -204,7 +204,7 @@ describe 'client specification' do
       timeout_nats_on_failure(5)
     }
     new_conn.should_not be_nil
-    received.should be_true
+    received.should be_truthy
   end
 
   it 'should allow proper request/reply across multiple connections' do
@@ -227,8 +227,8 @@ describe 'client specification' do
       timeout_nats_on_failure
     }
     new_conn.should_not be_nil
-    received_request.should be_true
-    received_reply.should be_true
+    received_request.should be_truthy
+    received_reply.should be_truthy
   end
 
   it 'should complain if NATS.start called without a block when we would need to start EM' do
@@ -281,7 +281,7 @@ describe 'client specification' do
       NATS.unsubscribe(s)
       NATS.publish('flush') { NATS.stop }
     end
-    got_error.should be_false
+    got_error.should be_falsey
   end
 
   it 'should call error handler for double unsubscribe if in pedantic mode' do
@@ -293,7 +293,7 @@ describe 'client specification' do
       NATS.unsubscribe(s)
       NATS.publish('flush') { NATS.stop }
     end
-    got_error.should be_true
+    got_error.should be_truthy
   end
 
   it 'should monitor inbound and outbound messages and bytes' do
@@ -331,7 +331,7 @@ describe 'client specification' do
         end
       end
       EM.add_timer(0.5) do
-        NATS.connected?.should be_false
+        NATS.connected?.should be_falsey
         EM.stop
       end
     end
