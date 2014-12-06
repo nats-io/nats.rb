@@ -62,7 +62,7 @@ describe 'cluster' do
         c1.flush do
           @s2.start_server
           c2 = NATS.connect(:uri => @s2.uri) do
-            sleep(0.25) # Allow time for route to form
+            sleep(1) # Allow time for route to form
             c2.publish('foo', data)
             c2.publish('foo', data)
             c2.flush do #make sure published

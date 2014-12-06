@@ -55,7 +55,7 @@ describe 'cluster retry connect' do
             # Dummy connection back to @s1 just so we know it is back up and functioning.
             # Then wait for reconnect interval
             NATS.connect(:uri => @s1.uri) do
-              EM.add_timer(1.25) do
+              EM.add_timer(2.25) do
                 c1.connected_server.should == @s1.uri
                 c1.flush { c2.publish('foo', data) }
               end
