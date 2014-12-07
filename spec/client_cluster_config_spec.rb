@@ -66,7 +66,7 @@ describe 'client cluster config' do
                'nats://127.0.0.1:4224', 'nats://127.0.0.1:4225',
                'nats://127.0.0.1:4226', 'nats://127.0.0.1:4227']
     NATS.start do
-      NATS.connect(:uri => servers) do |c|
+      NATS.connect(:uri => servers.dup) do |c|
         sp_servers = []
         c.server_pool.each { |s| sp_servers << s[:uri].to_s }
         sp_servers.should_not == servers

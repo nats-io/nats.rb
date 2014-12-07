@@ -21,6 +21,32 @@ def wait_on_connections(conns)
   end
 end
 
+def flush_routes(conns, &blk)
+  wait_on_routes_connected(conns, &blk)
+end
+
+def wait_on_routes_connected(conns)
+  return unless conns && conns.size > 1
+
+  sub = NATS.create_inbox
+  ready = Array.new(conns.size, false)
+  yield_needed = true
+
+  conns.each_with_index do |c, i|
+    c.subscribe(sub) do |msg|
+      ready[i] = true
+      done, yn = ready.all?, yield_needed
+      yield_needed = false if yn && done
+      yield if yn && done
+    end
+  end
+  conn = conns.first
+  timer = EM.add_periodic_timer(0.1) do
+    conn.publish(sub)
+    timer.cancel if ready.all?
+  end
+end
+
 class NatsServerControl
 
   attr_reader :was_running

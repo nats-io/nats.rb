@@ -24,26 +24,18 @@ describe 'cluster' do
     EM.run do
       c1 = NATS.connect(:uri => @s1.uri)
       c2 = NATS.connect(:uri => @s2.uri)
-      wait_on_connections([c1, c2]) do
-        c1.subscribe('foo') do |msg|
-          msg.should == data
-          received += 1
-        end
-        c2.subscribe('foo') do |msg|
-          msg.should == data
-          received += 1
-        end
-        c1.flush do #make sure sub1 registered
-          sleep(0.25)
-          c2.publish('foo', data)
-          c2.publish('foo', data)
-          c2.flush do #make sure published
-            sleep(0.25)
-            c1.flush do #make sure received
-              EM.stop
-            end
-          end
-        end
+      c1.subscribe('foo') do |msg|
+        msg.should == data
+        received += 1
+      end
+      c2.subscribe('foo') do |msg|
+        msg.should == data
+        received += 1
+      end
+      wait_on_routes_connected([c1, c2]) do
+        c2.publish('foo', data)
+        c2.publish('foo', data)
+        flush_routes([c1, c2]) { EM.stop }
       end
     end
     received.should == 4
@@ -62,13 +54,10 @@ describe 'cluster' do
         c1.flush do
           @s2.start_server
           c2 = NATS.connect(:uri => @s2.uri) do
-            sleep(1) # Allow time for route to form
-            c2.publish('foo', data)
-            c2.publish('foo', data)
-            c2.flush do #make sure published
-              c1.flush do #make sure received
-                EM.stop
-              end
+            flush_routes([c1, c2]) do
+              c2.publish('foo', data)
+              c2.publish('foo', data)
+              flush_routes([c1, c2]) { EM.stop }
             end
           end
         end

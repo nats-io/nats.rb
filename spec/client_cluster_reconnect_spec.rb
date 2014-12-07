@@ -24,7 +24,7 @@ describe 'client cluster reconnect' do
   end
 
   # restart any servers that were harmed during testing..
-  after do
+  after(:each) do
     [@s1, @s2, @s3].each do |s|
       s.start_server unless NATS.server_running? s.uri
     end

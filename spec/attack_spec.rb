@@ -32,7 +32,7 @@ describe 'server attacks' do
     BIG_MSG = 'a' * 10 * 1024 * 1024
     expect do
       NATS.start(:uri => TEST_SERVER, :autostart => false, :reconnect => false) do
-        NATS.publish('foo', BIG_MSG) { NATS.stop }
+        NATS.publish('foo', BIG_MSG) { EM.stop }
       end
     end.to raise_error NATS::ServerError
     NATS.connected?.should == false
