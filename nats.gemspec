@@ -9,17 +9,18 @@ spec = Gem::Specification.new do |s|
   s.name = 'nats'
   s.version = NATSD::VERSION
   s.summary = 'A lightweight cloud messaging system.'
-  s.homepage = 'http://github.com/derekcollison/nats'
+  s.homepage = 'http://nats.io'
   s.description = 'A lightweight cloud messaging system.'
+  s.licenses = ['MIT']
   s.has_rdoc = true
 
   s.authors = ['Derek Collison']
   s.email = ['derek.collison@gmail.com']
 
-  s.add_dependency('eventmachine', '>= 1.0.3')
-  s.add_dependency('json_pure', '>= 1.8.1')
-  s.add_dependency('daemons', '>= 1.1.9')
-  s.add_dependency('thin', '>= 1.6.3')
+  s.add_dependency('eventmachine', '~> 1.0', '>= 1.0.3')
+  s.add_dependency('json_pure', '~> 1.8', '>= 1.8.1')
+  s.add_dependency('daemons', '~> 1.1', '>= 1.1.9')
+  s.add_dependency('thin', '~> 1.6', '>= 1.6.3')
 
   s.require_paths = ['lib']
   s.bindir = 'bin'
