@@ -1,5 +1,10 @@
 # HISTORY
 
+## v0.5.0.beta.16 (December 7, 2014)
+  - Resolved major issue on cluster connects to non-first server, issue #78
+  - Official Support for Ruby 2.1
+  - See full list @ https://github.com/derekcollison/nats/compare/v0.5.0.beta.12...v0.5.0.beta.16
+
 ## v0.5.0.beta.12 (October 1, 2013)
   - Fixed issue #58, reconnects not stopped on auth failures
   - Fixed leaking ping timers on auth failures
