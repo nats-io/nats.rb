@@ -2,13 +2,14 @@
 
 A lightweight publish-subscribe and distributed queueing messaging system.
 
-[![Build Status](https://secure.travis-ci.org/derekcollison/nats.png?branch=cluster)](http://travis-ci.org/derekcollison/nats)
+[![Build Status](https://secure.travis-ci.org/derekcollison/nats.png?branch=cluster)](http://travis-ci.org/derekcollison/nats) [![Gem Version](https://badge.fury.io/rb/nats.svg)](http://badge.fury.io/rb/nats?v=0.5.0.beta.16) [![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](http://www.rubydoc.info/github/derekcollison/nats)
+
 
 ## Supported Platforms
 
 This gem currently works on the following Ruby platforms:
 
-- MRI 1.8 and 1.9 (Performance is best on 1.9.3)
+- MRI 1.8, 1.9, 2.0, 2.1
 - Rubinius
 - JRuby
 
@@ -115,7 +116,7 @@ See examples and benchmarks for more information..
 
 (The MIT License)
 
-Copyright (c) 2010-2013 Derek Collison
+Copyright (c) 2010-2014 Derek Collison
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to
