@@ -9,7 +9,7 @@ A lightweight publish-subscribe and distributed queueing messaging system.
 
 This gem currently works on the following Ruby platforms:
 
-- MRI 1.8, 1.9, 2.0, 2.1
+- MRI 1.9, 2.0, 2.1
 - Rubinius
 - JRuby
 
