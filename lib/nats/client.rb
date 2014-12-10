@@ -630,7 +630,12 @@ module NATS
         @conn_cb_called = true
       end
     end
-    @reconnecting = false
+
+    if reconnecting?
+      @reconnecting = false
+      @reconnect_cb.call unless @reconnect_cb.nil?
+    end
+
     @parse_state = AWAITING_CONTROL_LINE
 
     # Initialize ping timer and processing
@@ -729,7 +734,6 @@ module NATS
       EM.reconnect(@uri.host, @uri.port, self)
     rescue
     end
-    @reconnect_cb.call unless @reconnect_cb.nil?
   end
 
   def send_command(command, priority = false) #:nodoc:
