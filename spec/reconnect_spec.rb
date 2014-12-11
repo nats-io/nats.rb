@@ -32,54 +32,6 @@ describe 'client specification' do
     end
   end
 
-  it 'should properly handle exceptions thrown by eventmachine during reconnects' do
-    reconnect_cb = false
-    NATS.start(:uri => E_TEST_SERVER, :reconnect_time_wait => 0.25) do |c|
-      # Change the uri to simulate a DNS failure which will make EM.reconnect throw an exception
-      c.instance_eval('@uri = URI.parse("nats://does.not.exist:4222/")')
-      timer=timeout_nats_on_failure(1)
-      c.on_reconnect do
-        reconnect_cb = true
-        NATS.connected?.should be_falsey
-        NATS.reconnecting?.should be_truthy
-        NATS.stop
-      end
-      @es.kill_server
-    end
-    reconnect_cb.should be_truthy
-  end
-
-  it 'should report a reconnecting event when trying to reconnect' do
-    reconnect_cb = false
-    NATS.start(:reconnect_time_wait => 0.25) do |c|
-      timeout_nats_on_failure(1)
-      c.on_reconnect do
-        reconnect_cb = true
-        NATS.connected?.should be_falsey
-        NATS.reconnecting?.should be_truthy
-        NATS.stop
-      end
-      @s.kill_server
-    end
-    reconnect_cb.should be_truthy
-    @s.start_server
-  end
-
-  it 'should allow binding of callback on default client after initialization' do
-    reconnect_cb = false
-    NATS.start(:reconnect_time_wait => 0.25) do |c|
-      timeout_nats_on_failure(1)
-      NATS.on_reconnect do
-        reconnect_cb = true
-        NATS.connected?.should be_falsey
-        NATS.reconnecting?.should be_truthy
-        NATS.stop
-      end
-      @s.kill_server
-    end
-    reconnect_cb.should be_truthy
-  end
-
   it 'should do publish without error even if reconnected to an authorized server' do
     NATS.start(:uri => R_TEST_AUTH_SERVER, :reconnect_time_wait => 0.25) do |c|
       c.on_reconnect do

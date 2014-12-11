@@ -164,6 +164,12 @@ module NATS
       @err_cb = nil
     end
 
+    # @return [URI] Connected server
+    def connected_server
+      return nil unless client
+      client.connected_server
+    end
+
     # @return [Boolean] Connected state
     def connected?
       return false unless client
@@ -733,6 +739,9 @@ module NATS
     begin
       EM.reconnect(@uri.host, @uri.port, self)
     rescue
+      current[:error_received] = true
+      @uri = nil
+      @connected = false
     end
   end
 
@@ -759,6 +768,7 @@ module NATS
     bind_primary
   end
 
+  # @return [URI] Connected server
   def connected_server
     connected? ? @uri : nil
   end
@@ -775,6 +785,7 @@ module NATS
   def schedule_primary_and_connect #:nodoc:
     # Dump the one we were trying if it wasn't connected
     current = server_pool.shift
+    # FIXME(dlc) - Should we remove from the list on error?
     server_pool << current if (current && can_reuse_server?(current) && !current[:error_received])
     # If we are out of options, go ahead and disconnect.
     process_disconnect and return if server_pool.empty?
@@ -786,6 +797,7 @@ module NATS
       schedule_reconnect
     else
       attempt_reconnect
+      schedule_primary_and_connect if had_error?
     end
   end
 

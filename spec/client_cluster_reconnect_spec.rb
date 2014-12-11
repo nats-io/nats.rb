@@ -30,6 +30,26 @@ describe 'client cluster reconnect' do
     end
   end
 
+  it 'should properly handle exceptions thrown by eventmachine during reconnects' do
+    reconnect_cb = false
+    opts = {
+      :dont_randomize_servers => true,
+      :reconnect_time_wait => 0.25,
+      :uri => [@s1.uri, URI.parse("nats://does.not.exist:4222/"), @s3.uri]
+    }
+    NATS.start(opts) do |c|
+      timer=timeout_nats_on_failure(1)
+      c.on_reconnect do
+        reconnect_cb = true
+        NATS.connected?.should be_truthy
+        NATS.connected_server.should == @s3.uri
+        NATS.stop
+      end
+      @s1.kill_server
+    end
+    reconnect_cb.should be_truthy
+  end
+
   it 'should call reconnect callback when current connection fails' do
     reconnect_cb = false
     opts = {
