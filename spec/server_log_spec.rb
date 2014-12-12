@@ -41,7 +41,7 @@ describe 'server log and pid files' do
   it 'should append to the log file after restart' do
     @s.kill_server
     @s.start_server
-    File.read(LOG_LOG_FILE).split("\n").size.should == 2
+    File.read(LOG_LOG_FILE).split("\n").size.should == 4
   end
 
   it 'should not output to the log file when enable syslog option' do
