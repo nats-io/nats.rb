@@ -1,26 +1,18 @@
-# NATS
+# NATS - Ruby Client
 
-A lightweight publish-subscribe and distributed queueing messaging system.
+A [Ruby](http://ruby-lang.org) client for the [NATS messaging system](https://nats.io).
 
 [![Build Status](https://secure.travis-ci.org/derekcollison/nats.png?branch=cluster)](http://travis-ci.org/derekcollison/nats) [![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.5.0.beta.16)](https://rubygems.org/gems/nats/versions/0.5.0.beta.16) [![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](http://www.rubydoc.info/github/derekcollison/nats)
 
 
 ## Supported Platforms
 
-This gem currently works on the following Ruby platforms:
+This gem and the client are known to work on the following Ruby platforms:
 
 - MRI 1.9, 2.0, 2.1
-- Rubinius
-- JRuby
+- JRuby 1.6.8 (experimental)
 
-## Additional Clients
-
-There are several other client language bindings as well.
-
-- [Node.js](https://github.com/derekcollison/node_nats)
-- [Go](https://github.com/apcera/nats)
-- [Java](https://github.com/tyagihas/java_nats)
-- [Java - Spring](https://github.com/mheath/jnats)
+Note: This installation installs a version of the NATS server written in Ruby that has been deprecated. Please utilize a supported server such as [gnatsd](https://github.com/apcera/gnatsd). nats-server will be removed in a future release.
 
 ## Getting Started
 
@@ -83,6 +75,28 @@ NATS.subscribe('foo.>') { |msg, reply, sub| puts "Msg received on [#{sub}] : '#{
 # You can have as many queue groups as you wish
 # Normal subscribers will continue to work as expected.
 NATS.subscribe(subject, :queue => 'job.workers') { |msg| puts "Received '#{msg}'" }
+```
+
+## Clustered Usage
+```ruby
+NATS.start(:servers => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223'] do |c|
+  puts "NATS is connected to #{c.connected_server}"
+  c.on_reconnect do
+    puts "Reconnected to server at #{c.connected_server}
+  end
+end
+
+opts = {
+  :dont_randomize_servers => true,
+  :reconnect_time_wait => 0.5,
+  :max_reconnect_attempts = 10,
+  :servers => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223', 'nats://127.0.0.1:4224]
+}
+
+NATS.connect(opts) do |c|
+  puts "NATS is connected!"
+end
+
 ```
 
 ## Advanced Usage
