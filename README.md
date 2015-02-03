@@ -2,7 +2,7 @@
 
 A lightweight publish-subscribe and distributed queueing messaging system.
 
-[![Build Status](https://secure.travis-ci.org/derekcollison/nats.png?branch=master)](http://travis-ci.org/derekcollison/nats)
+[![Build Status](https://secure.travis-ci.org/derekcollison/ruby-nats.svg?branch=master)](http://travis-ci.org/derekcollison/ruby-nats)
 
 ## Supported Platforms
 
