@@ -1,4 +1,4 @@
-# NATS
+# NATS for Ruby
 
 A lightweight publish-subscribe and distributed queueing messaging system.
 
