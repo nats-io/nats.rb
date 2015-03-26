@@ -2,6 +2,7 @@
 
 A [Ruby](http://ruby-lang.org) client for the [NATS messaging system](https://nats.io).
 
+[![License MIT](https://img.shields.io/npm/l/express.svg)](http://opensource.org/licenses/MIT)
 [![Build Status](https://travis-ci.org/derekcollison/ruby-nats.svg?branch=cluster)](http://travis-ci.org/derekcollison/ruby-nats) [![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.5.0.beta.16)](https://rubygems.org/gems/nats/versions/0.5.0.beta.16) [![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](http://www.rubydoc.info/github/derekcollison/nats)
 
 
@@ -130,7 +131,7 @@ See examples and benchmarks for more information..
 
 (The MIT License)
 
-Copyright (c) 2010-2014 Derek Collison
+Copyright (c) 2010-2015 Derek Collison
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to
