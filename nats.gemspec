@@ -8,18 +8,18 @@ require 'nats/server/const'
 spec = Gem::Specification.new do |s|
   s.name = 'nats'
   s.version = NATSD::VERSION
-  s.summary = 'A lightweight cloud messaging system.'
-  s.homepage = 'http://nats.io'
-  s.description = 'A lightweight cloud messaging system.'
+  s.summary = 'NATS is an open-source, high-performance, lightweight cloud messaging system.'
+  s.homepage = 'https://nats.io'
+  s.description = 'NATS is an open-source, high-performance, lightweight cloud messaging system.'
   s.licenses = ['MIT']
   s.has_rdoc = true
 
   s.authors = ['Derek Collison']
   s.email = ['derek.collison@gmail.com']
 
-  s.add_dependency('eventmachine', '~> 1.0', '>= 1.0.3')
+  s.add_dependency('eventmachine', '~> 1.0', '>= 1.0.7')
   s.add_dependency('json_pure', '~> 1.8', '>= 1.8.1')
-  s.add_dependency('daemons', '~> 1.1', '>= 1.1.9')
+  s.add_dependency('daemons', '~> 1.1', '>= 1.2.2')
   s.add_dependency('thin', '~> 1.6', '>= 1.6.3')
 
   s.require_paths = ['lib']
