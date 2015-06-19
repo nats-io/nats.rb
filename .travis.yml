@@ -5,4 +5,4 @@ rvm:
 
 branches:
   only:
-    - cluster
+    - master
