@@ -40,3 +40,6 @@ DEPENDENCIES
   rake
   rspec (< 3.0.0)
   thin (>= 1.6.0)
+
+BUNDLED WITH
+   1.10.4
