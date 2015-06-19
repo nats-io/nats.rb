@@ -1,5 +1,10 @@
 # HISTORY
 
+## v0.5.0 (June 19, 2015)
+  - Merged to master.
+  - Added language and version to client connect protocol
+  - See full list @ https://github.com/derekcollison/nats/compare/v0.5.0.beta.16...v0.5.0
+
 ## v0.5.0.beta.16 (December 7, 2014)
   - Resolved major issue on cluster connects to non-first server, issue #78
   - Official Support for Ruby 2.1

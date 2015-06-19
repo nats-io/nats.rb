@@ -26,7 +26,7 @@ NATSD::Server.setup(ARGV.dup)
 # Event Loop
 EM.run do
 
-  log "WARNING: nats-server is deprecated and no longer supported. It will be removed in a future release. See https://github.com/apcera/gnatsd."
+  log "WARNING: nats-server is deprecated and no longer supported. It will be removed in a future release. See https://github.com/nats-io/gnatsd."
   log "Starting #{NATSD::APP_NAME} version #{NATSD::VERSION} on port #{NATSD::Server.port}"
   log "TLS/SSL Support Enabled" if NATSD::Server.options[:ssl]
   begin
