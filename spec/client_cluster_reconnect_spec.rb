@@ -75,6 +75,7 @@ describe 'client cluster reconnect' do
       c.connected_server.should == @s1.uri
       c.on_reconnect do
         c.connected_server.should == @s2.uri
+        @s1.start_server
         NATS.stop
       end
       @s1.kill_server

@@ -89,8 +89,8 @@ describe 'cluster' do
     received.should == to_send
     c1_received.should be < to_send
     c2_received.should be < to_send
-    c1_received.should be_within(15).of(to_send/2)
-    c2_received.should be_within(15).of(to_send/2)
+    c1_received.should be_within(25).of(to_send/2)
+    c2_received.should be_within(25).of(to_send/2)
   end
 
   it 'should properly route messages for distributed queues and normal subscribers on different servers' do
@@ -173,10 +173,10 @@ describe 'cluster' do
     end
 
     received.should == to_send*6 # 2 queue subscribers + normal subscriber * 2 pub loops
-    c1a_received.should be_within(15).of(to_send)
-    c2a_received.should be_within(15).of(to_send)
-    c1b_received.should be_within(15).of(to_send)
-    c2b_received.should be_within(15).of(to_send)
+    c1a_received.should be_within(25).of(to_send)
+    c2a_received.should be_within(25).of(to_send)
+    c1b_received.should be_within(25).of(to_send)
+    c2b_received.should be_within(25).of(to_send)
   end
 
   it 'should properly route messages for distributed queues with reply subjects on different servers' do
