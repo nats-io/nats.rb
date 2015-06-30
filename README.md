@@ -83,7 +83,7 @@ NATS.subscribe(subject, :queue => 'job.workers') { |msg| puts "Received '#{msg}'
 NATS.start(:servers => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223'] do |c|
   puts "NATS is connected to #{c.connected_server}"
   c.on_reconnect do
-    puts "Reconnected to server at #{c.connected_server}
+    puts "Reconnected to server at #{c.connected_server}"
   end
 end
 
@@ -91,7 +91,7 @@ opts = {
   :dont_randomize_servers => true,
   :reconnect_time_wait => 0.5,
   :max_reconnect_attempts = 10,
-  :servers => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223', 'nats://127.0.0.1:4224]
+  :servers => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223', 'nats://127.0.0.1:4224']
 }
 
 NATS.connect(opts) do |c|
