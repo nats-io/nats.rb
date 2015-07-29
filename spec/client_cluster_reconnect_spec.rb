@@ -129,4 +129,22 @@ describe 'client cluster reconnect' do
     end
   end
 
+  context 'when max_reconnect_attempts == -1 (do not remove servers)' do
+    it 'should never remove servers that fail' do
+      options = {
+        :dont_randomize_servers => true,
+        :servers => [@s1.uri, @s2.uri],
+        :reconnect => true,
+        :max_reconnect_attempts => -1,
+        :reconnect_time_wait => 1
+      }
+
+      @s1.kill_server
+      NATS.start(options) do |c|
+        timeout_nats_on_failure(15)
+        c.connected_server.should == @s2.uri
+        expect(c.server_pool.size).to eq(2)
+      end
+    end
+  end
 end
