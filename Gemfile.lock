@@ -3,7 +3,7 @@ PATH
   specs:
     nats (0.5.1)
       daemons (~> 1.1, >= 1.2.2)
-      eventmachine (~> 1.0, >= 1.0.7)
+      eventmachine (~> 1.0, = 1.0.7)
       json_pure (~> 1.8, >= 1.8.1)
       thin (~> 1.6, >= 1.6.3)
 
@@ -12,7 +12,7 @@ GEM
   specs:
     daemons (1.2.3)
     diff-lcs (1.2.5)
-    eventmachine (1.0.8)
+    eventmachine (1.0.7)
     json_pure (1.8.2)
     rack (1.6.4)
     rake (10.4.2)
@@ -34,7 +34,7 @@ PLATFORMS
 
 DEPENDENCIES
   daemons (>= 1.2.2)
-  eventmachine (>= 1.0.7)
+  eventmachine (= 1.0.7)
   json_pure (>= 1.8.1)
   nats!
   rake
