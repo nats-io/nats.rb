@@ -9,7 +9,7 @@ require "#{ep}/ext/json"
 
 module NATS
 
-  VERSION = "0.5.0".freeze
+  VERSION = "0.5.1".freeze
 
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
@@ -791,7 +791,7 @@ module NATS
     # Dump the one we were trying if it wasn't connected
     current = server_pool.shift
     # FIXME(dlc) - Should we remove from the list on error?
-    server_pool << current if (current && can_reuse_server?(current) && !current[:error_received])
+    server_pool << current if (current && (options[:max_reconnect_attempts] < 0 || can_reuse_server?(current) && !current[:error_received]))
     # If we are out of options, go ahead and disconnect.
     process_disconnect and return if server_pool.empty?
     # bind new one
