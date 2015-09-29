@@ -151,7 +151,13 @@ module NATS
         raise(Error, "EM needs to be running when NATS.start is called without a run block")
       end
       # Setup optimized select versions
-      EM.epoll; EM.kqueue
+      if EM.epoll?
+        EM.epoll
+      elsif EM.kqueue?
+        EM.kqueue
+      else
+        Kernel.warn('Neither epoll nor kqueue are supported')
+      end
       EM.run { @client = connect(*args, &blk) }
     end
 
