@@ -590,7 +590,7 @@ module NATS
   end
 
   def process_info(info) #:nodoc:
-    @server_info = JSON.parse(info, :symbolize_keys => true, :symbolize_names => true)
+    @server_info = JSON.parse(info, :symbolize_keys => true, :symbolize_names => true, :symbol_keys => true)
     if @server_info[:ssl_required] && @ssl
       start_tls
     else
