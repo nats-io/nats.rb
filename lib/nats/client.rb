@@ -320,7 +320,9 @@ module NATS
   def initialize(options)
     @options = options
     process_uri_options
+    @ssl = false
     @ssl = options[:ssl] if options[:ssl]
+    @buf = nil
     @ssid, @subs = 1, {}
     @err_cb = NATS.err_cb
     @reconnect_timer, @needed = nil, nil
