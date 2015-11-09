@@ -589,10 +589,11 @@ module NATS
     end
   end
 
-  def process_info(info) #:nodoc: Each JSON parser uses a different key/value
-    # pair to use symbol keys instead of strings when parsing. Passing all three
-    # pairs assures each parser gets what it needs. For the json gem
-    # :symbolize_name, for yajl :symbolize_keys, and for oj :symbol_kys.
+  def process_info(info) #:nodoc:
+    # Each JSON parser uses a different key/value pair to use symbol keys
+    # instead of strings when parsing. Passing all three pairs assures each
+    # parser gets what it needs. For the json gem :symbolize_name, for yajl
+    # :symbolize_keys, and for oj :symbol_keys.
     @server_info = JSON.parse(info, :symbolize_keys => true, :symbolize_names => true, :symbol_keys => true)
     if @server_info[:ssl_required] && @ssl
       start_tls
