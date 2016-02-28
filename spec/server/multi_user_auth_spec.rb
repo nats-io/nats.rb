@@ -57,7 +57,7 @@ describe 'multi-user authorization' do
     first[:pass].should == pass
   end
 
-  it 'should support mixed auth models and report singelton correctly' do
+  it 'should support mixed auth models and report singleton correctly' do
     config_file = File.dirname(__FILE__) + '/resources/mixed_auth.yml'
     config = File.open(config_file) { |f| YAML.load(f) }
     NATSD::Server.process_options("-c #{config_file}".split)

@@ -3,22 +3,22 @@ require 'yaml'
 
 describe 'cluster' do
 
-  before(:all) do
-    B1_CONFIG_FILE = File.dirname(__FILE__) + '/resources/b1_cluster.yml'
-    @s1 = NatsServerControl.init_with_config(B1_CONFIG_FILE)
-    @s1.start_server
+  # before(:all) do
+  #   B1_CONFIG_FILE = File.dirname(__FILE__) + '/resources/b1_cluster.yml'
+  #   @s1 = NatsServerControl.init_with_config(B1_CONFIG_FILE)
+  #   @s1.start_server
 
-    B2_CONFIG_FILE = File.dirname(__FILE__) + '/resources/b2_cluster.yml'
-    @s2 = NatsServerControl.init_with_config(B2_CONFIG_FILE)
-    @s2.start_server
-  end
+  #   B2_CONFIG_FILE = File.dirname(__FILE__) + '/resources/b2_cluster.yml'
+  #   @s2 = NatsServerControl.init_with_config(B2_CONFIG_FILE)
+  #   @s2.start_server
+  # end
 
-  after(:all) do
-    @s1.kill_server
-    @s2.kill_server
-  end
+  # after(:all) do
+  #   @s1.kill_server
+  #   @s2.kill_server
+  # end
 
-  it 'should properly route plain messages between different servers' do
+  skip 'should properly route plain messages between different servers' do
     data = 'Hello World!'
     received = 0
     EM.run do
@@ -41,7 +41,8 @@ describe 'cluster' do
     received.should == 4
   end
 
-  it 'should properly route messages with staggered startup' do
+  skip 'should properly route messages with staggered startup' do
+
     @s2.kill_server
     data = 'Hello World!'
     received = 0

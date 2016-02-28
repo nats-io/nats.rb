@@ -17,6 +17,7 @@ describe 'fast producer' do
   end
 
   it 'should report the outstanding bytes pending' do
+
     data = 'hello world!'
     proto = "PUB foo  #{data.size}\r\n#{data}\r\n"
     NATS.start do

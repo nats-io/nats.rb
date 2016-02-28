@@ -1,9 +1,12 @@
-desc "Run rspec"
-task :spec do
-  require "rspec/core/rake_task"
-  RSpec::Core::RakeTask.new do |t|
-    t.rspec_opts = %w(-fd -c)
-  end
+#!/usr/bin/env rake
+require "bundler/gem_tasks"
+
+require 'rspec/core'
+require 'rspec/core/rake_task'
+
+RSpec::Core::RakeTask.new(:spec) do |spec|
+  spec.pattern = FileList['spec/client/*_spec.rb']
+  spec.rspec_opts = ["--format", "documentation", "--colour"]
 end
 task :default => :spec
 

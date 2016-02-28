@@ -3,25 +3,25 @@ require 'yaml'
 
 describe 'max connections support' do
 
-  before (:all) do
-    MC_SERVER_PID = '/tmp/nats_mc_pid.pid'
-    MC_SERVER = 'nats://localhost:9272'
-    MC_LOG_FILE = '/tmp/nats_mc_test.log'
-    MC_CONFIG = File.dirname(__FILE__) + '/resources/max_connections.yml'
-    MC_FLAGS = "-c #{MC_CONFIG}"
+  # before (:all) do
+  #   MC_SERVER_PID = '/tmp/nats_mc_pid.pid'
+  #   MC_SERVER = 'nats://localhost:9272'
+  #   MC_LOG_FILE = '/tmp/nats_mc_test.log'
+  #   MC_CONFIG = File.dirname(__FILE__) + '/resources/max_connections.yml'
+  #   MC_FLAGS = "-c #{MC_CONFIG}"
 
-    FileUtils.rm_f(MC_LOG_FILE)
-    @s = NatsServerControl.new(MC_SERVER, MC_SERVER_PID, MC_FLAGS)
-    @s.start_server
-  end
+  #   FileUtils.rm_f(MC_LOG_FILE)
+  #   @s = NatsServerControl.new(MC_SERVER, MC_SERVER_PID, MC_FLAGS)
+  #   @s.start_server
+  # end
 
-  after(:all) do
-    @s.kill_server
-    NATS.server_running?(MC_SERVER).should be_falsey
-    FileUtils.rm_f(MC_LOG_FILE)
-  end
+  # after(:all) do
+  #   @s.kill_server
+  #   NATS.server_running?(MC_SERVER).should be_falsey
+  #   FileUtils.rm_f(MC_LOG_FILE)
+  # end
 
-  it 'should not allow connections above the maximum allowed' do
+  skip 'should not allow connections above the maximum allowed' do
     config = File.open(MC_CONFIG) { |f| YAML.load(f) }
     max = config['max_connections']
 

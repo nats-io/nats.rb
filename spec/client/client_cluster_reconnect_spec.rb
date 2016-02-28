@@ -3,34 +3,34 @@ require 'yaml'
 
 describe 'client cluster reconnect' do
 
-  before(:all) do
-    S1_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s1_cluster.yml'
-    @s1 = NatsServerControl.init_with_config(S1_CONFIG_FILE)
-    @s1.start_server
+  # before(:all) do
+  #   S1_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s1_cluster.yml'
+  #   @s1 = NatsServerControl.init_with_config(S1_CONFIG_FILE)
+  #   @s1.start_server
 
-    S2_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s2_cluster.yml'
-    @s2 = NatsServerControl.init_with_config(S2_CONFIG_FILE)
-    @s2.start_server
+  #   S2_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s2_cluster.yml'
+  #   @s2 = NatsServerControl.init_with_config(S2_CONFIG_FILE)
+  #   @s2.start_server
 
-    S3_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s3_cluster.yml'
-    @s3 = NatsServerControl.init_with_config(S3_CONFIG_FILE)
-    @s3.start_server
-  end
+  #   S3_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s3_cluster.yml'
+  #   @s3 = NatsServerControl.init_with_config(S3_CONFIG_FILE)
+  #   @s3.start_server
+  # end
 
-  after(:all) do
-    @s1.kill_server
-    @s2.kill_server
-    @s3.kill_server
-  end
+  # after(:all) do
+  #   @s1.kill_server
+  #   @s2.kill_server
+  #   @s3.kill_server
+  # end
 
   # restart any servers that were harmed during testing..
-  after(:each) do
-    [@s1, @s2, @s3].each do |s|
-      s.start_server(true) unless NATS.server_running? s.uri
-    end
-  end
+  # after(:each) do
+  #   [@s1, @s2, @s3].each do |s|
+  #     s.start_server(true) unless NATS.server_running? s.uri
+  #   end
+  # end
 
-  it 'should properly handle exceptions thrown by eventmachine during reconnects' do
+  skip 'should properly handle exceptions thrown by eventmachine during reconnects' do
     reconnect_cb = false
     opts = {
       :dont_randomize_servers => true,
@@ -50,7 +50,7 @@ describe 'client cluster reconnect' do
     reconnect_cb.should be_truthy
   end
 
-  it 'should call reconnect callback when current connection fails' do
+  skip 'should call reconnect callback when current connection fails' do
     reconnect_cb = false
     opts = {
       :dont_randomize_servers => true,
@@ -69,7 +69,7 @@ describe 'client cluster reconnect' do
     reconnect_cb.should be_truthy
   end
 
-  it 'should connect to another server if possible before reconnect' do
+  skip 'should connect to another server if possible before reconnect' do
     NATS.start(:dont_randomize_servers => true, :servers => [@s1.uri, @s2.uri, @s3.uri]) do |c|
       timeout_nats_on_failure(15)
       c.connected_server.should == @s1.uri
@@ -81,7 +81,7 @@ describe 'client cluster reconnect' do
     end
   end
 
-  it 'should connect to a previous server if multiple servers exit' do
+  skip 'should connect to a previous server if multiple servers exit' do
     NATS.start(:dont_randomize_servers => true, :servers => [@s1.uri, @s2.uri, @s3.uri]) do |c|
       timeout_nats_on_failure(15)
       c.connected_server.should == @s1.uri
@@ -107,7 +107,7 @@ describe 'client cluster reconnect' do
     end
   end
 
-  it 'should use reconnect logic to connect to a previous server if multiple servers exit' do
+  skip 'should use reconnect logic to connect to a previous server if multiple servers exit' do
     @s2.kill_server # Take this one offline
     options = {
       :dont_randomize_servers => true,
@@ -130,7 +130,7 @@ describe 'client cluster reconnect' do
   end
 
   context 'when max_reconnect_attempts == -1 (do not remove servers)' do
-    it 'should never remove servers that fail' do
+    skip 'should never remove servers that fail' do
       options = {
         :dont_randomize_servers => true,
         :servers => [@s1.uri, @s2.uri],

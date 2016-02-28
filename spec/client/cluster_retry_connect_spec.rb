@@ -3,22 +3,22 @@ require 'yaml'
 
 describe 'cluster retry connect' do
 
-  before(:all) do
-    SR1_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s1_cluster.yml'
-    @s1 = NatsServerControl.init_with_config(SR1_CONFIG_FILE)
-    @s1.start_server
+  # before(:all) do
+  #   SR1_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s1_cluster.yml'
+  #   @s1 = NatsServerControl.init_with_config(SR1_CONFIG_FILE)
+  #   @s1.start_server
 
-    SR2_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s2_cluster.yml'
-    @s2 = NatsServerControl.init_with_config(SR2_CONFIG_FILE)
-    @s2.start_server
-  end
+  #   SR2_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s2_cluster.yml'
+  #   @s2 = NatsServerControl.init_with_config(SR2_CONFIG_FILE)
+  #   @s2.start_server
+  # end
 
-  after(:all) do
-    @s1.kill_server
-    @s2.kill_server
-  end
+  # after(:all) do
+  #   @s1.kill_server
+  #   @s2.kill_server
+  # end
 
-  it 'should re-establish asymmetric route connections upon restart' do
+  skip 'should re-establish asymmetric route connections upon restart' do
     data = 'Hello World!'
     received = 0
     EM.run do
