@@ -102,7 +102,12 @@ class NatsServerControl
     args += " --user #{@uri.user}" if @uri.user
     args += " --pass #{@uri.password}" if @uri.password
     args += " #{@flags}" if @flags
-    system("gnatsd #{args} 2> /dev/null &")
+
+    if ENV["DEBUG_NATS_TEST"] == "true"
+      system("gnatsd #{args} -DV &")
+    else
+      system("gnatsd #{args} 2> /dev/null &")
+    end
     exitstatus = $?.exitstatus
     NATS.wait_for_server(@uri, 10) if wait_for_server
     exitstatus
