@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 'nats/server/const'
 
-describe 'NATS Protocol' do
+describe 'Server - NATS Protocol' do
 
   context 'sub' do
 

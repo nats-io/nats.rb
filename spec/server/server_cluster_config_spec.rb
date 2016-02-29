@@ -6,7 +6,7 @@ require 'nats/server/const'
 require 'nats/server/util'
 require 'logger'
 
-describe 'server cluster configuration' do
+describe 'Server - cluster configuration' do
 
   it 'should allow the cluster listen port to be set on command line' do
     NATSD::Server.process_options('-a localhost -p 5222 -r 8222'.split)

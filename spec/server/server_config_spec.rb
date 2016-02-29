@@ -6,7 +6,7 @@ require "nats/server/const"
 require "nats/server/util"
 require 'logger'
 
-describe "server configuration" do
+describe "Server - Configuration" do
 
   it 'should return default options with no command line arguments' do
     NATSD::Server.process_options

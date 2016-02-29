@@ -7,7 +7,7 @@ require "nats/server/options"
 require "nats/server/const"
 require "nats/server/util"
 
-describe 'multi-user authorization' do
+describe 'Server - multi-user authorization' do
 
   before (:all) do
     config_file = File.dirname(__FILE__) + '/resources/multi_user_auth.yml'
@@ -18,7 +18,7 @@ describe 'multi-user authorization' do
     @host = @config['net']
     @port = @config['port']
     @uri = "nats://#{@host}:#{@port}"
-    @s = NatsServerControl.new(@uri, @config['pid_file'], "-c #{config_file}")
+    @s = RubyNatsServerControl.new(@uri, @config['pid_file'], "-c #{config_file}")
     @s.start_server
   end
 

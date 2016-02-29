@@ -1,7 +1,7 @@
 
 require 'spec_helper'
 
-describe 'server attacks' do
+describe 'Client - server attacks' do
 
   before (:all) do
     TEST_SERVER = 'nats://localhost:4222'

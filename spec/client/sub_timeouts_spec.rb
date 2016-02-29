@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe 'subscriptions with timeouts' do
+describe 'Client - subscriptions with timeouts' do
 
   before(:all) do
     TIMEOUT  = 0.1

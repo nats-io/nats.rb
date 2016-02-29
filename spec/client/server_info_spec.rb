@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe 'server_info support' do
+describe 'Client - server_info support' do
 
   before(:all) do
     @s = NatsServerControl.new

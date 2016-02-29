@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe 'error on client' do
+describe 'Client - error on client' do
 
   context 'NATS::ServerError' do
 

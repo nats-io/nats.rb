@@ -143,6 +143,30 @@ class NatsServerControl
 
 end
 
+# For running tests against the Ruby NATS server :)
+class RubyNatsServerControl < NatsServerControl
+  def start_server(wait_for_server=true)
+    if NATS.server_running? @uri
+      @was_running = true
+      return 0
+    end
+
+    @pid = nil
+
+    # daemonize really doesn't work on jruby, so should run servers manually to test on jruby
+    args = "-p #{@uri.port} -P #{@pid_file}"
+    args += " --user #{@uri.user}" if @uri.user
+    args += " --pass #{@uri.password}" if @uri.password
+    args += " #{@flags}" if @flags
+    args += ' -d'
+
+    %x[bundle exec nats-server #{args} 2> /dev/null]
+    exitstatus = $?.exitstatus
+    NATS.wait_for_server(@uri, 10) if wait_for_server #jruby can be slow on startup
+    exitstatus
+  end
+end
+
 module EchoServer
 
   HOST = "localhost".freeze

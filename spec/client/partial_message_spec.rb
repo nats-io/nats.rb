@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe 'partial message behavior' do
+describe 'Client - partial message behavior' do
   before do
     @s = NatsServerControl.new
     @s.start_server

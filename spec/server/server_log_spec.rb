@@ -5,7 +5,7 @@ require 'nats/server/const'
 require 'nats/server/options'
 require 'nats/server/util'
 
-describe 'server log and pid files' do
+describe 'Server - log and pid files' do
 
   before(:all) do
     LOG_SERVER_PID = '/tmp/nats_log_pid.pid'
@@ -16,7 +16,7 @@ describe 'server log and pid files' do
     LOG_SYSLOG_FLAGS= "#{LOG_FLAGS} -S #{SYSLOG_IDENT}"
 
     FileUtils.rm_f(LOG_LOG_FILE)
-    @s = NatsServerControl.new(LOG_SERVER, LOG_SERVER_PID, LOG_FLAGS)
+    @s = RubyNatsServerControl.new(LOG_SERVER, LOG_SERVER_PID, LOG_FLAGS)
     @s.start_server
   end
 
@@ -47,7 +47,7 @@ describe 'server log and pid files' do
   it 'should not output to the log file when enable syslog option' do
     @s.kill_server
     FileUtils.rm_f(LOG_LOG_FILE)
-    @s = NatsServerControl.new(LOG_SERVER, LOG_SERVER_PID, LOG_SYSLOG_FLAGS)
+    @s = RubyNatsServerControl.new(LOG_SERVER, LOG_SERVER_PID, LOG_SYSLOG_FLAGS)
     @s.start_server
     File.read(LOG_LOG_FILE).split("\n").size.should == 0
   end

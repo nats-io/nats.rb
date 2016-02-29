@@ -3,10 +3,20 @@ require 'rspec/core'
 require 'rspec/core/rake_task'
 
 RSpec::Core::RakeTask.new(:spec) do |spec|
-  spec.pattern = FileList['spec/client/*_spec.rb']
+  spec.pattern = FileList['spec/**/*_spec.rb']
   spec.rspec_opts = ["--format", "documentation", "--colour"]
 end
 task :default => :spec
+
+RSpec::Core::RakeTask.new('spec:client') do |spec|
+  spec.pattern = FileList['spec/client/*_spec.rb']
+  spec.rspec_opts = ["--format", "documentation", "--colour"]
+end
+
+RSpec::Core::RakeTask.new('spec:server') do |spec|
+  spec.pattern = FileList['spec/server/*_spec.rb']
+  spec.rspec_opts = ["--format", "documentation", "--colour"]
+end
 
 desc "Build the gem"
 task :gem do

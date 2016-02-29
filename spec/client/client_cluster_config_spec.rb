@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe 'client cluster config' do
+describe 'Client - cluster config' do
 
   before(:all) do
 

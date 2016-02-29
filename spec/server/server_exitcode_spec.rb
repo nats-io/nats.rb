@@ -1,13 +1,13 @@
 require 'spec_helper'
 require 'fileutils'
 
-describe 'server exit codes' do
+describe 'Server - exit codes' do
 
   before (:all) do
     config_file = File.dirname(__FILE__) + '/resources/nonexistant.yml'
     uri = 'nats://localhost:4222'
     pid_file = '/tmp/test-nats-exit.pid'
-    @s = NatsServerControl.new(uri, pid_file, "-c #{config_file}")
+    @s = RubyNatsServerControl.new(uri, pid_file, "-c #{config_file}")
   end
 
   after(:all) do

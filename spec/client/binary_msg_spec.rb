@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe 'test binary message payloads to avoid connection drop' do
+describe 'Client - test binary message payloads to avoid connection drop' do
 
   before(:all) do
     @s = NatsServerControl.new

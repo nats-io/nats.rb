@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe 'cluster retry connect' do
+describe 'Client - cluster retry connect' do
 
   before(:all) do
     auth_options = {

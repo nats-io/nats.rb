@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe "queue group support" do
+describe "Client - queue group support" do
 
   before(:all) do
     @s = NatsServerControl.new

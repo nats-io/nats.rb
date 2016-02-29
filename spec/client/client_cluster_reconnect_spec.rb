@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe 'client cluster reconnect' do
+describe 'Client - cluster reconnect' do
 
   before(:all) do
     auth_options = {

@@ -2,7 +2,7 @@ require 'spec_helper'
 require 'uri'
 require 'yaml'
 
-describe 'cluster_load_balance' do
+describe 'Client - cluster load balance' do
 
   before(:all) do
     LB1_CONFIG_FILE = File.dirname(__FILE__) + '/resources/b1_cluster.yml'

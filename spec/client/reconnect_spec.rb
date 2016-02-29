@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe 'client specification' do
+describe 'Client - reconnect specification' do
 
   before(:all) do
     R_USER = 'derek'

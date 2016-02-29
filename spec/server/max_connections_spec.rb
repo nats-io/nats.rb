@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 'yaml'
 
-describe 'max connections support' do
+describe 'Server - max connections support' do
 
   before (:all) do
     MC_SERVER_PID = '/tmp/nats_mc_pid.pid'
@@ -11,7 +11,7 @@ describe 'max connections support' do
     MC_FLAGS = "-c #{MC_CONFIG}"
 
     FileUtils.rm_f(MC_LOG_FILE)
-    @s = NatsServerControl.new(MC_SERVER, MC_SERVER_PID, MC_FLAGS)
+    @s = RubyNatsServerControl.new(MC_SERVER, MC_SERVER_PID, MC_FLAGS)
     @s.start_server
   end
 
@@ -21,7 +21,7 @@ describe 'max connections support' do
     FileUtils.rm_f(MC_LOG_FILE)
   end
 
-  skip 'should not allow connections above the maximum allowed' do
+  it 'should not allow connections above the maximum allowed' do
     config = File.open(MC_CONFIG) { |f| YAML.load(f) }
     max = config['max_connections']
 

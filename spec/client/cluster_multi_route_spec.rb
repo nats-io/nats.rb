@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe 'cluster' do
+describe 'Client - cluster' do
 
   before(:all) do
     auth_options = {

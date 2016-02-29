@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe 'max responses and auto-unsubscribe' do
+describe 'Client - max responses and auto-unsubscribe' do
 
   before(:all) do
     @s = NatsServerControl.new

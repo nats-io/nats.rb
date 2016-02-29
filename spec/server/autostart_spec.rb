@@ -1,11 +1,11 @@
 
 require 'spec_helper'
 
-describe 'autostart' do
+describe 'Server - autostart' do
 
   before (:all) do
     AUTO_START_SERVER = 'nats://localhost:9229'
-    @s = NatsServerControl.new(AUTO_START_SERVER, NATS::AUTOSTART_PID_FILE)
+    @s = RubyNatsServerControl.new(AUTO_START_SERVER, NATS::AUTOSTART_PID_FILE)
   end
 
   after (:each) do

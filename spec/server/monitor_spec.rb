@@ -10,7 +10,7 @@ require 'nats/server/options'
 require 'nats/server/const'
 require 'nats/server/util'
 
-describe 'monitor' do
+describe 'Server - monitor' do
 
   before (:all) do
     HTTP_SERVER_PID = '/tmp/nats_http.pid'
@@ -18,7 +18,7 @@ describe 'monitor' do
     LOG_FILE = '/tmp/nats_http.log'
     HTTP_PORT = 9230
     HTTP_FLAGS = "-m #{HTTP_PORT} -l #{LOG_FILE}"
-    @s = NatsServerControl.new(HTTP_SERVER, HTTP_SERVER_PID, HTTP_FLAGS)
+    @s = RubyNatsServerControl.new(HTTP_SERVER, HTTP_SERVER_PID, HTTP_FLAGS)
     @s.start_server
   end
 
@@ -356,7 +356,7 @@ describe 'monitor' do
     config = File.open(config_file) { |f| YAML.load(f) }
     uri = "nats://#{config['net']}:#{config['port']}"
 
-    auth_s = NatsServerControl.new(uri, config['pid_file'], "-c #{config_file}")
+    auth_s = RubyNatsServerControl.new(uri, config['pid_file'], "-c #{config_file}")
     auth_s.start_server
 
     host, port = config['http']['net'], config['http']['port']

@@ -7,7 +7,7 @@ require 'nats/server/options'
 require 'nats/server/const'
 require 'nats/server/util'
 
-describe 'server ping' do
+describe 'Server - ping' do
 
   before (:all) do
     config_file = File.dirname(__FILE__) + '/resources/ping.yml'
@@ -18,7 +18,7 @@ describe 'server ping' do
     @host = config['net']
     @port = config['port']
     @uri = "nats://#{@host}:#{@port}"
-    @s = NatsServerControl.new(@uri, config['pid_file'], "-c #{config_file}")
+    @s = RubyNatsServerControl.new(@uri, config['pid_file'], "-c #{config_file}")
     @s.start_server
   end
 

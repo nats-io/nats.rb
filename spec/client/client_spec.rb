@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe 'client specification' do
+describe 'Client - specification' do
 
   before(:all) do
     @s = NatsServerControl.new
@@ -43,7 +43,7 @@ describe 'client specification' do
   end
 
   it 'should raise NATS::ServerError on error replies from NATS Server' do
-    skip 'pedantic mode does not disconnect us in gnatsd'
+    skip 'trying to unsubscribe non existant subscription does not send -ERR back in pedantic mode on gnatsd'
 
     expect do
       NATS.start(:pedantic => true) do
@@ -287,7 +287,7 @@ describe 'client specification' do
   end
 
   it 'should call error handler for double unsubscribe if in pedantic mode' do
-    skip "pedantic mode does not make the server disconnect us in gnatsd "
+    skip 'double unsubscribe in gnatsd does not send -ERR back'
 
     got_error = false
     NATS.on_error { got_error = true; NATS.stop }

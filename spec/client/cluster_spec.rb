@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 'yaml'
 
-describe 'cluster' do
+describe 'Client - cluster' do
 
   before(:all) do
 

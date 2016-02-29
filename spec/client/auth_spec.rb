@@ -2,7 +2,7 @@
 require 'spec_helper'
 require 'fileutils'
 
-describe 'authorization' do
+describe 'Client - authorization' do
 
   before (:all) do
     USER = 'derek'
