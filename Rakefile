@@ -1,11 +1,25 @@
-desc "Run rspec"
-task :spec do
-  require "rspec/core/rake_task"
-  RSpec::Core::RakeTask.new do |t|
-    t.rspec_opts = %w(-fd -c)
-  end
+#!/usr/bin/env rake
+require 'rspec/core'
+require 'rspec/core/rake_task'
+
+desc 'Run specs from client and server'
+RSpec::Core::RakeTask.new(:spec) do |spec|
+  spec.pattern = FileList['spec/**/*_spec.rb']
+  spec.rspec_opts = ["--format", "documentation", "--colour"]
 end
 task :default => :spec
+
+desc 'Run spec from client using gnatsd as the server'
+RSpec::Core::RakeTask.new('spec:client') do |spec|
+  spec.pattern = FileList['spec/client/*_spec.rb']
+  spec.rspec_opts = ["--format", "documentation", "--colour"]
+end
+
+desc 'Run spec from server'
+RSpec::Core::RakeTask.new('spec:server') do |spec|
+  spec.pattern = FileList['spec/server/*_spec.rb']
+  spec.rspec_opts = ["--format", "documentation", "--colour"]
+end
 
 desc "Build the gem"
 task :gem do

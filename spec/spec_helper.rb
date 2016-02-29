@@ -1,6 +1,7 @@
 
 $:.unshift('./lib')
 require 'nats/client'
+require 'tempfile'
 
 def timeout_nats_on_failure(to=0.25)
   EM.add_timer(to) { NATS.stop }
@@ -71,14 +72,31 @@ class NatsServerControl
       NatsServerControl.new(uri, config['pid_file'], "-c #{config_file}")
     end
 
+    def init_with_config_from_string(config_string, config={})
+      puts config_string if ENV["DEBUG_NATS_TEST"] == "true"
+      config_file = Tempfile.new(['nats-cluster-tests', '.conf'])
+      File.open(config_file.path, 'w') do |f|
+        f.puts(config_string)
+      end
+
+      if auth = config['authorization']
+        uri = "nats://#{auth['user']}:#{auth['password']}@#{config['host']}:#{config['port']}"
+      else
+        uri = "nats://#{config['host']}:#{config['port']}"
+      end
+
+      NatsServerControl.new(uri, config['pid_file'], "-c #{config_file.path}", config_file)
+    end
+
   end
 
   attr_reader :uri
 
-  def initialize(uri='nats://localhost:4222', pid_file='/tmp/test-nats.pid', flags=nil)
+  def initialize(uri='nats://localhost:4222', pid_file='/tmp/test-nats.pid', flags=nil, config_file=nil)
     @uri = uri.is_a?(URI) ? uri : URI.parse(uri)
     @pid_file = pid_file
     @flags = flags
+    @config_file = config_file
   end
 
   def server_pid
@@ -96,18 +114,20 @@ class NatsServerControl
       @was_running = true
       return 0
     end
-
     @pid = nil
 
-    # daemonize really doesn't work on jruby, so should run servers manually to test on jruby
     args = "-p #{@uri.port} -P #{@pid_file}"
     args += " --user #{@uri.user}" if @uri.user
     args += " --pass #{@uri.password}" if @uri.password
     args += " #{@flags}" if @flags
-    args += ' -d'
-    %x[bundle exec nats-server #{args} 2> /dev/null]
+
+    if ENV["DEBUG_NATS_TEST"] == "true"
+      system("gnatsd #{args} -DV &")
+    else
+      system("gnatsd #{args} 2> /dev/null &")
+    end
     exitstatus = $?.exitstatus
-    NATS.wait_for_server(@uri, 10) if wait_for_server #jruby can be slow on startup
+    NATS.wait_for_server(@uri, 10) if wait_for_server
     exitstatus
   end
 
@@ -121,6 +141,30 @@ class NatsServerControl
     end
   end
 
+end
+
+# For running tests against the Ruby NATS server :)
+class RubyNatsServerControl < NatsServerControl
+  def start_server(wait_for_server=true)
+    if NATS.server_running? @uri
+      @was_running = true
+      return 0
+    end
+
+    @pid = nil
+
+    # daemonize really doesn't work on jruby, so should run servers manually to test on jruby
+    args = "-p #{@uri.port} -P #{@pid_file}"
+    args += " --user #{@uri.user}" if @uri.user
+    args += " --pass #{@uri.password}" if @uri.password
+    args += " #{@flags}" if @flags
+    args += ' -d'
+
+    %x[bundle exec nats-server #{args} 2> /dev/null]
+    exitstatus = $?.exitstatus
+    NATS.wait_for_server(@uri, 10) if wait_for_server #jruby can be slow on startup
+    exitstatus
+  end
 end
 
 module EchoServer
