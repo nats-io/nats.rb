@@ -1,24 +1,89 @@
 require 'spec_helper'
-require 'yaml'
 
 describe 'cluster' do
 
-  # before(:all) do
-  #   B1_CONFIG_FILE = File.dirname(__FILE__) + '/resources/b1_cluster.yml'
-  #   @s1 = NatsServerControl.init_with_config(B1_CONFIG_FILE)
-  #   @s1.start_server
+  before(:all) do
+    auth_options = {
+      'user'     => 'derek',
+      'password' => 'bella',
+      'token'    => 'deadbeef',
+      'timeout'  => 1
+    }
 
-  #   B2_CONFIG_FILE = File.dirname(__FILE__) + '/resources/b2_cluster.yml'
-  #   @s2 = NatsServerControl.init_with_config(B2_CONFIG_FILE)
-  #   @s2.start_server
-  # end
+    s1_config_opts = {
+      'pid_file'      => '/tmp/nats_cluster_s1.pid',
+      'authorization' => auth_options,
+      'host'          => '127.0.0.1',
+      'port'          => 4242,
+      'cluster_port'  => 6222
+    }
 
-  # after(:all) do
-  #   @s1.kill_server
-  #   @s2.kill_server
-  # end
+    s2_config_opts = {
+      'pid_file'      => '/tmp/nats_cluster_s2.pid',
+      'authorization' => auth_options,
+      'host'          => '127.0.0.1',
+      'port'          => 4243,
+      'cluster_port'  => 6223
+    }
 
-  skip 'should properly route plain messages between different servers' do
+    nodes = []
+    configs = [s1_config_opts, s2_config_opts]
+    configs.each do |config_opts|
+
+      other_nodes_configs = configs.select do |conf|
+        conf['cluster_port'] != config_opts['cluster_port']
+      end
+
+      routes = []
+      other_nodes_configs.each do |conf|
+        routes <<  "nats-route://foo:bar@127.0.0.1:#{conf['cluster_port']}"
+      end
+
+      nodes << NatsServerControl.init_with_config_from_string(%Q(
+        host: '#{config_opts['host']}'
+        port:  #{config_opts['port']}
+
+        pid_file: '#{config_opts['pid_file']}'
+
+        authorization {
+          user: '#{auth_options["user"]}'
+          password: '#{auth_options["password"]}'
+          timeout: 0.5
+        }
+
+        cluster {
+          host: '#{config_opts['host']}'
+          port: #{config_opts['cluster_port']}
+
+          authorization {
+            user: foo
+            password: bar
+            timeout: 1
+          }
+
+          routes = [
+            #{routes.join("\n            ")}
+          ]
+        }
+      ), config_opts)
+    end
+
+    @s1, @s2 = nodes
+  end
+
+  before(:each) do
+    [@s1, @s2].each do |s|
+      s.start_server(true) unless NATS.server_running? s.uri
+    end
+  end
+
+  after(:each) do
+    [@s1, @s2].each do |s|
+      s.kill_server
+    end
+  end
+
+  it 'should properly route plain messages between different servers' do
     data = 'Hello World!'
     received = 0
     EM.run do
@@ -41,7 +106,7 @@ describe 'cluster' do
     received.should == 4
   end
 
-  skip 'should properly route messages with staggered startup' do
+  it 'should properly route messages with staggered startup' do
 
     @s2.kill_server
     data = 'Hello World!'

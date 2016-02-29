@@ -3,33 +3,89 @@ require 'yaml'
 
 describe 'cluster' do
 
-  # before(:all) do
-  #   SC1_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s1_cluster.yml'
-  #   @s1 = NatsServerControl.init_with_config(SC1_CONFIG_FILE)
-  #   @s1.start_server
+  before(:all) do
 
-  #   SC2_CONFIG_FILE = File.dirname(__FILE__) + '/resources/s2_cluster.yml'
-  #   @s2 = NatsServerControl.init_with_config(SC2_CONFIG_FILE)
-  #   @s2.start_server
-  # end
+    auth_options = {
+      'user'     => 'derek',
+      'password' => 'bella',
+      'token'    => 'deadbeef',
+      'timeout'  => 1
+    }
 
-  # after(:all) do
-  #   @s1.kill_server
-  #   @s2.kill_server
-  # end
+    s1_config_opts = {
+      'pid_file'      => '/tmp/nats_cluster_s1.pid',
+      'authorization' => auth_options,
+      'host'          => '127.0.0.1',
+      'port'          => 4242,
+      'cluster_port'  => 6222
+    }
 
-  # it 'should bind a listen port for routes if configured' do
-  #   config = File.open(SC1_CONFIG_FILE) { |f| YAML.load(f) }
-  #   expect do
-  #     begin
-  #       s = TCPSocket.open(config['net'], config['cluster']['port'])
-  #     ensure
-  #       s.close if s
-  #     end
-  #   end.to_not raise_error
-  # end
+    s2_config_opts = {
+      'pid_file'      => '/tmp/nats_cluster_s2.pid',
+      'authorization' => auth_options,
+      'host'          => '127.0.0.1',
+      'port'          => 4243,
+      'cluster_port'  => 6223
+    }
 
-  skip 'should properly connect to different servers' do
+    nodes = []
+    configs = [s1_config_opts, s2_config_opts]
+    configs.each do |config_opts|
+
+      other_nodes_configs = configs.select do |conf|
+        conf['cluster_port'] != config_opts['cluster_port']
+      end
+
+      routes = []
+      other_nodes_configs.each do |conf|
+        routes <<  "nats-route://foo:bar@127.0.0.1:#{conf['cluster_port']}"
+      end
+
+      nodes << NatsServerControl.init_with_config_from_string(%Q(
+        host: '#{config_opts['host']}'
+        port:  #{config_opts['port']}
+
+        pid_file: '#{config_opts['pid_file']}'
+
+        authorization {
+          user: '#{auth_options["user"]}'
+          password: '#{auth_options["password"]}'
+          timeout: 1
+        }
+
+        cluster {
+          host: '#{config_opts['host']}'
+          port: #{config_opts['cluster_port']}
+
+          authorization {
+            user: foo
+            password: bar
+            timeout: 1
+          }
+
+          routes = [
+            #{routes.join("\n            ")}
+          ]
+        }
+      ), config_opts)
+    end
+
+    @s1, @s2 = nodes
+  end
+
+  before(:each) do
+    [@s1, @s2].each do |s|
+      s.start_server(true) unless NATS.server_running? s.uri
+    end
+  end
+
+  after(:each) do
+    [@s1, @s2].each do |s|
+      s.kill_server
+    end
+  end
+
+  it 'should properly connect to different servers' do
     EM.run do
       c1 = NATS.connect(:uri => @s1.uri)
       c2 = NATS.connect(:uri => @s2.uri)
@@ -39,7 +95,7 @@ describe 'cluster' do
     end
   end
 
-  skip 'should properly route plain messages between different servers' do
+  it 'should properly route plain messages between different servers' do
     data = 'Hello World!'
     received = 0
     EM.run do
@@ -62,7 +118,7 @@ describe 'cluster' do
     received.should == 4
   end
 
-  skip 'should properly route messages for distributed queues on different servers' do
+  it 'should properly route messages for distributed queues on different servers' do
     data = 'Hello World!'
     to_send = 100
     received = c1_received = c2_received = 0
@@ -93,7 +149,7 @@ describe 'cluster' do
     c2_received.should be_within(25).of(to_send/2)
   end
 
-  skip 'should properly route messages for distributed queues and normal subscribers on different servers' do
+  it 'should properly route messages for distributed queues and normal subscribers on different servers' do
     data = 'Hello World!'
     to_send = 100
     received = c1_received = c2_received = 0
@@ -128,7 +184,7 @@ describe 'cluster' do
     c2_received.should be_within(15).of(to_send/2)
   end
 
-  skip 'should properly route messages for distributed queues with mulitple groups on different servers' do
+  it 'should properly route messages for distributed queues with mulitple groups on different servers' do
     data = 'Hello World!'
     to_send = 100
     received = c1a_received = c2a_received = 0
@@ -179,7 +235,7 @@ describe 'cluster' do
     c2b_received.should be_within(25).of(to_send)
   end
 
-  skip 'should properly route messages for distributed queues with reply subjects on different servers' do
+  it 'should properly route messages for distributed queues with reply subjects on different servers' do
     data = 'Hello World!'
     to_send = 100
     received = c1_received = c2_received = 0
