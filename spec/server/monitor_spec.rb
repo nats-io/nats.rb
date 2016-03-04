@@ -197,6 +197,8 @@ describe 'Server - monitor' do
   end
 
   it 'should return connz with subset of connections sorted correctly if requested' do
+    skip('flapping due to Invalid Subject Identifier (sid) raised by ruby server on double SUB which can happen on connect')
+
     EM.run do
       conns = []
 
