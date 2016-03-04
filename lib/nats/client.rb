@@ -636,8 +636,9 @@ module NATS
 
     if reconnecting?
       cancel_reconnect_timer
-      @subs.each_pair { |k, v| send_command("SUB #{v[:subject]} #{v[:queue]} #{k}#{CR_LF}") }
     end
+
+    @subs.each_pair { |k, v| send_command("SUB #{v[:subject]} #{v[:queue]} #{k}#{CR_LF}") }
 
     unless user_err_cb? or reconnecting?
       @err_cb = proc { |e| raise e }

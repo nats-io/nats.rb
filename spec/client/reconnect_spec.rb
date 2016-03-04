@@ -45,4 +45,29 @@ describe 'Client - reconnect specification' do
     end
   end
 
+  it 'should subscribe if reconnected' do
+    received = false
+    @as.kill_server
+
+    EM.run do
+      c = NATS.connect(:uri => R_TEST_AUTH_SERVER, :reconnect => true, :max_reconnect_attempts => -1, :reconnect_time_wait => 0.25)
+
+      c.subscribe('foo') { |msg|
+        received = true
+      }
+
+      @as.start_server
+
+      EM.add_periodic_timer(0.1) {
+        c.publish('foo', 'xxx')
+      }
+
+      EM.add_timer(1) {
+        NATS.stop
+        EM.stop
+      }
+    end
+
+    received.should be_truthy
+  end
 end
