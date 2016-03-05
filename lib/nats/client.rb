@@ -54,13 +54,6 @@ module NATS
   AWAITING_CONTROL_LINE = 1 #:nodoc:
   AWAITING_MSG_PAYLOAD  = 2 #:nodoc:
 
-  # Autostart properties
-  AUTOSTART_PID_FILE = '/tmp/nats-server.pid'
-  AUTOSTART_LOG_FILE = '/tmp/nats-server.log'
-
-  # Duplicate autostart protection
-  @@tried_autostart = {}
-
   class Error < StandardError; end #:nodoc:
 
   # When the NATS server sends us an ERROR message, this is raised/passed by default
@@ -83,12 +76,10 @@ module NATS
     alias :reactor_was_running? :reactor_was_running
 
     # Create and return a connection to the server with the given options.
-    # The server will be autostarted if requested and the <b>uri</b> is determined to be local.
     # The optional block will be called when the connection has been completed.
     #
     # @param [Hash] opts
     # @option opts [String|URI] :uri The URI to connect to, example nats://localhost:4222
-    # @option opts [Boolean] :autostart Boolean that can be used to engage server autostart functionality.
     # @option opts [Boolean] :reconnect Boolean that can be used to suppress reconnect functionality.
     # @option opts [Boolean] :debug Boolean that can be used to output additional debug information.
     # @option opts [Boolean] :verbose Boolean that is sent to server for setting verbose protocol mode.
@@ -137,7 +128,6 @@ module NATS
       end
 
       @err_cb = proc { |e| raise e } unless err_cb
-      check_autostart(@uri) if opts[:autostart] == true
 
       client = EM.connect(@uri.host, @uri.port, self, opts)
       client.on_connect(&blk) if blk
@@ -167,7 +157,6 @@ module NATS
     def stop(&blk)
       client.close if (client and (client.connected? || client.reconnecting?))
       blk.call if blk
-      @@tried_autostart = {}
       @err_cb = nil
     end
 
@@ -285,27 +274,8 @@ module NATS
 
     private
 
-    def check_autostart(uri)
-      return if uri_is_remote?(uri) || @@tried_autostart[uri]
-      @@tried_autostart[uri] = true
-      return if server_running?(uri)
-      return unless try_autostart_succeeded?(uri)
-      wait_for_server(uri)
-    end
-
     def uri_is_remote?(uri)
       uri.host != 'localhost' && uri.host != '127.0.0.1'
-    end
-
-    def try_autostart_succeeded?(uri)
-      port_arg = "-p #{uri.port}"
-      user_arg = "--user #{uri.user}" if uri.user
-      pass_arg = "--pass #{uri.password}" if uri.password
-      log_arg  = "-l #{AUTOSTART_LOG_FILE}"
-      pid_arg  = "-P #{AUTOSTART_PID_FILE}"
-      # daemon mode to release client
-      `nats-server #{port_arg} #{user_arg} #{pass_arg} #{log_arg} #{pid_arg} -d 2> /dev/null`
-      $? == 0
     end
 
   end

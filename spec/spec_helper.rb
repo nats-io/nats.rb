@@ -55,13 +55,6 @@ class NatsServerControl
 
   class << self
 
-    def kill_autostart_server
-      pid ||= File.read(NATS::AUTOSTART_PID_FILE).chomp.to_i
-      %x[kill -9 #{pid}] if pid
-      %x[rm #{NATS::AUTOSTART_PID_FILE}]
-      %x[rm #{NATS::AUTOSTART_LOG_FILE}]
-    end
-
     def init_with_config(config_file)
       config = File.open(config_file) { |f| YAML.load(f) }
       if auth = config['authorization']
@@ -135,7 +128,6 @@ class NatsServerControl
     if File.exists? @pid_file
       %x[kill -9 #{server_pid} 2> /dev/null]
       %x[rm #{@pid_file} 2> /dev/null]
-      %x[rm #{NATS::AUTOSTART_LOG_FILE} 2> /dev/null]
       sleep(0.1)
       @pid = nil
     end

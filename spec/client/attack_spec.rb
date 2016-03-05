@@ -14,7 +14,7 @@ describe 'Client - server attacks' do
   end
 
   it "should complain if our test server is not running" do
-    NATS.start(:uri => TEST_SERVER, :autostart => false) { NATS.stop }
+    NATS.start(:uri => TEST_SERVER) { NATS.stop }
   end
 
   it "should not let us write large control line buffers" do
@@ -34,7 +34,7 @@ describe 'Client - server attacks' do
     # NOTE: Race here on whether getting NATS::ServerError or NATS::ConnectError
     # in case we have been disconnected before reading the error sent by server.
     expect do
-      NATS.start(:uri => TEST_SERVER, :autostart => false, :reconnect => false) do
+      NATS.start(:uri => TEST_SERVER, :reconnect => false) do
         NATS.publish('foo', BIG_MSG) { EM.stop }
       end
     end.to raise_error
@@ -46,7 +46,7 @@ describe 'Client - server attacks' do
     unless @s.was_running?
       @s.kill_server
       expect do
-        NATS.start(:uri => TEST_SERVER, :autostart => false) { NATS.stop }
+        NATS.start(:uri => TEST_SERVER) { NATS.stop }
       end.to raise_error NATS::ConnectError
     end
   end

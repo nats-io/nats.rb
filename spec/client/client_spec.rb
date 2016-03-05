@@ -11,9 +11,9 @@ describe 'Client - specification' do
     @s.kill_server
   end
 
-  it "should complain if it can't connect to server when not running and not told to autostart" do
+  it "should complain if it can't connect to server when not running" do
     expect do
-      NATS.start(:uri => 'nats://localhost:3222', :autostart => false) { NATS.stop }
+      NATS.start(:uri => 'nats://localhost:3222') { NATS.stop }
     end.to raise_error(NATS::ConnectError)
   end
 
