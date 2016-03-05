@@ -152,7 +152,7 @@ class RubyNatsServerControl < NatsServerControl
     args += " #{@flags}" if @flags
     args += ' -d'
 
-    %x[bundle exec nats-server #{args} 2> /dev/null]
+    %x[bundle exec ruby ./bin/nats-server #{args} 2> /dev/null]
     exitstatus = $?.exitstatus
     NATS.wait_for_server(@uri, 10) if wait_for_server #jruby can be slow on startup
     exitstatus

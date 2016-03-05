@@ -3,11 +3,11 @@
 lib = File.expand_path('../lib/', __FILE__)
 $:.unshift lib unless $:.include?(lib)
 
-require 'nats/server/const'
+require 'nats/client'
 
 spec = Gem::Specification.new do |s|
   s.name = 'nats'
-  s.version = NATSD::VERSION
+  s.version = NATS::VERSION
   s.summary = 'NATS is an open-source, high-performance, lightweight cloud messaging system.'
   s.homepage = 'https://nats.io'
   s.description = 'NATS is an open-source, high-performance, lightweight cloud messaging system.'
@@ -24,7 +24,7 @@ spec = Gem::Specification.new do |s|
 
   s.require_paths = ['lib']
   s.bindir = 'bin'
-  s.executables = [NATSD::APP_NAME, 'nats-pub', 'nats-sub', 'nats-queue', 'nats-top', 'nats-request']
+  s.executables = ['nats-pub', 'nats-sub', 'nats-queue', 'nats-top', 'nats-request']
 
   s.files = %w[
     COPYING
