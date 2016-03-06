@@ -23,7 +23,7 @@ describe 'Client - subscriptions with timeouts' do
     received.should == 0
   end
 
-  it "a subsciption should call the timeout callback if no messages are received" do
+  it "a subscription should call the timeout callback if no messages are received" do
     received = 0
     timeout_recvd = false
     NATS.start do
@@ -35,7 +35,7 @@ describe 'Client - subscriptions with timeouts' do
     received.should == 0
   end
 
-  it "a subsciption should call the timeout callback if no messages are received, connection version" do
+  it "a subscription should call the timeout callback if no messages are received, connection version" do
     received = 0
     timeout_recvd = false
     NATS.start do |c|
@@ -47,7 +47,7 @@ describe 'Client - subscriptions with timeouts' do
     received.should == 0
   end
 
-  it "a subsciption should not call the timeout callback if a message is received" do
+  it "a subscription should not call the timeout callback if a message is received" do
     received = 0
     timeout_recvd = false
     NATS.start do
@@ -61,7 +61,7 @@ describe 'Client - subscriptions with timeouts' do
     received.should == 2
   end
 
-  it "a subsciption should not call the timeout callback if a correct # messages are received" do
+  it "a subscription should not call the timeout callback if a correct # messages are received" do
     received = 0
     timeout_recvd = false
     NATS.start do
@@ -75,7 +75,7 @@ describe 'Client - subscriptions with timeouts' do
     received.should == 2
   end
 
-  it "a subsciption should call the timeout callback if a correct # messages are not received" do
+  it "a subscription should call the timeout callback if a correct # messages are not received" do
     received = 0
     timeout_recvd = false
     NATS.start do
@@ -88,7 +88,7 @@ describe 'Client - subscriptions with timeouts' do
     received.should == 1
   end
 
-  it "a subsciption should call the timeout callback and message callback if requested" do
+  it "a subscription should call the timeout callback and message callback if requested" do
     received = 0
     timeout_recvd = false
     NATS.start do

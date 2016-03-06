@@ -171,7 +171,7 @@ describe 'Client - specification' do
         received_pub_closure = true
         NATS.stop
       }
-    timeout_nats_on_failure
+      timeout_nats_on_failure
     }
     received_pub_closure.should be_truthy
   end
@@ -355,6 +355,39 @@ describe 'Client - specification' do
         EM.stop
       end
     end
+  end
+
+  it 'should not repeat SUB commands when connecting' do
+    pending_commands = "CONNECT {\"verbose\":false,\"pedantic\":true,\"lang\":\"ruby\",\"version\":\"#{NATS::VERSION}\"}\r\n"
+    pending_commands += "PING\r\n"
+    pending_commands += "SUB hello  2\r\nSUB hello  3\r\nSUB hello  4\r\nSUB hello  5\r\nSUB hello  6\r\n"
+
+    msgs = []
+    expect do
+      EM.run do
+        EM.add_timer(1) do
+          expect(msgs.count).to eql(5)
+          EM.stop
+        end
+        conn = NATS.connect(:pedantic => true)
+        conn.should_receive(:send_data).once.with(pending_commands).and_call_original
+
+        5.times do
+          conn.subscribe("hello") do |msg|
+            msgs << msg
+          end
+        end
+
+        # Expect INFO followed by PONG response
+        conn.should_receive(:receive_data).at_least(:twice).and_call_original
+        conn.should_receive(:send_data).once.with("PUB hello  5\r\nworld\r\n").and_call_original
+        conn.flush do
+          # Once we connected already and received PONG back,
+          # we should be able to publish here.
+          conn.publish("hello", "world")
+        end
+      end
+    end.to_not raise_error
   end
 
   it 'should accept the same option set twice' do

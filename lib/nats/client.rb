@@ -43,6 +43,7 @@ module NATS
   PING_REQUEST  = ("PING#{CR_LF}".freeze) #:nodoc:
   PONG_RESPONSE = ("PONG#{CR_LF}".freeze) #:nodoc:
 
+  SUB_OP = ('SUB'.freeze) #:nodoc:
   EMPTY_MSG = (''.freeze) #:nodoc:
 
   # Used for future pedantic Mode
@@ -633,11 +634,11 @@ module NATS
     current = server_pool.first
     current[:was_connected] = true
     current[:reconnect_attempts] = 0
+    cancel_reconnect_timer if reconnecting?
 
-    if reconnecting?
-      cancel_reconnect_timer
-    end
-
+    # whip through any pending SUB commands since we replay
+    # all subscriptions already done anyway.
+    @pending.delete_if { |sub| sub[0..2] == SUB_OP }
     @subs.each_pair { |k, v| send_command("SUB #{v[:subject]} #{v[:queue]} #{k}#{CR_LF}") }
 
     unless user_err_cb? or reconnecting?
