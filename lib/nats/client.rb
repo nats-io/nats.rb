@@ -6,6 +6,7 @@ ep = File.expand_path(File.dirname(__FILE__))
 require "#{ep}/ext/em"
 require "#{ep}/ext/bytesize"
 require "#{ep}/ext/json"
+require "#{ep}/version"
 
 module NATS
 
