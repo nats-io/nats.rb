@@ -1,5 +1,20 @@
 # HISTORY
 
+## v0.6.0 (March 22, 2016)
+  - Removed distributing `nats-server` along with the gem
+  - Fixed issue with subscriptions not being sent on first reconnect (#94)
+  - Added loading Oj gem for JSON when supported (#91)
+  - Fixed removing warning message introduced by EM 1.0.8 (#90)
+  - Changed to testing spec with `gnatsd` (#95)
+  - See full list @ https://github.com/nats-io/ruby-nats/compare/v0.5.1...v0.6.0
+
+## v0.5.1 (August 7, 2015)
+  - Changed to never remove servers when configured as such (#88)
+  - See full list @ https://github.com/nats-io/ruby-nats/compare/v0.5.0...v0.5.1
+
+## v0.5.0 (June 19, 2015)
+  - See full list @ https://github.com/nats-io/ruby-nats/compare/v0.5.0.beta.16...v0.5.0
+
 ## v0.5.0.beta.16 (December 7, 2014)
   - Resolved major issue on cluster connects to non-first server, issue #78
   - Official Support for Ruby 2.1
