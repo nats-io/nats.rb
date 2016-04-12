@@ -80,7 +80,7 @@ NATS.subscribe(subject, :queue => 'job.workers') { |msg| puts "Received '#{msg}'
 
 ## Clustered Usage
 ```ruby
-NATS.start(:servers => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223'] do |c|
+NATS.start(:servers => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223']) do |c|
   puts "NATS is connected to #{c.connected_server}"
   c.on_reconnect do
     puts "Reconnected to server at #{c.connected_server}"
