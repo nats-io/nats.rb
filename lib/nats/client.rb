@@ -84,6 +84,10 @@ module NATS
     # @option opts [Boolean] :verbose Boolean that is sent to server for setting verbose protocol mode.
     # @option opts [Boolean] :pedantic Boolean that is sent to server for setting pedantic mode.
     # @option opts [Boolean] :ssl Boolean that is sent to server for setting TLS/SSL mode.
+    # @option opts [String] :cert_file Certificate file for use in TLS/SSL mode.
+    # @option opts [String] :private_key_file Private key file for use in TLS/SSL mode.
+    # @option opts [String] :ca_file CA file for use in TLS/SSL mode when verify_peer is true.
+    # @option opts [Boolean] :verify_peer Verify the peer connection SSL certificate.
     # @option opts [Integer] :max_reconnect_attempts Integer that can be used to set the max number of reconnect tries
     # @option opts [Integer] :reconnect_time_wait Integer that can be used to set the number of seconds to wait between reconnect tries
     # @option opts [Integer] :ping_interval Integer that can be used to set the ping interval in seconds.
@@ -116,6 +120,14 @@ module NATS
       opts[:max_outstanding_pings] = ENV['NATS_MAX_OUTSTANDING_PINGS'].to_i unless ENV['NATS_MAX_OUTSTANDING_PINGS'].nil?
 
       uri = opts[:uris] || opts[:servers] || opts[:uri]
+
+      # if a :ca_file is supplied and :verify_peer is not set
+      # default to verification being on
+      if opts[:verify_peer].nil? && opts[:ca_file]
+        opts[:verify_peer] = true
+      elsif opts[:verify_peer].nil?
+        opts[:verify_peer] = false
+      end
 
       # If they pass an array here just pass along to the real connection, and use first as the first attempt..
       # Real connection will do proper walk throughs etc..
@@ -568,7 +580,11 @@ module NATS
     # :symbolize_keys, and for oj :symbol_keys.
     @server_info = JSON.parse(info, :symbolize_keys => true, :symbolize_names => true, :symbol_keys => true)
     if @server_info[:ssl_required] && @ssl
-      start_tls
+      start_tls(
+        :private_key_file => @options[:private_key_file],
+        :cert_chain_file => @options[:cert_file],
+        :verify_peer => @options[:verify_peer]
+      )
     else
       if @server_info[:ssl_required]
         err_cb.call(NATS::ClientError.new('TLS/SSL required by server'))
@@ -576,13 +592,37 @@ module NATS
         err_cb.call(NATS::ClientError.new('TLS/SSL not supported by server'))
       end
     end
+
     if @server_info[:auth_required]
       current = server_pool.first
       current[:auth_required] = true
       queue_server_rt { current[:auth_ok] = true }
       flush_pending
     end
+
     @server_info
+  end
+
+  def ssl_verify_peer(cert)
+    unless @options[:ca_file]
+      err_cb.call(NATS::ConnectError.new("TLS Verification is enabled but ca_file is not set"))
+    end
+
+    unless File.readable?(@options[:ca_file])
+      err_cb.call(NATS::ConnectError.new("TLS Verification is enabled but ca_file %s is not readable" % @options[:ca_file]))
+    end
+
+    ca = OpenSSL::X509::Certificate.new(File.read(@options[:ca_file]))
+    incoming = OpenSSL::X509::Certificate.new(cert)
+
+    unless incoming.issuer.to_s == ca.subject.to_s && incoming.verify(ca.public_key)
+      err_cb.call(NATS::ConnectError.new("TLS Verification failed checking issuer based on CA %s" % @options[:ca_file]))
+      false
+    else
+      true
+    end
+  rescue NATS::ConnectError
+    false
   end
 
   def ssl_handshake_completed
