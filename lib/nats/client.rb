@@ -84,6 +84,9 @@ module NATS
     # @option opts [Boolean] :verbose Boolean that is sent to server for setting verbose protocol mode.
     # @option opts [Boolean] :pedantic Boolean that is sent to server for setting pedantic mode.
     # @option opts [Boolean] :ssl Boolean that is sent to server for setting TLS/SSL mode.
+    # @option opts [String] :cert_chain_file Certificate chain file for use in TLS/SSL mode.
+    # @option opts [String] :private_key_file Private key file for use in TLS/SSL mode.
+    # @option opts [Boolean] :verify_peer Verify the peer connection SSL certificate.
     # @option opts [Integer] :max_reconnect_attempts Integer that can be used to set the max number of reconnect tries
     # @option opts [Integer] :reconnect_time_wait Integer that can be used to set the number of seconds to wait between reconnect tries
     # @option opts [Integer] :ping_interval Integer that can be used to set the ping interval in seconds.
@@ -96,6 +99,7 @@ module NATS
       opts[:pedantic] = false if opts[:pedantic].nil?
       opts[:reconnect] = true if opts[:reconnect].nil?
       opts[:ssl] = false if opts[:ssl].nil?
+      opts[:verify_peer] = false if opts[:verify_peer].nil?
       opts[:max_reconnect_attempts] = MAX_RECONNECT_ATTEMPTS if opts[:max_reconnect_attempts].nil?
       opts[:reconnect_time_wait] = RECONNECT_TIME_WAIT if opts[:reconnect_time_wait].nil?
       opts[:ping_interval] = DEFAULT_PING_INTERVAL if opts[:ping_interval].nil?
@@ -568,7 +572,11 @@ module NATS
     # :symbolize_keys, and for oj :symbol_keys.
     @server_info = JSON.parse(info, :symbolize_keys => true, :symbolize_names => true, :symbol_keys => true)
     if @server_info[:ssl_required] && @ssl
-      start_tls
+      start_tls(
+        :private_key_file => @options[:private_key_file],
+        :cert_chain_file => @options[:cert_chain_file],
+        :verify_peer => @options[:verify_peer]
+      )
     else
       if @server_info[:ssl_required]
         err_cb.call(NATS::ClientError.new('TLS/SSL required by server'))
@@ -576,12 +584,14 @@ module NATS
         err_cb.call(NATS::ClientError.new('TLS/SSL not supported by server'))
       end
     end
+
     if @server_info[:auth_required]
       current = server_pool.first
       current[:auth_required] = true
       queue_server_rt { current[:auth_ok] = true }
       flush_pending
     end
+
     @server_info
   end
 
