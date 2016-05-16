@@ -75,7 +75,7 @@ describe 'Client - cluster' do
 
   before(:each) do
     [@s1, @s2].each do |s|
-      s.start_server(true) unless NATS.server_running? s.uri
+      s.start_server(true)
     end
   end
 
@@ -184,7 +184,7 @@ describe 'Client - cluster' do
     c2_received.should be_within(15).of(to_send/2)
   end
 
-  it 'should properly route messages for distributed queues with mulitple groups on different servers' do
+  it 'should properly route messages for distributed queues with multiple groups on different servers' do
     data = 'Hello World!'
     to_send = 100
     received = c1a_received = c2a_received = 0

@@ -48,7 +48,7 @@ describe 'Client - cluster retry connect' do
         authorization {
           user: '#{auth_options["user"]}'
           password: '#{auth_options["password"]}'
-          timeout: 1
+          timeout: 5
         }
 
         cluster {
@@ -58,7 +58,7 @@ describe 'Client - cluster retry connect' do
           authorization {
             user: foo
             password: bar
-            timeout: 1
+            timeout: 5
           }
 
           routes = [
@@ -73,7 +73,7 @@ describe 'Client - cluster retry connect' do
 
   before(:each) do
     [@s1, @s2].each do |s|
-      s.start_server(true) unless NATS.server_running? s.uri
+      s.start_server(true)
     end
   end
 
@@ -86,17 +86,16 @@ describe 'Client - cluster retry connect' do
   it 'should re-establish asymmetric route connections upon restart' do
     data = 'Hello World!'
     received = 0
-    EM.run do
-      timeout_em_on_failure(5)
+    with_em_timeout(5) do |future|
       c1 = NATS.connect(:uri => @s1.uri)
       c2 = NATS.connect(:uri => @s2.uri)
 
       c1.subscribe('foo') do |msg|
-        msg.should == data
+        expect(msg).to eql(data)
         received += 1
 
         if received == 2
-          EM.stop # proper exit
+          future.resume # proper exit
         elsif received == 1
           # Here we will kill s1, which does not actively connect to anyone.
           # Upon restart we will make sure the route was re-established properly.
@@ -105,15 +104,19 @@ describe 'Client - cluster retry connect' do
           @s1.start_server
 
           wait_on_routes_connected([c1, c2]) do
-            c1.connected_server.should == @s1.uri
+            expect(c1.connected_server).to eql(@s1.uri)
             c2.publish('foo', data)
           end
         end
       end
-      wait_on_routes_connected([c1, c2]) { c2.publish('foo', data) }
+
+      wait_on_routes_connected([c1, c2]) do
+        c2.publish('foo', data)
+      end
+
     end
 
-    received.should == 2
+    expect(received).to eql(2)
   end
 
 end

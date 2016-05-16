@@ -2,12 +2,12 @@ require 'spec_helper'
 
 describe "Client - queue group support" do
 
-  before(:all) do
+  before(:each) do
     @s = NatsServerControl.new
     @s.start_server
   end
 
-  after(:all) do
+  after(:each) do
     @s.kill_server
   end
 
@@ -34,7 +34,7 @@ describe "Client - queue group support" do
   end
 
   it "should spread messages equally across multiple receivers" do
-    TOTAL = 5000
+    TOTAL = 1000
     NUM_SUBSCRIBERS = 10
     AVG = TOTAL / NUM_SUBSCRIBERS
     ALLOWED_V = TOTAL * 0.05

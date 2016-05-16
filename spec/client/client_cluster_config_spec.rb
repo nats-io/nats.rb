@@ -218,7 +218,9 @@ describe 'Client - cluster config' do
               time_diff.should < 1
 
               # Confirm we are reconnecting to the first one again
-              nc.connected_server.should == URI.parse(@s1_uri)
+              nc.flush do
+                nc.connected_server.should == URI.parse(@s1_uri)
+              end             
             end
           end
         end

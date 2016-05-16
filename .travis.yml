@@ -4,9 +4,9 @@ rvm:
   - 2.2
   - 2.3.0
 
-cache:
-  directories:
-  - $HOME/gnatsd
+# cache:
+#   directories:
+#   - $HOME/gnatsd
 
 before_install:
   - bash ./scripts/install_gnatsd.sh
@@ -14,3 +14,5 @@ before_install:
 before_script:
   - export PATH=$HOME/gnatsd:$PATH
 
+sudo: required
+dist: trusty

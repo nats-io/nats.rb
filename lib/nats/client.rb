@@ -58,7 +58,7 @@ module NATS
   # When the NATS server sends us an ERROR message, this is raised/passed by default
   class ServerError < Error; end #:nodoc:
 
-  # When we detect error on the client side (e.g. Fast Producer)
+  # When we detect error on the client side (e.g. Fast Producer, TLS required)
   class ClientError < Error; end #:nodoc:
 
   # When we cannot connect to the server (either initially or after a reconnect), this is raised/passed
@@ -69,8 +69,7 @@ module NATS
 
   class << self
     attr_reader   :client, :reactor_was_running, :err_cb, :err_cb_overridden #:nodoc:
-    attr_reader   :reconnect_cb  #:nodoc
-    attr_accessor :timeout_cb #:nodoc
+    attr_reader   :reconnect_cb, :close_cb, :disconnect_cb  #:nodoc
 
     alias :reactor_was_running? :reactor_was_running
 
@@ -84,9 +83,10 @@ module NATS
     # @option opts [Boolean] :verbose Boolean that is sent to server for setting verbose protocol mode.
     # @option opts [Boolean] :pedantic Boolean that is sent to server for setting pedantic mode.
     # @option opts [Boolean] :ssl Boolean that is sent to server for setting TLS/SSL mode.
-    # @option opts [String] :cert_file Certificate file for use in TLS/SSL mode.
-    # @option opts [String] :private_key_file Private key file for use in TLS/SSL mode.
-    # @option opts [String] :ca_file CA file for use in TLS/SSL mode when verify_peer is true.
+    # @option opts [Boolean] :tls Map of options for configuring secure connection handled to EM#start_tls directly.
+    # @option opts [String]  :cert_file Certificate file for use in TLS/SSL mode.
+    # @option opts [String]  :private_key_file Private key file for use in TLS/SSL mode.
+    # @option opts [String]  :ca_file CA file for use in TLS/SSL mode when verify_peer is true.
     # @option opts [Boolean] :verify_peer Verify the peer connection SSL certificate.
     # @option opts [Integer] :max_reconnect_attempts Integer that can be used to set the max number of reconnect tries
     # @option opts [Integer] :reconnect_time_wait Integer that can be used to set the number of seconds to wait between reconnect tries
@@ -121,12 +121,18 @@ module NATS
 
       uri = opts[:uris] || opts[:servers] || opts[:uri]
 
-      # if a :ca_file is supplied and :verify_peer is not set
-      # default to verification being on
-      if opts[:verify_peer].nil? && opts[:ca_file]
-        opts[:verify_peer] = true
-      elsif opts[:verify_peer].nil?
-        opts[:verify_peer] = false
+      if opts[:tls]
+        # if a :ca_file is supplied and :verify_peer is not set
+        # default to verification being on
+        if opts[:tls][:verify_peer].nil? && opts[:tls][:ca_file]
+          opts[:tls][:verify_peer] = true
+        elsif opts[:verify_peer].nil?
+          opts[:tls][:verify_peer] = false
+        end
+
+        # Allow overriding directly but default to those which server supports.
+        opts[:tls][:ssl_version] ||= %w(tlsv1 tlsv1_1 tlsv1_2)
+        opts[:tls][:protocols]   ||= %w(tlsv1 tlsv1_1 tlsv1_2)
       end
 
       # If they pass an array here just pass along to the real connection, and use first as the first attempt..
@@ -139,6 +145,8 @@ module NATS
       end
 
       @err_cb = proc { |e| raise e } unless err_cb
+      @close_cb = proc { } unless close_cb
+      @disconnect_cb = proc { } unless disconnect_cb
 
       client = EM.connect(@uri.host, @uri.port, self, opts)
       client.on_connect(&blk) if blk
@@ -169,6 +177,9 @@ module NATS
       client.close if (client and (client.connected? || client.reconnecting?))
       blk.call if blk
       @err_cb = nil
+      @close_cb = nil
+      @reconnect_cb = nil
+      @disconnect_cb = nil
     end
 
     # @return [URI] Connected server
@@ -212,6 +223,21 @@ module NATS
     def on_reconnect(&callback)
       @reconnect_cb = callback
       @client.on_reconnect(&callback) unless @client.nil?
+    end
+
+    # Set the default on_disconnect callback.
+    # @param [Block] &callback called whenever client disconnects from a server.
+    def on_disconnect(&callback)
+      @disconnect_cb = callback
+      @client.on_disconnect(&callback) unless @client.nil?
+    end
+
+    # Set the default on_closed callback.
+    # @param [Block] &callback called when will reach a state when
+    # will no longer reconnect to the server.
+    def on_close(&callback)
+      @close_cb = callback
+      @client.on_close(&callback) unless @client.nil?
     end
 
     # Publish a message using the default client connection.
@@ -294,6 +320,7 @@ module NATS
   attr_reader :connected, :connect_cb, :err_cb, :err_cb_overridden, :pongs_received #:nodoc:
   attr_reader :closing, :reconnecting, :server_pool, :options, :server_info #:nodoc
   attr_reader :msgs_received, :msgs_sent, :bytes_received, :bytes_sent, :pings
+  attr_reader :disconnect_cb, :close_cb
 
   alias :connected? :connected
   alias :closing? :closing
@@ -302,16 +329,26 @@ module NATS
   def initialize(options)
     @options = options
     process_uri_options
-    @ssl = false
-    @ssl = options[:ssl] if options[:ssl]
+
     @buf = nil
     @ssid, @subs = 1, {}
     @err_cb = NATS.err_cb
-    @reconnect_timer, @needed = nil, nil
+    @close_cb = NATS.close_cb
     @reconnect_cb = NATS.reconnect_cb
+    @disconnect_cb = NATS.disconnect_cb
+    @reconnect_timer, @needed = nil, nil
     @connected, @closing, @reconnecting, @conn_cb_called = false, false, false, false
     @msgs_received = @msgs_sent = @bytes_received = @bytes_sent = @pings = 0
     @pending_size = 0
+    @server_info = { }
+
+    # Mark whether we should be connecting securely, try best effort
+    # in being compatible with present ssl support.
+    @ssl = false
+    @tls = nil
+    @tls = options[:tls] if options[:tls]
+    @ssl = options[:ssl] if options[:ssl] or @tls
+
     send_connect_command
   end
 
@@ -434,6 +471,12 @@ module NATS
     @reconnect_cb = callback
   end
 
+  # Define a callback to be called when client is disconnected from server.
+  # @param [Block] &blk called when the connection is closed.
+  def on_disconnect(&callback)
+    @disconnect_cb = callback
+  end
+
   # Close the connection to the server.
   def close
     @closing = true
@@ -460,7 +503,7 @@ module NATS
     cs = {
       :verbose => @options[:verbose],
       :pedantic => @options[:pedantic],
-      :lang => "ruby",
+      :lang => :ruby,
       :version => VERSION
     }
     if auth_connection?
@@ -468,6 +511,8 @@ module NATS
       cs[:pass] = @uri.password
     end
     cs[:ssl_required] = @ssl if @ssl
+    cs[:tls_required] = true if @tls
+
     "CONNECT #{cs.to_json}#{CR_LF}"
   end
 
@@ -579,28 +624,40 @@ module NATS
     # parser gets what it needs. For the json gem :symbolize_name, for yajl
     # :symbolize_keys, and for oj :symbol_keys.
     @server_info = JSON.parse(info, :symbolize_keys => true, :symbolize_names => true, :symbol_keys => true)
-    if @server_info[:ssl_required] && @ssl
-      start_tls(
-        :private_key_file => @options[:private_key_file],
-        :cert_chain_file => @options[:cert_file],
-        :verify_peer => @options[:verify_peer]
-      )
+
+    case
+    when (server_using_secure_connection? and client_using_secure_connection?)
+      # Allow parameterizing secure connection via EM#start_tls directly if present.
+      start_tls(@tls || {})
+    when (server_using_secure_connection? and !client_using_secure_connection?)
+      # Call unbind since there is a configuration mismatch between client/server
+      # anyway and communication cannot happen in this state.
+      err_cb.call(NATS::ClientError.new('TLS/SSL required by server'))
+      close_connection_after_writing
+    when (client_using_secure_connection? and !server_using_secure_connection?)
+      err_cb.call(NATS::ClientError.new('TLS/SSL not supported by server'))
+      close_connection_after_writing
     else
-      if @server_info[:ssl_required]
-        err_cb.call(NATS::ClientError.new('TLS/SSL required by server'))
-      elsif @ssl
-        err_cb.call(NATS::ClientError.new('TLS/SSL not supported by server'))
-      end
+      # Otherwise, use a regular connection.
     end
 
     if @server_info[:auth_required]
       current = server_pool.first
       current[:auth_required] = true
+      # Send pending connect followed by ping/pong to ensure we're authorized.
       queue_server_rt { current[:auth_ok] = true }
       flush_pending
     end
 
     @server_info
+  end
+
+  def client_using_secure_connection?
+    @tls || @ssl
+  end
+
+  def server_using_secure_connection?
+    @server_info[:ssl_required] || @server_info[:tls_required]
   end
 
   def ssl_verify_peer(cert)
@@ -612,7 +669,8 @@ module NATS
       err_cb.call(NATS::ConnectError.new("TLS Verification is enabled but ca_file %s is not readable" % @options[:ca_file]))
     end
 
-    ca = OpenSSL::X509::Certificate.new(File.read(@options[:ca_file]))
+    ca_file = File.read(@options[:ca_file])
+    ca = OpenSSL::X509::Certificate.new(ca_file)
     incoming = OpenSSL::X509::Certificate.new(cert)
 
     unless incoming.issuer.to_s == ca.subject.to_s && incoming.verify(ca.public_key)
@@ -627,7 +685,7 @@ module NATS
 
   def ssl_handshake_completed
     @connected = true
-    flush_pending
+    process_connect
   end
 
   def cancel_ping_timer
@@ -638,14 +696,38 @@ module NATS
   end
 
   def connection_completed #:nodoc:
-    @connected = true unless @ssl
+    # Mark that we established already TCP connection to the server. In case of TLS,
+    # prepare commands which will be dispatched to server and delay flushing until
+    # we have processed the INFO line sent by the server and done the handshake.
+    @connected = true unless (@ssl or @tls)
 
+    @parse_state = AWAITING_CONTROL_LINE
+
+    # Initialize ping timer and processing
+    @pings_outstanding = 0
+    @pongs_received = 0
+    @ping_timer = EM.add_periodic_timer(@options[:ping_interval]) do
+      send_ping
+    end
+
+    if reconnecting?
+      @reconnecting = false
+      @reconnect_cb.call unless @reconnect_cb.nil?
+    end
+
+    # Delay sending CONNECT or any other command here until we are sure
+    # that we have a valid established secure connection.
+    process_connect unless (@ssl or @tls)
+  end
+
+  def process_connect #:nodoc:
+    # Reset reconnect attempts since looks like connection has been successful at this point.
     current = server_pool.first
     current[:was_connected] = true
-    current[:reconnect_attempts] = 0
+    current[:reconnect_attempts] ||= 0
     cancel_reconnect_timer if reconnecting?
 
-    # whip through any pending SUB commands since we replay
+    # Whip through any pending SUB commands since we replay
     # all subscriptions already done anyway.
     @pending.delete_if { |sub| sub[0..2] == SUB_OP } if @pending
     @subs.each_pair { |k, v| send_command("SUB #{v[:subject]} #{v[:queue]} #{k}#{CR_LF}") }
@@ -654,8 +736,11 @@ module NATS
       @err_cb = proc { |e| raise e }
     end
 
-    flush_pending unless @ssl
+    # We have validated the connection at this point so send CONNECT
+    # and any other pending commands which we need to the server.
+    flush_pending
 
+    # FIXME: Don't do this yet here when using TLS
     if (connect_cb and not @conn_cb_called)
       # We will round trip the server here to make sure all state from any pending commands
       # has been processed before calling the connect callback.
@@ -664,18 +749,6 @@ module NATS
         @conn_cb_called = true
       end
     end
-
-    if reconnecting?
-      @reconnecting = false
-      @reconnect_cb.call unless @reconnect_cb.nil?
-    end
-
-    @parse_state = AWAITING_CONTROL_LINE
-
-    # Initialize ping timer and processing
-    @pings_outstanding = 0
-    @pongs_received = 0
-    @ping_timer = EM.add_periodic_timer(@options[:ping_interval]) { send_ping }
   end
 
   def send_ping #:nodoc:
@@ -696,7 +769,7 @@ module NATS
   end
 
   def should_delay_connect?(server)
-    server[:was_connected] && server[:reconnect_attempts] >= 1
+    server[:was_connected] && server[:reconnect_attempts] >= 0
   end
 
   def schedule_reconnect #:nodoc:
@@ -706,9 +779,14 @@ module NATS
   end
 
   def unbind #:nodoc:
+    # Allow notifying from which server we were disconnected,
+    # but only when we didn't trigger disconnecting ourselves.
+    if @disconnect_cb and connected? and not closing?
+      disconnect_cb.call(NATS::ConnectError.new(disconnect_error_string))
+    end
+
     # If we are closing or shouldn't reconnect, go ahead and disconnect.
     process_disconnect and return if (closing? or should_not_reconnect?)
-
     @reconnecting = true if connected?
     @connected = false
     @pending = @pongs = nil
@@ -738,12 +816,18 @@ module NATS
   end
 
   def disconnect_error_string
-    return "Client disconnected from server on #{@uri}." if @connected
+    return "Client disconnected from server on #{@uri}" if @connected
     return "Could not connect to server on #{@uri}"
   end
 
   def process_disconnect #:nodoc:
-    err_cb.call(NATS::ConnectError.new(disconnect_error_string)) if not closing? and @err_cb
+    # Mute error callback when user has called NATS.close on purpose.
+    if not closing? and @err_cb
+      # Always call error callback for compatibility with previous behavior.
+      err_cb.call(NATS::ConnectError.new(disconnect_error_string))
+    end
+    close_cb.call if @close_cb
+
     true # Chaining
   ensure
     cancel_ping_timer
@@ -762,7 +846,9 @@ module NATS
   def attempt_reconnect #:nodoc:
     @reconnect_timer = nil
     current = server_pool.first
-    current[:reconnect_attempts] += 1 if current[:reconnect_attempts]
+    current[:reconnect_attempts] ||= 0
+    current[:reconnect_attempts] += 1
+
     send_connect_command
     begin
       EM.reconnect(@uri.host, @uri.port, self)
@@ -817,12 +903,19 @@ module NATS
   def schedule_primary_and_connect #:nodoc:
     # Dump the one we were trying if it wasn't connected
     current = server_pool.shift
+
     # FIXME(dlc) - Should we remove from the list on error?
-    server_pool << current if (current && (options[:max_reconnect_attempts] < 0 || can_reuse_server?(current) && !current[:error_received]))
-    # If we are out of options, go ahead and disconnect.
+    if (current && (options[:max_reconnect_attempts] < 0 || can_reuse_server?(current) && !current[:error_received]))
+      server_pool << current
+    end
+
+    # If we are out of options, go ahead and disconnect then
+    # handle closing connection to NATS.
     process_disconnect and return if server_pool.empty?
+
     # bind new one
     next_server = bind_primary
+
     # If the next one was connected and we are trying to reconnect
     # set up timer if we tried once already.
     if should_delay_connect?(next_server)
