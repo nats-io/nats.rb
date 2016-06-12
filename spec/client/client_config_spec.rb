@@ -115,6 +115,7 @@ describe "Client - configuration" do
     ENV.delete 'NATS_PEDANTIC'
     ENV.delete 'NATS_DEBUG'
     ENV.delete 'NATS_RECONNECT'
+    ENV.delete 'NATS_FAST_PRODUCER'
     ENV.delete 'NATS_MAX_RECONNECT_ATTEMPTS'
     ENV.delete 'NATS_RECONNECT_TIME_WAIT'
     ENV.delete 'NATS_URI'
