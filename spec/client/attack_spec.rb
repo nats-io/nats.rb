@@ -4,7 +4,7 @@ require 'spec_helper'
 describe 'Client - server attacks' do
 
   before (:all) do
-    TEST_SERVER = 'nats://localhost:4222'
+    TEST_SERVER = 'nats://127.0.0.1:4222'
     @s = NatsServerControl.new(TEST_SERVER, "/tmp/nats_attack.pid")
     @s.start_server
   end

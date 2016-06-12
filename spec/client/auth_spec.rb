@@ -8,8 +8,8 @@ describe 'Client - authorization' do
     USER = 'derek'
     PASS = 'mypassword'
 
-    TEST_AUTH_SERVER = "nats://#{USER}:#{PASS}@localhost:9222"
-    TEST_AUTH_SERVER_NO_CRED = 'nats://localhost:9222'
+    TEST_AUTH_SERVER = "nats://#{USER}:#{PASS}@127.0.0.1:9222"
+    TEST_AUTH_SERVER_NO_CRED = 'nats://127.0.0.1:9222'
     TEST_AUTH_SERVER_PID = '/tmp/nats_authorization.pid'
     TEST_AUTH_AUTO_SERVER_PID = '/tmp/nats_auto_authorization.pid'
 

@@ -85,7 +85,7 @@ class NatsServerControl
 
   attr_reader :uri
 
-  def initialize(uri='nats://localhost:4222', pid_file='/tmp/test-nats.pid', flags=nil, config_file=nil)
+  def initialize(uri='nats://127.0.0.1:4222', pid_file='/tmp/test-nats.pid', flags=nil, config_file=nil)
     @uri = uri.is_a?(URI) ? uri : URI.parse(uri)
     @pid_file = pid_file
     @flags = flags
@@ -161,7 +161,7 @@ end
 
 module EchoServer
 
-  HOST = "localhost".freeze
+  HOST = "127.0.0.1".freeze
   PORT = "9999".freeze
   ECHO_SERVER = "http://#{HOST}:#{PORT}".freeze
 
