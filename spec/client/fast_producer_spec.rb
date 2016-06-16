@@ -27,12 +27,18 @@ describe 'Client - fast producer' do
     end
   end
 
-  it 'should not raise an error when exceeding the threshold' do
+  it 'should not raise an error when exceeding the threshold by default' do
     data = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
     EM.run do
-      while (NATS.pending_data_size <= NATS::FAST_PRODUCER_THRESHOLD) do
-        NATS.publish('foo', data)
-      end
+      nc = NATS.connect
+      expect do
+        # Put as many commands in pending as we can and confirm that
+        # hitting the maximum threshold does not yield an error.
+        while (nc.pending_data_size <= NATS::FAST_PRODUCER_THRESHOLD) do
+          nc.publish('foo', data)
+        end
+      end.not_to raise_error
+      nc.close
       EM.stop
     end
   end
@@ -51,19 +57,27 @@ describe 'Client - fast producer' do
     end
   end
 
-  it 'should raise an error when exceeding the threshold if ENV enabled' do
-    data = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-    EM.run do
+  context 'with NATS_FAST_PRODUCER enabled from ENV' do
+    before(:all) do
       ENV['NATS_FAST_PRODUCER'] = 'true'
-      c = NATS.connect
-      expect do
-        while (c.pending_data_size <= NATS::FAST_PRODUCER_THRESHOLD) do
-          c.publish('foo', data)
-        end
-      end.to raise_error(NATS::ClientError)
-      c.close
-      EM.stop
+    end
+
+    after(:all) do
+      ENV.delete 'NATS_FAST_PRODUCER'
+    end
+
+    it 'should raise an error when exceeding the threshold' do
+      data = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+      EM.run do
+        c = NATS.connect
+        expect do
+          while (c.pending_data_size <= NATS::FAST_PRODUCER_THRESHOLD) do
+            c.publish('foo', data)
+          end
+        end.to raise_error(NATS::ClientError)
+        c.close
+        EM.stop
+      end
     end
   end
-
 end
