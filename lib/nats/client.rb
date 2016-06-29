@@ -607,7 +607,7 @@ module NATS
 
     # whip through any pending SUB commands since we replay
     # all subscriptions already done anyway.
-    @pending.delete_if { |sub| sub[0..2] == SUB_OP }
+    @pending.delete_if { |sub| sub[0..2] == SUB_OP } if @pending
     @subs.each_pair { |k, v| send_command("SUB #{v[:subject]} #{v[:queue]} #{k}#{CR_LF}") }
 
     unless user_err_cb? or reconnecting?
@@ -734,11 +734,15 @@ module NATS
   end
 
   def send_command(command, priority = false) #:nodoc:
-    EM.next_tick { flush_pending } if (connected? && @pending.nil?)
+    needs_flush = (connected? && @pending.nil?)
+
     @pending ||= []
     @pending << command unless priority
     @pending.unshift(command) if priority
     @pending_size += command.bytesize
+
+    EM.next_tick { flush_pending } if needs_flush
+
     flush_pending if (connected? && @pending_size > MAX_PENDING_SIZE)
     if (@options[:fast_producer_error] && pending_data_size > FAST_PRODUCER_THRESHOLD)
       err_cb.call(NATS::ClientError.new("Fast Producer: #{pending_data_size} bytes outstanding"))
