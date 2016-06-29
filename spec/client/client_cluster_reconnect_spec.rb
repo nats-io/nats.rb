@@ -7,7 +7,7 @@ describe 'Client - cluster reconnect' do
       'user'     => 'derek',
       'password' => 'bella',
       'token'    => 'deadbeef',
-      'timeout'  => 1
+      'timeout'  => 5
     }
 
     s1_config_opts = {
@@ -56,7 +56,7 @@ describe 'Client - cluster reconnect' do
         authorization {
           user: '#{auth_options["user"]}'
           password: '#{auth_options["password"]}'
-          timeout: 0.5
+          timeout: #{auth_options["timeout"]}
         }
 
         cluster {
@@ -66,7 +66,7 @@ describe 'Client - cluster reconnect' do
           authorization {
             user: foo
             password: bar
-            timeout: 1
+            timeout: 5
           }
 
           routes = [
@@ -96,19 +96,21 @@ describe 'Client - cluster reconnect' do
     opts = {
       :dont_randomize_servers => true,
       :reconnect_time_wait => 0.25,
-      :uri => [@s1.uri, URI.parse("nats://does.not.exist:4222/"), @s3.uri]
+      :servers => [@s1.uri, URI.parse("nats://does.not.exist:4222/"), @s3.uri]
     }
-    NATS.start(opts) do |c|
-      timer=timeout_nats_on_failure(1)
-      c.on_reconnect do
+    with_em_timeout(5) do
+      nc = NATS.connect(opts)
+      nc.on_reconnect do
         reconnect_cb = true
-        NATS.connected?.should be_truthy
-        NATS.connected_server.should == @s3.uri
-        NATS.stop
+        expect(nc.connected?).to be(true)
+        expect(nc.connected_server).to eql(@s3.uri)
       end
-      @s1.kill_server
+
+      EM.add_timer(1) do
+        @s1.kill_server
+      end
     end
-    reconnect_cb.should be_truthy
+    expect(reconnect_cb).to eql(true)
   end
 
   it 'should call reconnect callback when current connection fails' do

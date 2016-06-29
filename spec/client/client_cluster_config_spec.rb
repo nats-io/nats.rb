@@ -2,25 +2,28 @@ require 'spec_helper'
 
 describe 'Client - cluster config' do
 
+  CLUSTER_USER = 'derek'
+  CLUSTER_PASS = 'mypassword'
+
+  CLUSTER_AUTH_PORT = 9292
+  CLUSTER_AUTH_SERVER = "nats://#{CLUSTER_USER}:#{CLUSTER_PASS}@127.0.0.1:#{CLUSTER_AUTH_PORT}"
+  CLUSTER_AUTH_SERVER_PID = '/tmp/nats_cluster_authorization.pid'
+
   before(:all) do
-
-    CLUSTER_USER = 'derek'
-    CLUSTER_PASS = 'mypassword'
-
-    CLUSTER_AUTH_PORT = 9292
-    CLUSTER_AUTH_SERVER = "nats://#{CLUSTER_USER}:#{CLUSTER_PASS}@localhost:#{CLUSTER_AUTH_PORT}"
-    CLUSTER_AUTH_SERVER_PID = '/tmp/nats_cluster_authorization.pid'
-
-    @s = NatsServerControl.new
-    @s.start_server
-
+    @s  = NatsServerControl.new
     @as = NatsServerControl.new(CLUSTER_AUTH_SERVER, CLUSTER_AUTH_SERVER_PID)
-    @as.start_server
   end
 
-  after(:all) do
-    @s.kill_server
-    @as.kill_server
+  before(:each) do
+    [@s, @as].each do |s|
+      s.start_server(true) unless NATS.server_running? s.uri
+    end
+  end
+
+  after(:each) do
+    [@s, @as].each do |s|
+      s.kill_server
+    end
   end
 
   it 'should properly process :uri option for multiple servers' do
@@ -83,8 +86,7 @@ describe 'Client - cluster config' do
       NATS.connect(:dont_randomize_servers => true, :uri => servers) do |c|
         sp_servers = []
         c.server_pool.each { |s| sp_servers << s[:uri].to_s }
-        sp_servers.should == servers
-        NATS.stop
+        expect(sp_servers).to eql(servers)
       end
       timeout_nats_on_failure
     end
@@ -99,7 +101,9 @@ describe 'Client - cluster config' do
 
   it 'should fail to connect if no servers available' do
     expect do
-      NATS.start(:uri => ['nats://127.0.0.1:4223']) { NATS.stop }
+      NATS.start(:uri => ['nats://127.0.0.1:4223']) do
+        NATS.stop
+      end
     end.to raise_error NATS::Error
   end
 
@@ -111,66 +115,114 @@ describe 'Client - cluster config' do
   end
 
   it 'should fail if all servers are not available' do
-    expect do
-      NATS.start(:uri => ['nats://127.0.0.1:4224', 'nats://127.0.0.1:4223']) { NATS.stop }
-    end.to raise_error NATS::Error
+    errors = []
+    with_em_timeout do
+      NATS.on_error do |e|
+        errors << e
+      end
+      NATS.connect(:uri => ['nats://127.0.0.1:4224', 'nats://127.0.0.1:4223'])
+    end
+    expect(errors.count > 0).to be(true)
+    expect(errors.first).to     be_a(NATS::ConnectError)
   end
 
   it 'should fail if server is available but does not have proper auth' do
-    expect do
-      NATS.start(:uri => ['nats://127.0.0.1:4224', "nats://127.0.0.1:#{CLUSTER_AUTH_PORT}"]) { NATS.stop }
-    end.to raise_error NATS::Error
+    errors = []
+    with_em_timeout do
+      NATS.on_error do |e|
+        errors << e
+      end
+      NATS.connect(:uri => ['nats://127.0.0.1:4224', "nats://127.0.0.1:#{CLUSTER_AUTH_PORT}"])
+    end
+    expect(errors.count).to eql(2)
+    expect(errors.first).to be_a(NATS::AuthError)
+    expect(errors.last).to  be_a(NATS::ConnectError)
   end
 
   it 'should succeed if proper credentials supplied with non-first uri' do
-    NATS.start(:dont_randomize_servers => true, :uri => ['nats://127.0.0.1:4224', CLUSTER_AUTH_SERVER]) do
-      NATS.client.connected_server.should == URI.parse(CLUSTER_AUTH_SERVER)
-      NATS.stop
-    end
-  end
-
-  it 'should honor auth credentials properly for listed servers' do
-    s1_uri = 'nats://derek:foo@localhost:9290'
-    s1 = NatsServerControl.new(s1_uri, '/tmp/nats_cluster_s1.pid')
-    s1.start_server
-
-    s2_uri = 'nats://sarah:bar@localhost:9298'
-    s2 = NatsServerControl.new(s2_uri, '/tmp/nats_cluster_s2.pid')
-    s2.start_server
-
-    NATS.start(:dont_randomize_servers => true, :uri => [s1_uri, s2_uri]) do
-      NATS.client.connected_server.should == URI.parse(s1_uri)
-      kill_time = Time.now
-      s1.kill_server
-      EM.add_timer(0.25) do
-        time_diff = Time.now - kill_time
-        time_diff.should < 1
-        NATS.client.connected_server.should == URI.parse(s2_uri)
-        s1.start_server
-        kill_time2 = Time.now
-        s2.kill_server
-        EM.add_timer(0.25) do
-          time_diff = Time.now - kill_time2
-          time_diff.should < 1
-          NATS.client.connected_server.should == URI.parse(s1_uri)
-          NATS.stop
-        end
+    with_em_timeout(3) do
+      # FIXME: Flush should not be required to be able to assert connected URI
+      nc = NATS.connect(:dont_randomize_servers => true, :uri => ['nats://127.0.0.1:4224', CLUSTER_AUTH_SERVER])
+      nc.flush do
+        expect(nc.connected_server).to eql(URI.parse(CLUSTER_AUTH_SERVER))
       end
     end
-    s1.kill_server
-    s2.kill_server
   end
 
   it 'should allow user/pass overrides' do
-    s_uri = "nats://localhost:#{CLUSTER_AUTH_PORT}"
+    s_uri = "nats://127.0.0.1:#{CLUSTER_AUTH_PORT}"
 
-    expect do
-      NATS.start(:uri => [s_uri]) { NATS.stop }
-    end.to raise_error NATS::Error
+    errors = []
+    with_em_timeout(5) do
+      NATS.on_error do |e|
+        errors << e
+      end
+      NATS.connect(:servers => [s_uri])
+    end
+    expect(errors.count).to eql(2)
+    expect(errors.first).to be_a(NATS::AuthError)
+    expect(errors.last).to  be_a(NATS::ConnectError)
 
-    expect do
-      NATS.start(:uri => [s_uri], :user => CLUSTER_USER, :pass => CLUSTER_PASS) { NATS.stop }
-    end.to_not raise_error
+    errors = []
+    with_em_timeout do
+      NATS.connect(:uri => [s_uri], :user => CLUSTER_USER, :pass => CLUSTER_PASS) do |nc2|
+        nc2.publish("hello", "world")
+      end
+    end
+    expect(errors.count).to eql(0)
   end
 
+  context do
+    before(:all) do
+      @s1_uri = 'nats://derek:foo@127.0.0.1:9290'
+      @s1 = NatsServerControl.new(@s1_uri, '/tmp/nats_cluster_honor_s1.pid')
+      @s1.start_server
+
+      @s2_uri = 'nats://sarah:bar@127.0.0.1:9298'
+      @s2 = NatsServerControl.new(@s2_uri, '/tmp/nats_cluster_honor_s2.pid')
+      @s2.start_server
+    end
+
+    after(:all) do
+      @s1.kill_server
+      @s2.kill_server
+    end
+
+    it 'should honor auth credentials properly for listed servers' do
+      with_em_timeout(5) do
+        # FIXME: Flush should not be required, rather connect should be synchronous...
+        nc = NATS.connect(:dont_randomize_servers => true, :servers => [@s1_uri, @s2_uri])
+        nc.flush do
+          expect(nc.connected_server).to eql(URI.parse(@s1_uri))
+
+          # Disconnect from first server
+          kill_time = Time.now
+          @s1.kill_server
+
+          EM.add_timer(1) do
+            time_diff = Time.now - kill_time
+            time_diff.should < 2
+
+            # Confirm that it has connected to the second server
+            nc.connected_server.should == URI.parse(@s2_uri)
+
+            # Restart the first server again...
+            @s1.start_server
+
+            # Kill the second server once again to reconnect to first one...
+            kill_time2 = Time.now
+            @s2.kill_server
+
+            EM.add_timer(0.25) do
+              time_diff = Time.now - kill_time2
+              time_diff.should < 1
+
+              # Confirm we are reconnecting to the first one again
+              nc.connected_server.should == URI.parse(@s1_uri)
+            end
+          end
+        end
+      end
+    end
+  end
 end

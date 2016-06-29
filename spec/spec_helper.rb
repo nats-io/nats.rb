@@ -4,11 +4,32 @@ require 'nats/client'
 require 'tempfile'
 
 def timeout_nats_on_failure(to=0.25)
-  EM.add_timer(to) { NATS.stop }
+  EM.add_timer(to) do
+    EM.stop
+  end
 end
 
 def timeout_em_on_failure(to=0.25)
-  EM.add_timer(to) { EM.stop }
+  EM.add_timer(to) do
+    EM.stop
+  end
+end
+
+def with_em_timeout(to=1)
+  EM.run do
+    t = EM.add_timer(to) do
+      NATS.stop
+      EM.stop if EM.reactor_running?
+    end
+
+    fib = Fiber.new do |nc|
+      nc.close if nc
+      EM.cancel_timer(t)
+      EM.stop if EM.reactor_running?
+    end
+
+    yield fib
+  end
 end
 
 def wait_on_connections(conns)
