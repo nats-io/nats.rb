@@ -119,4 +119,44 @@ describe 'Client - cluster retry connect' do
     expect(received).to eql(2)
   end
 
+  it 'should call the reconnect, disconnect, and close callbacks whenever it detaches from a server' do
+    disconnects = []
+    reconnects = []
+    with_em_timeout(10) do |future|
+      nc = NATS.connect(:servers => [@s1.uri, @s2.uri], :dont_randomize_servers => true, :max_reconnect_attempts => 3) do |nc|
+
+        nc.on_disconnect do |reasons|
+          disconnects << reasons
+        end
+
+        nc.on_reconnect do |next_server_uri|
+          reconnects << next_server_uri
+        end
+
+        nc.on_close do
+          future.resume
+        end
+
+        EM.add_timer(1) do
+          @s1.kill_server
+        end
+
+        EM.add_timer(2) do
+          @s1.start_server
+          @s2.kill_server
+        end
+      end
+
+      nc.flush do
+        nc.subscribe("hello")
+      end
+    end
+    expect(disconnects.count).to eql(3)
+    expect(reconnects.count).to eql(2)
+    expect(disconnects[0].to_s).to eql(%Q(Client disconnected from server on #{@s1.uri}))
+    expect(disconnects[1].to_s).to eql(%Q(Client disconnected from server on #{@s2.uri}))
+    expect(disconnects[2].to_s).to eql(%Q(Client disconnected from server on #{@s1.uri}))
+    expect(reconnects[0]).to eql(@s2.uri)
+    expect(reconnects[1]).to eql(@s1.uri)
+  end
 end

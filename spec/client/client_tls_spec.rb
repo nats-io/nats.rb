@@ -34,9 +34,9 @@ describe 'Client - TLS spec' do
       with_em_timeout(5) do |future|
         nc = nil
         NATS.on_error      {|e| errors << e }
-        NATS.on_close      {|e| closes += 1 }
+        NATS.on_close      { closes += 1 }
         NATS.on_reconnect  { reconnects += 1 }
-        NATS.on_disconnect {|e| disconnects += 1 }
+        NATS.on_disconnect { disconnects += 1 }
 
         nc = NATS.connect(options)
       end
@@ -75,9 +75,9 @@ describe 'Client - TLS spec' do
       with_em_timeout(3) do |future|
         nc = nil
 
-        NATS.on_close      {|e| closes += 1 }
-        NATS.on_reconnect  {|e| reconnects += 1 }
-        NATS.on_disconnect {|e| disconnects += 1 }
+        NATS.on_close      { closes += 1 }
+        NATS.on_reconnect  { reconnects += 1 }
+        NATS.on_disconnect { disconnects += 1 }
 
         NATS.on_error do |e|
           errors << e
@@ -184,7 +184,7 @@ describe 'Client - TLS spec' do
           errors << e
         end
 
-        NATS.on_disconnect do |e|
+        NATS.on_disconnect do
           disconnects += 1
         end
 
@@ -229,7 +229,7 @@ describe 'Client - TLS spec' do
           errors << e
         end
 
-        NATS.on_disconnect do |e|
+        NATS.on_disconnect do
           disconnects += 1
         end
 
@@ -288,7 +288,7 @@ describe 'Client - TLS spec' do
           errors << e
         end
 
-        NATS.on_disconnect do |e|
+        NATS.on_disconnect do
           disconnects += 1
         end
 

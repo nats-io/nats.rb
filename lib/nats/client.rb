@@ -241,8 +241,7 @@ module NATS
     end
 
     # Set the default on_closed callback.
-    # @param [Block] &callback called when will reach a state when
-    # will no longer reconnect to the server.
+    # @param [Block] &callback called when will reach a state when will no longer be connected. 
     def on_close(&callback)
       @close_cb = callback
       @client.on_close(&callback) unless @client.nil?
@@ -468,21 +467,27 @@ module NATS
   end
 
   # Define a callback to be called when errors occur on the client connection.
-  # @param [Block] &blk called when the connection is closed.
+  # @param [Block] &callback called when an error has been detected.
   def on_error(&callback)
     @err_cb, @err_cb_overridden = callback, true
   end
 
   # Define a callback to be called when a reconnect attempt is made.
-  # @param [Block] &blk called when the connection is closed.
+  # @param [Block] &callback called when a reconnect attempt is made.
   def on_reconnect(&callback)
     @reconnect_cb = callback
   end
 
   # Define a callback to be called when client is disconnected from server.
-  # @param [Block] &blk called when the connection is closed.
+  # @param [Block] &callback called whenever client disconnects from a server.
   def on_disconnect(&callback)
     @disconnect_cb = callback
+  end
+
+  # Define a callback to be called when client is disconnected from server.
+  # @param [Block] &callback called when will reach a state when will no longer be connected.
+  def on_close(&callback)
+    @close_cb = callback
   end
 
   # Close the connection to the server.
