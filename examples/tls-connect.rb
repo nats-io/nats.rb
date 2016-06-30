@@ -40,8 +40,8 @@ EM.run do
       puts "#{Time.now.to_f} - Disconnected: #{reason}"
     end
 
-    nc.on_reconnect do |next_server_uri|
-      puts "#{Time.now.to_f} - Trying to reconnect to NATS server at #{next_server_uri}"
+    nc.on_reconnect do |nc|
+      puts "#{Time.now.to_f} - Reconnected to NATS server at #{nc.connected_server}"
     end
 
     nc.on_close do

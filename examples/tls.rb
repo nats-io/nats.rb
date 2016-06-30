@@ -24,8 +24,8 @@ NATS.on_disconnect do |reason|
   puts "#{Time.now.to_f} - Disconnected: #{reason}"
 end
 
-NATS.on_reconnect do |next_server_uri|
-  puts "#{Time.now.to_f} - Trying to reconnect to NATS server at #{next_server_uri}"
+NATS.on_reconnect do |nats|
+  puts "#{Time.now.to_f} - Reconnected to NATS server at #{nats.connected_server}"
 end
 
 NATS.on_close do

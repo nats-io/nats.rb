@@ -688,11 +688,6 @@ module NATS
     false
   end
 
-  def ssl_handshake_completed
-    @connected = true
-    process_connect
-  end
-
   def cancel_ping_timer
     if @ping_timer
       EM.cancel_timer(@ping_timer)
@@ -701,32 +696,26 @@ module NATS
   end
 
   def connection_completed #:nodoc:
-    # Mark that we established already TCP connection to the server. In case of TLS,
-    # prepare commands which will be dispatched to server and delay flushing until
-    # we have processed the INFO line sent by the server and done the handshake.
-    @connected = true unless (@ssl or @tls)
-
     @parse_state = AWAITING_CONTROL_LINE
-
-    # Initialize ping timer and processing
-    @pings_outstanding = 0
-    @pongs_received = 0
-    @ping_timer = EM.add_periodic_timer(@options[:ping_interval]) do
-      send_ping
-    end
-
-    if reconnecting?
-      @reconnecting = false
-      @reconnect_cb.call(@uri) unless @reconnect_cb.nil?
-    end
 
     # Delay sending CONNECT or any other command here until we are sure
     # that we have a valid established secure connection.
-    process_connect unless (@ssl or @tls)
+    return if (@ssl or @tls)
+
+    # Mark that we established already TCP connection to the server. In case of TLS,
+    # prepare commands which will be dispatched to server and delay flushing until
+    # we have processed the INFO line sent by the server and done the handshake.
+    @connected = true 
+    process_connect
   end
 
-  def process_connect #:nodoc:
-    # Reset reconnect attempts since looks like connection has been successful at this point.
+  def ssl_handshake_completed
+    @connected = true
+    process_connect
+  end
+
+  def process_connect #:nodoc:   
+    # Reset reconnect attempts since TCP connection has been successful at this point.
     current = server_pool.first
     current[:was_connected] = true
     current[:reconnect_attempts] ||= 0
@@ -752,6 +741,19 @@ module NATS
         connect_cb.call(self)
         @conn_cb_called = true
       end
+    end
+
+    # Notify via reconnect callback that we are again plugged again into the system.
+    if reconnecting?
+      @reconnecting = false
+      @reconnect_cb.call(self) unless @reconnect_cb.nil?
+    end
+
+    # Initialize ping timer and processing
+    @pings_outstanding = 0
+    @pongs_received = 0
+    @ping_timer = EM.add_periodic_timer(@options[:ping_interval]) do
+      send_ping
     end
   end
 

@@ -129,8 +129,8 @@ describe 'Client - cluster retry connect' do
           disconnects << reasons
         end
 
-        nc.on_reconnect do |next_server_uri|
-          reconnects << next_server_uri
+        nc.on_reconnect do |nc|
+          reconnects << nc.connected_server
         end
 
         nc.on_close do

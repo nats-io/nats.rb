@@ -127,7 +127,7 @@ describe 'Client - cluster reconnect' do
         expect(c.connected_server).to eql(@s1.uri)
         c.on_reconnect do |conn|
           reconnect_cb = true
-          reconnect_conns << conn
+          reconnect_conns << conn.connected_server
         end
         @s1.kill_server
         EM.add_timer(1) do
