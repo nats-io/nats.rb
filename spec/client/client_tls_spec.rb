@@ -544,7 +544,7 @@ describe 'Client - TLS spec' do
 
         nc = NATS.connect(options) do |conn|
           expect(conn.connected_server).to eql(URI.parse('nats://secret:deadbeef@127.0.0.1:4445'))
-          
+
           connects += 1
         end
 
@@ -623,6 +623,299 @@ describe 'Client - TLS spec' do
     end
   end
 
-  # it 'should reject without' proper cert if required by server'
-  # it 'should be authorized with proper cert'
+  context 'when server requires TLS, certificates, authentication and client enables verify peer' do
+
+    before(:each) do
+      @tls_verify_auth = NatsServerControl.new("nats://127.0.0.1:4445", '/tmp/test-nats-4445.pid', "-c ./spec/configs/tlsverify.conf")
+      @tls_verify_auth.start_server
+    end
+
+    after(:each) do
+      @tls_verify_auth.kill_server
+    end
+
+    it 'should fail to connect if CA is not given' do
+      errors = []
+      connects = 0
+      reconnects = 0
+      disconnects = 0
+      closes = 0
+
+      with_em_timeout(3) do
+        nc = nil
+        NATS.on_error do |e|
+          errors << e
+        end
+
+        NATS.on_disconnect do |e|
+          disconnects += 1
+        end
+
+        NATS.on_reconnect do
+          reconnects += 1
+        end
+
+        NATS.on_close do
+          closes += 1
+        end
+
+        options = {
+          :servers => ['nats://secret:deadbeef@127.0.0.1:4445'],
+          :max_reconnect_attempts => 1,
+          :dont_randomize_servers => true,
+          :tls => {
+            :ssl_version => :TLSv1_2,
+            :protocols => [:tlsv1_2],
+            :private_key_file => './spec/configs/certs/key.pem',
+            :cert_chain_file  => './spec/configs/certs/server.pem',
+            :verify_peer      => true
+          }
+        }
+        expect do
+          nc = NATS.connect(options) do |conn|
+            connects += 1
+          end
+        end.to raise_error
+      end
+      expect(errors.count).to eql(0)
+      expect(disconnects).to eql(0)
+      expect(closes).to eql(0)
+    end
+
+    it 'should fail to connect if CA is not readable' do
+      errors = []
+      connects = 0
+      reconnects = 0
+      disconnects = 0
+      closes = 0
+
+      with_em_timeout(3) do
+        nc = nil
+        NATS.on_error do |e|
+          errors << e
+        end
+
+        NATS.on_disconnect do |e|
+          disconnects += 1
+        end
+
+        NATS.on_reconnect do
+          reconnects += 1
+        end
+
+        NATS.on_close do
+          closes += 1
+        end
+
+        options = {
+          :servers => ['nats://secret:deadbeef@127.0.0.1:4445'],
+          :max_reconnect_attempts => 1,
+          :dont_randomize_servers => true,
+          :tls => {
+            :ssl_version => :TLSv1_2,
+            :protocols => [:tlsv1_2],
+            :private_key_file => './spec/configs/certs/key.pem',
+            :cert_chain_file  => './spec/configs/certs/server.pem',
+            :ca_file => './spec/configs/certs/does-not-exists.pem',
+            :verify_peer      => true
+          }
+        }
+        expect do
+          nc = NATS.connect(options) do |conn|
+            connects += 1
+          end
+        end.to raise_error
+      end
+
+      # No error here since it fails synchronously
+      expect(errors.count).to eql(0)
+      expect(disconnects).to eql(0)
+      expect(closes).to eql(0)
+    end
+
+    it 'should connect securely to server and authorize' do
+      errors = []
+      messages = []
+      connects = 0
+      reconnects = 0
+      disconnects = 0
+      closes = 0
+
+      with_em_timeout(10) do |future|
+        NATS.on_error do |e|
+          errors << e
+        end
+
+        NATS.on_disconnect do |e|
+          disconnects += 1
+        end
+
+        NATS.on_reconnect do
+          reconnects += 1
+        end
+
+        NATS.on_close do
+          closes += 1
+        end
+
+        options = {
+          :servers => ['nats://secret:deadbeef@127.0.0.1:4445'],
+          :max_reconnect_attempts => 1,
+          :dont_randomize_servers => true,
+          :tls => {
+            :ssl_version => :TLSv1_2,
+            :protocols => [:tlsv1_2],
+            :private_key_file => './spec/configs/certs/key.pem',
+            :cert_chain_file  => './spec/configs/certs/server.pem',
+            :ca_file => './spec/configs/certs/ca.pem',
+            :verify_peer => true
+          }
+        }
+
+        nc = NATS.connect(options) do |conn|
+          expect(conn.connected_server).to eql(URI.parse('nats://secret:deadbeef@127.0.0.1:4445'))
+
+          connects += 1
+        end
+
+        nc.subscribe("hello") do |msg|
+          messages << msg
+        end
+        nc.flush do
+          nc.publish("hello", "world") do
+            nc.unsubscribe("hello")
+            nc.close
+            future.resume(nc)
+          end
+        end
+      end
+      expect(errors.count).to eql(0)
+      expect(messages.count).to eql(1)
+      expect(disconnects).to eql(0)
+      expect(closes).to eql(1)
+    end
+
+    it 'should give up connecting securely to server if cannot verify peer' do
+      errors = []
+      messages = []
+      connects = 0
+      reconnects = 0
+      disconnects = 0
+      closes = 0
+
+      with_em_timeout(10) do |future|
+        NATS.on_error do |e|
+          errors << e
+        end
+
+        NATS.on_disconnect do |e|
+          disconnects += 1
+        end
+
+        NATS.on_reconnect do
+          reconnects += 1
+        end
+
+        NATS.on_close do
+          closes += 1
+        end
+
+        options = {
+          :servers => ['nats://secret:deadbeef@127.0.0.1:4445'],
+          :max_reconnect_attempts => 1,
+          :dont_randomize_servers => true,
+          :tls => {
+            :ssl_version => :TLSv1_2,
+            :protocols => [:tlsv1_2],
+            :private_key_file => './spec/configs/certs/key.pem',
+            :cert_chain_file  => './spec/configs/certs/server.pem',
+            :ca_file => './spec/configs/certs/bad-ca.pem',
+            :verify_peer => true
+          }
+        }
+
+        nc = NATS.connect(options) do |conn|
+          expect(conn.connected_server).to eql(URI.parse('nats://secret:deadbeef@127.0.0.1:4445'))
+
+          connects += 1
+        end
+
+        nc.subscribe("hello") do |msg|
+          messages << msg
+        end
+        nc.flush do
+          nc.publish("hello", "world") do
+            nc.unsubscribe("hello")
+            nc.close
+            future.resume(nc)
+          end
+        end
+      end
+      expect(errors.count).to eql(2)
+      expect(errors.first).to be_a(NATS::ConnectError)
+      expect(errors.last).to be_a(NATS::ConnectError)
+      expect(messages.count).to eql(0)
+      expect(disconnects).to eql(0)
+      expect(closes).to eql(1)
+    end
+
+    it 'should connect securely with default TLS and protocols options and assume verify if CA given' do
+      errors      = []
+      messages    = []
+      connects    = 0
+      reconnects  = 0
+      disconnects = 0
+      closes      = 0
+
+      with_em_timeout(10) do |future|
+
+        NATS.on_error do |e|
+          errors << e
+        end
+
+        NATS.on_disconnect do |e|
+          disconnects += 1
+        end
+
+        NATS.on_reconnect do
+          reconnects += 1
+        end
+
+        NATS.on_close do
+          closes += 1
+        end
+
+        options = {
+          :servers => ['nats://secret:deadbeef@127.0.0.1:4445'],
+          :max_reconnect_attempts => 1,
+          :dont_randomize_servers => true,
+          :tls => {
+            :private_key_file => './spec/configs/certs/key.pem',
+            :cert_chain_file  => './spec/configs/certs/server.pem',
+            :ca_file => './spec/configs/certs/ca.pem'
+          }
+        }
+
+        nc = NATS.connect(options) do |conn|
+          expect(conn.connected_server).to eql(URI.parse('nats://secret:deadbeef@127.0.0.1:4445'))
+          connects += 1
+        end
+
+        nc.subscribe("hello") do |msg|
+          messages << msg
+        end
+        nc.flush do
+          nc.publish("hello", "world") do
+            nc.unsubscribe("hello")
+            nc.close
+          end
+        end
+      end
+      expect(messages.count).to eql(1)
+      expect(errors.count).to eql(0)
+      expect(closes).to eql(1)
+      expect(reconnects).to eql(0)
+      expect(disconnects).to eql(0)
+    end
+  end
 end

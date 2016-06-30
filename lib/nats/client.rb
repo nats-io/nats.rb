@@ -84,10 +84,6 @@ module NATS
     # @option opts [Boolean] :pedantic Boolean that is sent to server for setting pedantic mode.
     # @option opts [Boolean] :ssl Boolean that is sent to server for setting TLS/SSL mode.
     # @option opts [Boolean] :tls Map of options for configuring secure connection handled to EM#start_tls directly.
-    # @option opts [String]  :cert_file Certificate file for use in TLS/SSL mode.
-    # @option opts [String]  :private_key_file Private key file for use in TLS/SSL mode.
-    # @option opts [String]  :ca_file CA file for use in TLS/SSL mode when verify_peer is true.
-    # @option opts [Boolean] :verify_peer Verify the peer connection SSL certificate.
     # @option opts [Integer] :max_reconnect_attempts Integer that can be used to set the max number of reconnect tries
     # @option opts [Integer] :reconnect_time_wait Integer that can be used to set the number of seconds to wait between reconnect tries
     # @option opts [Integer] :ping_interval Integer that can be used to set the ping interval in seconds.
@@ -122,11 +118,23 @@ module NATS
       uri = opts[:uris] || opts[:servers] || opts[:uri]
 
       if opts[:tls]
-        # if a :ca_file is supplied and :verify_peer is not set
-        # default to verification being on
-        if opts[:tls][:verify_peer].nil? && opts[:tls][:ca_file]
-          opts[:tls][:verify_peer] = true
-        elsif opts[:verify_peer].nil?
+        case
+        when opts[:tls][:ca_file]
+          # Ensure that the file exists before going further
+          # in order to report configuration errors during
+          # connect synchronously.
+          if !File.readable?(opts[:tls][:ca_file])
+            raise(Error, "TLS Verification is enabled but ca_file %s is not readable" % opts[:tls][:ca_file])
+          end
+
+          # Certificate is supplied so assume we mean verification by default,
+          # but still allow disabling explicitly by setting to false.
+          opts[:tls][:verify_peer] ||= true
+        when (opts[:tls][:verify_peer] && !opts[:tls][:ca_file])
+          raise(Error, "TLS Verification is enabled but ca_file is not set")
+        else
+          # Otherwise, disable verifying peer by default,
+          # thus never reaching EM#ssl_verify_peer
           opts[:tls][:verify_peer] = false
         end
 
@@ -661,15 +669,7 @@ module NATS
   end
 
   def ssl_verify_peer(cert)
-    unless @options[:ca_file]
-      err_cb.call(NATS::ConnectError.new("TLS Verification is enabled but ca_file is not set"))
-    end
-
-    unless File.readable?(@options[:ca_file])
-      err_cb.call(NATS::ConnectError.new("TLS Verification is enabled but ca_file %s is not readable" % @options[:ca_file]))
-    end
-
-    ca_file = File.read(@options[:ca_file])
+    ca_file = File.read(@options[:tls][:ca_file])
     ca = OpenSSL::X509::Certificate.new(ca_file)
     incoming = OpenSSL::X509::Certificate.new(cert)
 
