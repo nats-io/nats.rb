@@ -712,7 +712,7 @@ module NATS
 
     if reconnecting?
       @reconnecting = false
-      @reconnect_cb.call unless @reconnect_cb.nil?
+      @reconnect_cb.call(@uri) unless @reconnect_cb.nil?
     end
 
     # Delay sending CONNECT or any other command here until we are sure
@@ -740,7 +740,6 @@ module NATS
     # and any other pending commands which we need to the server.
     flush_pending
 
-    # FIXME: Don't do this yet here when using TLS
     if (connect_cb and not @conn_cb_called)
       # We will round trip the server here to make sure all state from any pending commands
       # has been processed before calling the connect callback.
@@ -840,7 +839,9 @@ module NATS
   end
 
   def can_reuse_server?(server) #:nodoc:
-    reconnecting? && server[:was_connected] && server[:reconnect_attempts] <= @options[:max_reconnect_attempts]
+    # If we will retry a number of times to reconnect to a server
+    # unless we got an error from it already.
+    reconnecting? && server[:reconnect_attempts] <= @options[:max_reconnect_attempts] && !server[:error_received]
   end
 
   def attempt_reconnect #:nodoc:
@@ -904,8 +905,9 @@ module NATS
     # Dump the one we were trying if it wasn't connected
     current = server_pool.shift
 
-    # FIXME(dlc) - Should we remove from the list on error?
-    if (current && (options[:max_reconnect_attempts] < 0 || can_reuse_server?(current) && !current[:error_received]))
+    # In case there was an error from the server we will take it out from rotation
+    # unless we specify infinite reconnects via setting :max_reconnect_attempts to -1
+    if current && (options[:max_reconnect_attempts] < 0 || can_reuse_server?(current))
       server_pool << current
     end
 

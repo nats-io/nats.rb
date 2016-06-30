@@ -35,7 +35,7 @@ describe 'Client - TLS spec' do
         nc = nil
         NATS.on_error      {|e| errors << e }
         NATS.on_close      {|e| closes += 1 }
-        NATS.on_reconnect  {|e| reconnects += 1 }
+        NATS.on_reconnect  { reconnects += 1 }
         NATS.on_disconnect {|e| disconnects += 1 }
 
         nc = NATS.connect(options)
@@ -136,7 +136,8 @@ describe 'Client - TLS spec' do
           disconnects += 1
         end
 
-        NATS.on_reconnect do
+        NATS.on_reconnect do |conn|
+          expect(conn).to eql(URI.parse('nats://127.0.0.1:4443'))
           reconnects += 1
         end
 
