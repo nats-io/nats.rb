@@ -18,12 +18,12 @@ describe 'Server - ping' do
     @host = config['net']
     @port = config['port']
     @uri = "nats://#{@host}:#{@port}"
-    @s = RubyNatsServerControl.new(@uri, config['pid_file'], "-c #{config_file}")
-    @s.start_server
+    @rs = RubyNatsServerControl.new(@uri, config['pid_file'], "-c #{config_file}")
+    @rs.start_server
   end
 
   after(:all) do
-    @s.kill_server
+    @rs.kill_server
     FileUtils.rm_f(@log_file)
   end
 

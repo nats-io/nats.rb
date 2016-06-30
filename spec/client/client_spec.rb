@@ -13,7 +13,7 @@ describe 'Client - specification' do
 
   it "should complain if it can't connect to server when not running" do
     expect do
-      NATS.start(:uri => 'nats://localhost:3222') { NATS.stop }
+      NATS.start(:uri => 'nats://127.0.0.1:3222') { NATS.stop }
     end.to raise_error(NATS::ConnectError)
   end
 
@@ -391,7 +391,7 @@ describe 'Client - specification' do
   end
 
   it 'should accept the same option set twice' do
-    opts = {:uri => 'nats://localhost:4222'}
+    opts = {:uri => 'nats://127.0.0.1:4222'}
     NATS.start(opts) { NATS.stop }
     NATS.start(opts) { NATS.stop }
   end

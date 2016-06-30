@@ -14,16 +14,16 @@ describe 'Server - monitor' do
 
   before (:all) do
     HTTP_SERVER_PID = '/tmp/nats_http.pid'
-    HTTP_SERVER = 'nats://localhost:9229'
-    LOG_FILE = '/tmp/nats_http.log'
-    HTTP_PORT = 9230
-    HTTP_FLAGS = "-m #{HTTP_PORT} -l #{LOG_FILE}"
-    @s = RubyNatsServerControl.new(HTTP_SERVER, HTTP_SERVER_PID, HTTP_FLAGS)
-    @s.start_server
+    HTTP_SERVER     = 'nats://127.0.0.1:9229'
+    LOG_FILE        = '/tmp/nats_http.log'
+    HTTP_PORT       = 9230
+    HTTP_FLAGS      = "-m #{HTTP_PORT} -l #{LOG_FILE}"
+    @rs = RubyNatsServerControl.new(HTTP_SERVER, HTTP_SERVER_PID, HTTP_FLAGS)
+    @rs.start_server
   end
 
   after(:all) do
-    @s.kill_server
+    @rs.kill_server
     FileUtils.rm_f(LOG_FILE)
   end
 

@@ -5,9 +5,9 @@ describe 'Client - reconnect specification' do
   before(:all) do
     R_USER = 'derek'
     R_PASS = 'mypassword'
-    R_TEST_AUTH_SERVER = "nats://#{R_USER}:#{R_PASS}@localhost:9333"
+    R_TEST_AUTH_SERVER = "nats://#{R_USER}:#{R_PASS}@127.0.0.1:9333"
     R_TEST_SERVER_PID = '/tmp/nats_reconnect_authorization.pid'
-    E_TEST_SERVER = "nats://localhost:9666"
+    E_TEST_SERVER = "nats://127.0.0.1:9666"
     E_TEST_SERVER_PID = '/tmp/nats_reconnect_exception_test.pid'
 
     @as = NatsServerControl.new(R_TEST_AUTH_SERVER, R_TEST_SERVER_PID)
