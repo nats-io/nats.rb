@@ -83,7 +83,7 @@ module NATS
     # @option opts [Boolean] :verbose Boolean that is sent to server for setting verbose protocol mode.
     # @option opts [Boolean] :pedantic Boolean that is sent to server for setting pedantic mode.
     # @option opts [Boolean] :ssl Boolean that is sent to server for setting TLS/SSL mode.
-    # @option opts [Boolean] :tls Map of options for configuring secure connection handled to EM#start_tls directly.
+    # @option opts [Hash]    :tls Map of options for configuring secure connection handled to EM#start_tls directly.
     # @option opts [Integer] :max_reconnect_attempts Integer that can be used to set the max number of reconnect tries
     # @option opts [Integer] :reconnect_time_wait Integer that can be used to set the number of seconds to wait between reconnect tries
     # @option opts [Integer] :ping_interval Integer that can be used to set the ping interval in seconds.

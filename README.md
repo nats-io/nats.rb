@@ -10,17 +10,13 @@ A [Ruby](http://ruby-lang.org) client for the [NATS messaging system](https://na
 
 This gem and the client are known to work on the following Ruby platforms:
 
-- MRI 1.9, 2.0, 2.1
+- MRI 1.9, 2.0, 2.1, 2.2, 2.3.0
 - JRuby 1.6.8 (experimental)
-
-Note: This installation installs a version of the NATS server written in Ruby that has been deprecated. Please utilize a supported server such as [gnatsd](https://github.com/apcera/gnatsd). nats-server will be removed in a future release.
 
 ## Getting Started
 
 ```bash
-[sudo] gem install nats
-== or ==
-[sudo] rake geminstall
+gem install nats
 
 nats-sub foo &
 nats-pub foo 'Hello World!'
@@ -79,11 +75,21 @@ NATS.subscribe(subject, :queue => 'job.workers') { |msg| puts "Received '#{msg}'
 ```
 
 ## Clustered Usage
+
 ```ruby
-NATS.start(:servers => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223']) do |c|
-  puts "NATS is connected to #{c.connected_server}"
-  c.on_reconnect do
-    puts "Reconnected to server at #{c.connected_server}"
+NATS.start(:servers => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223']) do |nc|
+  puts "NATS is connected to #{nc.connected_server}"
+
+  nc.on_reconnect do
+    puts "Reconnected to server at #{nc.connected_server}"
+  end
+
+  nc.on_disconnect do |reason|
+    puts "Disconnected: #{reason}"
+  end
+
+  nc.on_close do
+    puts "Connection to NATS closed"
   end
 end
 
@@ -101,6 +107,7 @@ end
 ```
 
 ## Advanced Usage
+
 ```ruby
 # Publish with closure, callback fires when server has processed the message
 NATS.publish('foo', 'You done?') { puts 'msg processed!' }
@@ -117,12 +124,65 @@ NATS.unsubscribe(sid, MAX_WANTED)
 
 # Multiple connections
 NATS.subscribe('test') do |msg|
-    puts "received msg"
-    NATS.stop
+  puts "received msg"
+  NATS.stop
 end
 
 # Form second connection to send message on
 NATS.connect { NATS.publish('test', 'Hello World!') }
+```
+
+### TLS
+
+Advanced customizations options for setting up a secure connection can be done by including them on connect:
+
+```ruby
+options = {
+  :servers => [
+   'nats://secret:deadbeef@127.0.0.1:4443',
+   'nats://secret:deadbeef@127.0.0.1:4444'
+  ],
+  :max_reconnect_attempts => 10,
+  :reconnect_time_wait => 2,
+  :tls => {
+    :private_key_file => './spec/configs/certs/key.pem',
+    :cert_chain_file  => './spec/configs/certs/server.pem'
+    # Can enable verify_peer functionality optionally by passing
+    # the location of a ca_file.
+    # :verify_peer => true,
+    # :ca_file => './spec/configs/certs/ca.pem'
+  }
+}
+
+# Set default callbacks
+NATS.on_error do |e|
+  puts "Error: #{e}"
+end
+
+NATS.on_disconnect do |reason|
+  puts "Disconnected: #{reason}"
+end
+
+NATS.on_reconnect do |nats|
+  puts "Reconnected to NATS server at #{nats.connected_server}"
+end
+
+NATS.on_close do
+  puts "Connection to NATS closed"
+  EM.stop
+end
+
+NATS.start(options) do |nats|
+  puts "Connected to NATS at #{nats.connected_server}"
+
+  nats.subscribe("hello") do |msg|
+    puts "Received: #{msg}"
+  end
+
+  nats.flush do
+    nats.publish("hello", "world")
+  end
+end
 ```
 
 See examples and benchmarks for more information..
@@ -131,7 +191,7 @@ See examples and benchmarks for more information..
 
 (The MIT License)
 
-Copyright (c) 2010-2015 Derek Collison
+Copyright (c) 2010-2016 Derek Collison
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to
