@@ -317,9 +317,9 @@ describe 'Client - specification' do
   end
 
   it 'should receive a pong from a server after ping_interval' do
-    NATS.start(:ping_interval => 0.25) do
+    NATS.start(:ping_interval => 0.75) do
       NATS.client.pongs_received.should == 0
-      EM.add_timer(0.5) do
+      EM.add_timer(1) do
         NATS.client.pongs_received.should == 1
         NATS.stop
       end

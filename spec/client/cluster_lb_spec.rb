@@ -3,7 +3,7 @@ require 'uri'
 
 describe 'Client - cluster load balance' do
 
-  before(:all) do
+  before(:each) do
     auth_options = {
       'user'     => 'derek',
       'password' => 'bella',
@@ -74,7 +74,7 @@ describe 'Client - cluster load balance' do
 
   before(:each) do
     [@s1, @s2].each do |s|
-      s.start_server(true) unless NATS.server_running? s.uri
+      s.start_server(true)
     end
   end
 
@@ -84,7 +84,8 @@ describe 'Client - cluster load balance' do
     end
   end
 
-  # Tests that the randomize pool works correctly.
+  # Tests that the randomize pool works correctly and that not
+  # all clients are connecting to the same server.
   it 'should properly load balance between multiple servers with same client config' do
     clients = []
     servers = { @s1.uri => 0, @s2.uri => 0 }
@@ -99,6 +100,7 @@ describe 'Client - cluster load balance' do
           port, ip = Socket.unpack_sockaddr_in(c.get_peername)
           port.should == URI(c.connected_server).port
         end
+
         servers.each_value { |v| v.should > 0 }
         EM.stop
       end

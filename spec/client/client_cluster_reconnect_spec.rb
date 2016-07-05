@@ -81,7 +81,7 @@ describe 'Client - cluster reconnect' do
 
   before(:each) do
     [@s1, @s2, @s3].each do |s|
-      s.start_server(true) unless NATS.server_running? s.uri
+      s.start_server(true)
     end
   end
 
@@ -118,18 +118,28 @@ describe 'Client - cluster reconnect' do
     opts = {
       :dont_randomize_servers => true,
       :reconnect_time_wait => 0.25,
-      :uri => [@s1.uri, @s2.uri, @s3.uri]
+      :servers => [@s1.uri, @s2.uri, @s3.uri],
+      :max_reconnect_attempts => 5
     }
-    NATS.start(opts) do |c|
-      c.connected_server.should == @s1.uri
-      timeout_nats_on_failure(0.5)
-      c.on_reconnect do
-        reconnect_cb = true
-        NATS.stop
+    reconnect_conns = []
+    with_em_timeout(5) do
+      NATS.start(opts) do |c|
+        expect(c.connected_server).to eql(@s1.uri)
+        c.on_reconnect do |conn|
+          reconnect_cb = true
+          reconnect_conns << conn.connected_server
+        end
+        @s1.kill_server
+        EM.add_timer(1) do
+          @s2.kill_server
+        end
       end
-      @s1.kill_server
     end
-    reconnect_cb.should be_truthy
+
+    expect(reconnect_cb).to eq(true)
+    expect(reconnect_conns.count).to eql(2)
+    expect(reconnect_conns.first).to eql(@s2.uri)
+    expect(reconnect_conns.last).to eql(@s3.uri)
   end
 
   it 'should connect to another server if possible before reconnect' do
