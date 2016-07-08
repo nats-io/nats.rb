@@ -3,7 +3,7 @@
 A [Ruby](http://ruby-lang.org) client for the [NATS messaging system](https://nats.io).
 
 [![License MIT](https://img.shields.io/npm/l/express.svg)](http://opensource.org/licenses/MIT)
-[![Build Status](https://travis-ci.org/nats-io/ruby-nats.svg)](http://travis-ci.org/nats-io/ruby-nats) [![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.7.0)](https://rubygems.org/gems/nats/versions/0.7.0) [![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](http://www.rubydoc.info/github/nats-io/ruby-nats)
+[![Build Status](https://travis-ci.org/nats-io/ruby-nats.svg)](http://travis-ci.org/nats-io/ruby-nats) [![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.7.1)](https://rubygems.org/gems/nats/versions/0.7.1) [![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](http://www.rubydoc.info/github/nats-io/ruby-nats)
 
 
 ## Supported Platforms
