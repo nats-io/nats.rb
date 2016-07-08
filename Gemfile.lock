@@ -1,11 +1,8 @@
 PATH
   remote: .
   specs:
-    nats (0.7.0)
-      daemons (~> 1.1, >= 1.2.2)
+    nats (0.7.1)
       eventmachine (~> 1.2, >= 1.2.0)
-      json_pure (~> 1.8, >= 1.8.1)
-      thin (~> 1.6, >= 1.6.3)
 
 GEM
   remote: http://rubygems.org/
