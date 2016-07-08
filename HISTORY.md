@@ -1,5 +1,14 @@
 # HISTORY
 
+## v0.7.1 (July 8, 2016)
+  - Remove dependencies which are no longer needed for ruby-client
+  - See full list @ https://github.com/nats-io/ruby-nats/compare/v0.7.0...v0.7.1
+
+## v0.7.0 (July 8, 2016)
+  - Enhanced TLS support: certificates and verify peer functionality added
+  - Bumped version of Eventmachine to 1.2 series
+  - See full list @ https://github.com/nats-io/ruby-nats/compare/v0.6.0...v0.7.0
+
 ## v0.6.0 (March 22, 2016)
   - Removed distributing `nats-server` along with the gem
   - Fixed issue with subscriptions not being sent on first reconnect (#94)
