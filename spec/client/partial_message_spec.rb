@@ -13,28 +13,28 @@ describe 'Client - partial message behavior' do
   it 'should not hold stale message data across a reconnect' do
     got_message = false
     expect do
-      EM.run do
-        timeout_em_on_failure(2)
-        timeout_nats_on_failure(2)
-
+      with_em_timeout(5) do |future|
+        # First client connects, and will attempt to reconnects
         c1 = NATS.connect(:uri => @s.uri, :reconnect_time_wait => 0.25)
         wait_on_connections([c1]) do
           c1.subscribe('subject') do |msg|
             got_message = true
-            msg.should eq('complete message')
-            EM.stop
-            NATS.stop
+            expect(msg).to eql('complete message')
+            future.resume
           end
 
-          # Client receives partial message before server terminates
+          # Client receives partial message before server terminates.
           c1.receive_data("MSG subject 2 32\r\nincomplete")
 
+          # Server restarts, disconnecting the first client.
           @s.kill_server
           @s.start_server
 
+          # One more client connects and publishes a message.
           NATS.connect(:uri => @s.uri) do |c2|
-            EM.add_timer(0.25) do
-              c1.connected_server.should == @s.uri
+            EM.add_timer(0.50) do
+              expect(c1.connected_server).to eql(@s.uri)              
+              expect(c2.connected_server).to eql(@s.uri)
               c1.flush { c2.publish('subject', 'complete message') }
             end
           end
@@ -42,6 +42,6 @@ describe 'Client - partial message behavior' do
       end
     end.to_not raise_exception
 
-    got_message.should be_truthy
+    expect(got_message).to eql(true)
   end
 end
