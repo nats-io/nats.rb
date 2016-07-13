@@ -102,7 +102,7 @@ describe 'Client - max responses and auto-unsubscribe' do
     received.should == 100
   end
 
-  it "should not complain when unsunscribe called on auto-cleaned up subscription" do
+  it "should not complain when unsubscribe called on auto-cleaned up subscription" do
     NATS.start do
       sid = NATS.subscribe('help') { |msg, reply| NATS.publish(reply, 'I can help!') }
       rsid = NATS.request('help', 'help request', :max => 1) {}
