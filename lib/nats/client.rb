@@ -759,12 +759,12 @@ module NATS
 
   def send_ping #:nodoc:
     return if @closing
+    @pings_outstanding += 1
     if @pings_outstanding > @options[:max_outstanding_pings]
       close_connection
       #close
       return
     end
-    @pings_outstanding += 1
     queue_server_rt { process_pong }
     flush_pending
   end
