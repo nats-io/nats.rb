@@ -173,8 +173,10 @@ module NATS
         EM.epoll
       elsif EM.kqueue?
         EM.kqueue
+      elsif EM.library_type == :java
+        # No warning needed, we're using Java NIO
       else
-        Kernel.warn('Neither epoll nor kqueue are supported')
+        Kernel.warn('Neither epoll nor kqueue are supported, performance may be impacted')
       end
       EM.run { @client = connect(*args, &blk) }
     end
