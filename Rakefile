@@ -2,12 +2,13 @@
 require 'rspec/core'
 require 'rspec/core/rake_task'
 
+task :default => 'spec:client'
+
 desc 'Run specs from client and server'
 RSpec::Core::RakeTask.new(:spec) do |spec|
   spec.pattern = FileList['spec/**/*_spec.rb']
   spec.rspec_opts = ["--format", "documentation", "--colour"]
 end
-task :default => :spec
 
 desc 'Run spec from client using gnatsd as the server'
 RSpec::Core::RakeTask.new('spec:client') do |spec|
