@@ -12,8 +12,8 @@ describe 'Client - fast producer' do
   end
 
   it 'should report the maximum outbound threshold' do
-    NATS::FAST_PRODUCER_THRESHOLD.should_not be_nil
-    NATS::FAST_PRODUCER_THRESHOLD.should == (10*1024*1024)
+    expect(NATS::FAST_PRODUCER_THRESHOLD).to_not eql(nil)
+    expect(NATS::FAST_PRODUCER_THRESHOLD).to eql(10*1024*1024)
   end
 
   it 'should report the outstanding bytes pending' do
@@ -22,7 +22,7 @@ describe 'Client - fast producer' do
     proto = "PUB foo  #{data.size}\r\n#{data}\r\n"
     NATS.start do
       (1..100).each { NATS.publish('foo', data) }
-      NATS.pending_data_size.should == (100*proto.size)
+      expect(NATS.pending_data_size).to eql(100*proto.size)
       NATS.stop
     end
   end

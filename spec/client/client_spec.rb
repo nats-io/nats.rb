@@ -2,25 +2,32 @@ require 'spec_helper'
 
 describe 'Client - specification' do
 
-  before(:all) do
+  before(:each) do
     @s = NatsServerControl.new
-    @s.start_server
+    @s.start_server(true)
   end
 
-  after(:all) do
+  after(:each) do
     @s.kill_server
   end
 
   it "should complain if it can't connect to server when not running" do
-    expect do
-      NATS.start(:uri => 'nats://127.0.0.1:3222') { NATS.stop }
-    end.to raise_error(NATS::ConnectError)
+    errors = []
+    with_em_timeout do
+      NATS.on_error do |e|
+        errors << e
+      end
+
+      NATS.connect(:uri => 'nats://127.0.0.1:3222')
+    end
+    expect(errors.count).to eql(1)
+    expect(errors.first).to be_a(NATS::ConnectError)
   end
 
-  it 'should complain if NATS.start is called without EM running and no block was given' do
-    EM.reactor_running?.should be_falsey
+  it 'should complain if NATS.start is called without EM running and no block was given', :jruby_excluded do
+    expect(EM.reactor_running?).to eql(false)
     expect { NATS.start }.to raise_error(NATS::Error)
-    NATS.connected?.should be_falsey
+    expect(NATS.connected?).to eql(false)
   end
 
   it 'should perform basic block start and stop' do
@@ -28,10 +35,10 @@ describe 'Client - specification' do
   end
 
   it 'should signal connected state' do
-    NATS.start {
-      NATS.connected?.should be_truthy
+    NATS.start do
+      expect(NATS.connected?).to eql(true)
       NATS.stop
-    }
+    end
   end
 
   it 'should have err_cb cleared after stop' do
@@ -39,7 +46,7 @@ describe 'Client - specification' do
       NATS.on_error { puts 'err' }
       NATS.stop
     end
-    NATS.err_cb.should be_nil
+    expect(NATS.err_cb).to eql(nil)
   end
 
   it 'should raise NATS::ServerError on error replies from NATS Server' do
@@ -63,105 +70,132 @@ describe 'Client - specification' do
   end
 
   it 'should not complain when publishing to nil' do
-    NATS.start {
-      NATS.publish(nil)
-      NATS.publish(nil, 'hello')
-      EM.add_timer(0.1) { NATS.stop }
-    }
+    errors = []
+    with_em_timeout do
+      NATS.on_error do |e|
+        errors << e
+      end
+      NATS.start do
+        NATS.publish(nil)
+        NATS.publish(nil, 'hello')
+      end
+    end
+    expect(errors.count).to eql(0)
   end
 
   it 'should receive a sid when doing a subscribe' do
-    NATS.start { |nc|
-      s = nc.subscribe('foo')
-      s.should_not be_nil
-      NATS.stop
-    }
+    sid = nil
+    errors = []
+    with_em_timeout do
+      NATS.on_error do |e|
+        errors << e
+      end
+      NATS.connect do |nc|
+        sid = nc.subscribe('foo')
+      end
+    end
+    expect(errors.count).to eql(0)
+    expect(sid).to_not eql(nil)
   end
 
-  it 'should receive a sid when doing a request' do
-    NATS.start { |nc|
-      s = nc.request('foo')
-      s.should_not be_nil
-      NATS.stop
-    }
+  it 'should receive a sid when doing a request', :jruby_excluded do
+    sid = nil
+    errors = []
+    with_em_timeout do
+      NATS.on_error do |e|
+        errors << e
+      end
+      NATS.start do |nc|
+        sid = nc.request('foo')
+      end
+    end
+    expect(sid).to_not eql(nil)
   end
 
   it 'should receive a message that it has a subscription to' do
     received = false
-    NATS.start { |nc|
-      nc.subscribe('foo') { |msg|
-        received = true
-        msg.should == 'xxx'
-        NATS.stop
-      }
-      nc.publish('foo', 'xxx')
-      timeout_nats_on_failure
-    }
-    received.should be_truthy
+    received_msg = nil
+    with_em_timeout do
+      NATS.start do |nc|
+        nc.subscribe('foo') do |msg|
+          received = true
+          received_msg = msg
+          NATS.stop
+        end
+        nc.publish('foo', 'xxx')
+      end
+    end
+    expect(received).to eql(true)
+    expect(received_msg).to eql('xxx')
   end
 
   it 'should receive a message that it has a wildcard subscription to' do
     received = false
-    NATS.start { |nc|
-      nc.subscribe('*') { |msg|
-        received = true
-        msg.should == 'xxx'
-        NATS.stop
-      }
-      nc.publish('foo', 'xxx')
-      timeout_nats_on_failure
-    }
-    received.should be_truthy
+    with_em_timeout do
+      NATS.start do |nc|
+        nc.subscribe('*') do |msg|
+          received = true
+          expect(msg).to eql('xxx')
+          NATS.stop
+        end
+        nc.publish('foo', 'xxx')
+      end
+    end
+    expect(received).to eql(true)
   end
 
   it 'should not receive a message that it has unsubscribed from' do
+    sid = nil
     received = 0
-    NATS.start { |nc|
-      s = nc.subscribe('*') { |msg|
-        received += 1
-        msg.should == 'xxx'
-        nc.unsubscribe(s)
-      }
-      nc.publish('foo', 'xxx')
-      timeout_nats_on_failure
-    }
-    received.should == 1
+    msgs = []
+    with_em_timeout do
+      NATS.start do |nc|
+        sid = nc.subscribe('*') do |msg|
+          received += 1
+          msgs << msg
+          nc.unsubscribe(sid)
+        end
+        nc.publish('foo', 'xxx')
+      end
+    end
+    expect(received).to eql(1)
+    expect(msgs.first).to eql('xxx')
   end
 
-  it 'should receive a response from a request' do
+  it 'should receive a response from a request', :jruby_excluded do
     received = false
-    NATS.start { |nc|
-      nc.subscribe('need_help') { |msg, reply|
-        msg.should == 'yyy'
+    NATS.start do |nc|
+      nc.subscribe('need_help') do |msg, reply|
+        expect(msg).to eql('yyy')
         nc.publish(reply, 'help')
-      }
-      nc.request('need_help', 'yyy') { |response|
-        received=true
-        response.should == 'help'
+      end
+      nc.request('need_help', 'yyy') do |response|
+        received = true
+        expect(response).to eql('help')
         NATS.stop
-      }
+      end
       timeout_nats_on_failure
-    }
-    received.should be_truthy
+    end
+    expect(received).to eql(true)
   end
 
-  it 'should perform similar using class mirror functions' do
+  it 'should perform similar using class mirror functions', :jruby_excluded do
     received = false
-    NATS.start {
-      s = NATS.subscribe('need_help') { |msg, reply|
-        msg.should == 'yyy'
+    NATS.start do
+      s = NATS.subscribe('need_help') do |msg, reply|
+        expect(msg).to eql('yyy')
         NATS.publish(reply, 'help')
         NATS.unsubscribe(s)
-      }
-      r = NATS.request('need_help', 'yyy') { |response|
+      end
+      r = NATS.request('need_help', 'yyy') do |response|
         received = true
-        response.should == 'help'
+        expect(response).to eql('help')
         NATS.unsubscribe(r)
         NATS.stop
-      }
+      end
       timeout_nats_on_failure
-    }
-    received.should be_truthy
+    end
+    expect(received).to eql(true)
   end
 
   it 'should return inside closure on publish when server received msg' do
@@ -173,7 +207,7 @@ describe 'Client - specification' do
       }
       timeout_nats_on_failure
     }
-    received_pub_closure.should be_truthy
+    expect(received_pub_closure).to eql(true)
   end
 
   it 'should return inside closure in ordered fashion when server received msg' do
@@ -191,8 +225,8 @@ describe 'Client - specification' do
       }
       timeout_nats_on_failure
     }
-    received_pub_closure.should be_truthy
-    replies.should == expected
+    expect(received_pub_closure).to eql(true)
+    expect(replies).to eql(expected)
   end
 
   it "should be able to start and use a new connection inside of start block" do
@@ -205,11 +239,11 @@ describe 'Client - specification' do
       end
       timeout_nats_on_failure(5)
     }
-    new_conn.should_not be_nil
-    received.should be_truthy
+    expect(new_conn).to_not eql(nil)
+    expect(received).to eql(true)
   end
 
-  it 'should allow proper request/reply across multiple connections' do
+  it 'should allow proper request/reply across multiple connections', :jruby_excluded do
     new_conn = nil
     received_request = false
     received_reply = false
@@ -228,9 +262,9 @@ describe 'Client - specification' do
       end
       timeout_nats_on_failure
     }
-    new_conn.should_not be_nil
-    received_request.should be_truthy
-    received_reply.should be_truthy
+    expect(new_conn).to_not eql(nil)
+    expect(received_request).to eql(true)
+    expect(received_reply).to eql(true)
   end
 
   it 'should complain if NATS.start called without a block when we would need to start EM' do
@@ -240,7 +274,7 @@ describe 'Client - specification' do
     end.to raise_error(NATS::Error)
   end
 
-  it 'should not complain if NATS.start called without a block when EM is running already' do
+  it 'should not complain if NATS.start called without a block when EM is running already', :jruby_excluded do
     EM.run do
       expect do
         NATS.start
@@ -265,13 +299,13 @@ describe 'Client - specification' do
     NATS.start do
       sid = NATS.subscribe('foo') { |msg|
         received += 1
-        sid.should_not be_nil
+        expect(sid).to_not eql(true)
         NATS.unsubscribe(sid)
       }
       NATS.publish('foo')
       NATS.publish('foo') { NATS.stop }
     end
-    received.should == 1
+    expect(received).to eql(1)
   end
 
   it 'should not call error handler for double unsubscribe unless in pedantic mode' do
@@ -283,7 +317,7 @@ describe 'Client - specification' do
       NATS.unsubscribe(s)
       NATS.publish('flush') { NATS.stop }
     end
-    got_error.should be_falsey
+    expect(got_error).to eql(false)
   end
 
   it 'should call error handler for double unsubscribe if in pedantic mode' do
@@ -297,7 +331,7 @@ describe 'Client - specification' do
       NATS.unsubscribe(s)
       NATS.publish('flush') { NATS.stop }
     end
-    got_error.should be_truthy
+    expect(got_error).to eql(true)
   end
 
   it 'should monitor inbound and outbound messages and bytes' do
@@ -307,10 +341,10 @@ describe 'Client - specification' do
       NATS.publish('foo', msg)
       NATS.publish('bar', msg)
       NATS.flush do
-        c.msgs_sent.should == 2
-        c.msgs_received.should == 1
-        c.bytes_received.should == msg.size
-        c.bytes_sent.should == msg.size * 2
+        expect(c.msgs_sent).to eql(2)
+        expect(c.msgs_received).to eql(1)
+        expect(c.bytes_received).to eql(msg.size)
+        expect(c.bytes_sent).to eql(msg.size * 2)
         NATS.stop
       end
     end
@@ -318,9 +352,9 @@ describe 'Client - specification' do
 
   it 'should receive a pong from a server after ping_interval' do
     NATS.start(:ping_interval => 0.75) do
-      NATS.client.pongs_received.should == 0
+      expect(NATS.client.pongs_received).to eql(0)
       EM.add_timer(1) do
-        NATS.client.pongs_received.should == 1
+        expect(NATS.client.pongs_received).to eql(1)
         NATS.stop
       end
     end
@@ -335,7 +369,7 @@ describe 'Client - specification' do
         end
       end
       EM.add_timer(0.5) do
-        NATS.connected?.should be_falsey
+        expect(NATS.connected?).to eql(false)
         EM.stop
       end
     end
@@ -351,7 +385,7 @@ describe 'Client - specification' do
         end
       end
       EM.add_timer(0.5) do
-        $pings_received.should == 1
+        expect($pings_received).to eql(1)
         EM.stop
       end
     end
@@ -370,7 +404,7 @@ describe 'Client - specification' do
           EM.stop
         end
         conn = NATS.connect(:pedantic => true)
-        conn.should_receive(:send_data).once.with(pending_commands).and_call_original
+        expect(conn).to receive(:send_data).once.with(pending_commands).and_call_original
 
         5.times do
           conn.subscribe("hello") do |msg|
@@ -379,8 +413,8 @@ describe 'Client - specification' do
         end
 
         # Expect INFO followed by PONG response
-        conn.should_receive(:receive_data).at_least(:twice).and_call_original
-        conn.should_receive(:send_data).once.with("PUB hello  5\r\nworld\r\n").and_call_original
+        expect(conn).to receive(:receive_data).at_least(:twice).and_call_original
+        expect(conn).to receive(:send_data).once.with("PUB hello  5\r\nworld\r\n").and_call_original
         conn.flush do
           # Once we connected already and received PONG back,
           # we should be able to publish here.

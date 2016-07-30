@@ -98,10 +98,12 @@ describe 'Client - cluster load balance' do
         clients.each do |c|
           servers[c.connected_server] += 1
           port, ip = Socket.unpack_sockaddr_in(c.get_peername)
-          port.should == URI(c.connected_server).port
+          expect(port).to eql(URI(c.connected_server).port)
         end
 
-        servers.each_value { |v| v.should > 0 }
+        servers.each_value do |v|
+          expect(v > 0).to eql(true)
+        end
         EM.stop
       end
     end

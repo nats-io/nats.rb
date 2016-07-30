@@ -141,7 +141,7 @@ class NatsServerControl
       system("gnatsd #{args} 2> /dev/null &")
     end
     exitstatus = $?.exitstatus
-    NATS.wait_for_server(@uri, 10) if wait_for_server
+    NATS.wait_for_server(@uri, 10) if wait_for_server # jruby can be slow on startup...
     exitstatus
   end
 

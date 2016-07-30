@@ -24,8 +24,32 @@ matrix:
   include:
     - rvm: jruby
       env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false'
+      script: "bundle exec rake spec:client:jruby"
+      jdk: openjdk7
+    - rvm: jruby
+      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false'
+      script: "bundle exec rake spec:client:jruby"
+      jdk: oraclejdk7
+    - rvm: jruby
+      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false'
+      script: "bundle exec rake spec:client:jruby"
+      jdk: openjdk8
+    - rvm: jruby
+      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false'
+      script: "bundle exec rake spec:client:jruby"
+      jdk: oraclejdk8
   allow_failures:
     - rvm: jruby
       env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false'
+      jdk: openjdk7
+    - rvm: jruby
+      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false'
+      jdk: oraclejdk7
+    - rvm: jruby
+      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false'
+      jdk: openjdk8
+    - rvm: jruby
+      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false'
+      jdk: oraclejdk8
     - rvm: ruby-head
     - rvm: 2.4.0-preview1

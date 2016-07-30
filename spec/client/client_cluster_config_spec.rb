@@ -29,9 +29,9 @@ describe 'Client - cluster config' do
   it 'should properly process :uri option for multiple servers' do
     NATS.start(:uri => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223'], :dont_randomize_servers => true) do
       options = NATS.options
-      options.should be_an_instance_of Hash
-      options.should have_key :uri
-      options[:uri].should == ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223']
+      expect(options).to be_a(Hash)
+      expect(options).to have_key(:uri)
+      expect(options[:uri]).to eql(['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223'])
       NATS.stop
     end
   end
@@ -39,16 +39,16 @@ describe 'Client - cluster config' do
   it 'should allow :uris and :servers as aliases' do
     NATS.start(:uris => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223'], :dont_randomize_servers => true) do
       options = NATS.options
-      options.should be_an_instance_of Hash
-      options.should have_key :uris
-      options[:uris].should == ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223']
+      expect(options).to be_a(Hash)
+      expect(options).to have_key(:uris)
+      expect(options[:uris]).to eql(['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223'])
       NATS.stop
     end
     NATS.start(:servers => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223'], :dont_randomize_servers => true) do
       options = NATS.options
-      options.should be_an_instance_of Hash
-      options.should have_key :servers
-      options[:servers].should == ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223']
+      expect(options).to be_a(Hash)
+      expect(options).to have_key(:servers)
+      expect(options[:servers]).to eql(['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223'])
       NATS.stop
     end
   end
@@ -60,8 +60,8 @@ describe 'Client - cluster config' do
       c2 = NATS.connect(:servers => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4222'])
       timeout_nats_on_failure
     end
-    c1.should_not be_nil
-    c2.should_not be_nil
+    expect(c1).to_not be(nil)
+    expect(c2).to_not be(nil)
   end
 
   it 'should randomize server pool list by default' do
@@ -72,7 +72,7 @@ describe 'Client - cluster config' do
       NATS.connect(:uri => servers.dup) do |c|
         sp_servers = []
         c.server_pool.each { |s| sp_servers << s[:uri].to_s }
-        sp_servers.should_not == servers
+        expect(sp_servers).to_not eql(servers)
       end
       timeout_nats_on_failure
     end
@@ -94,22 +94,26 @@ describe 'Client - cluster config' do
 
   it 'should connect to first entry if available' do
     NATS.start(:dont_randomize_servers => true, :uri => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223']) do
-      NATS.client.connected_server.should == URI.parse('nats://127.0.0.1:4222')
+      expect(NATS.client.connected_server).to eql(URI.parse('nats://127.0.0.1:4222'))
       NATS.stop
     end
   end
 
   it 'should fail to connect if no servers available' do
-    expect do
-      NATS.start(:uri => ['nats://127.0.0.1:4223']) do
-        NATS.stop
+    errors = []
+    with_em_timeout do
+      NATS.on_error do |e|
+        errors << e
       end
-    end.to raise_error NATS::Error
+
+      NATS.start(:uri => ['nats://127.0.0.1:4223'])
+    end
+    expect(errors.first).to be_a(NATS::Error)
   end
 
   it 'should connect to another server if first is not available' do
     NATS.start(:dont_randomize_servers => true, :uri => ['nats://127.0.0.1:4224', 'nats://127.0.0.1:4222']) do
-      NATS.client.connected_server.should == URI.parse('nats://127.0.0.1:4222')
+      expect(NATS.client.connected_server).to eql(URI.parse('nats://127.0.0.1:4222'))
       NATS.stop
     end
   end
@@ -201,10 +205,10 @@ describe 'Client - cluster config' do
 
           EM.add_timer(1) do
             time_diff = Time.now - kill_time
-            time_diff.should < 2
+            expect(time_diff < 2).to eql(true)
 
             # Confirm that it has connected to the second server
-            nc.connected_server.should == URI.parse(@s2_uri)
+            expect(nc.connected_server).to eql(URI.parse(@s2_uri))
 
             # Restart the first server again...
             @s1.start_server
@@ -215,12 +219,12 @@ describe 'Client - cluster config' do
 
             EM.add_timer(0.25) do
               time_diff = Time.now - kill_time2
-              time_diff.should < 1
+              expect(time_diff < 1).to eql(true)
 
               # Confirm we are reconnecting to the first one again
               nc.flush do
-                nc.connected_server.should == URI.parse(@s1_uri)
-              end             
+                expect(nc.connected_server).to eql(URI.parse(@s1_uri))
+              end
             end
           end
         end

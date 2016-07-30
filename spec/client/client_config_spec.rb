@@ -4,7 +4,7 @@ describe "Client - configuration" do
 
   before(:each) do
     @s = NatsServerControl.new
-    @s.start_server
+    @s.start_server(true)
   end
 
   after(:each) do
@@ -15,21 +15,21 @@ describe "Client - configuration" do
     with_em_timeout do
       NATS.start(:debug => true, :pedantic => false, :verbose => true, :reconnect => true, :max_reconnect_attempts => 100, :reconnect_time_wait => 5, :uri => 'nats://127.0.0.1:4222') do
         options = NATS.options
-        options.should be_an_instance_of Hash
-        options.should have_key :debug
-        options[:debug].should be_truthy
-        options.should have_key :pedantic
-        options[:pedantic].should be_falsey
-        options.should have_key :verbose
-        options[:verbose].should be_truthy
-        options.should have_key :reconnect
-        options[:reconnect].should be_truthy
-        options.should have_key :max_reconnect_attempts
-        options[:max_reconnect_attempts].should == 100
-        options.should have_key :reconnect_time_wait
-        options[:reconnect_time_wait].should == 5
-        options.should have_key :uri
-        options[:uri].to_s.should == 'nats://127.0.0.1:4222'
+        expect(options).to be_a Hash
+        expect(options).to have_key :debug
+        expect(options[:debug]).to eql(true)
+        expect(options).to have_key :pedantic
+        expect(options[:pedantic]).to eql(false)
+        expect(options).to have_key :verbose
+        expect(options[:verbose]).to eql(true)
+        expect(options).to have_key :reconnect
+        expect(options[:reconnect]).to eql(true)
+        expect(options).to have_key :max_reconnect_attempts
+        expect(options[:max_reconnect_attempts]).to eql(100)
+        expect(options).to have_key :reconnect_time_wait
+        expect(options[:reconnect_time_wait]).to eql(5)
+        expect(options).to have_key :uri
+        expect(options[:uri].to_s).to eql('nats://127.0.0.1:4222')
         NATS.stop
       end
     end
@@ -77,11 +77,11 @@ describe "Client - configuration" do
   it 'should have default ping options' do
     NATS.start do
       options = NATS.options
-      options.should be_an_instance_of Hash
-      options.should have_key :ping_interval
-      options[:ping_interval].should == NATS::DEFAULT_PING_INTERVAL
-      options.should have_key :max_outstanding_pings
-      options[:max_outstanding_pings].should == NATS::DEFAULT_PING_MAX
+      expect(options).to be_a Hash
+      expect(options).to have_key :ping_interval
+      expect(options[:ping_interval]).to eql(NATS::DEFAULT_PING_INTERVAL)
+      expect(options).to have_key :max_outstanding_pings
+      expect(options[:max_outstanding_pings]).to eql(NATS::DEFAULT_PING_MAX)
       NATS.stop
     end
   end
@@ -89,15 +89,14 @@ describe "Client - configuration" do
   it 'should allow overrides of ping variables' do
     NATS.start(:ping_interval => 30, :max_outstanding_pings => 4) do
       options = NATS.options
-      options.should be_an_instance_of Hash
-      options.should have_key :ping_interval
-      options[:ping_interval].should == 30
-      options.should have_key :max_outstanding_pings
-      options[:max_outstanding_pings].should == 4
+      expect(options).to be_a Hash
+      expect(options).to have_key :ping_interval
+      expect(options[:ping_interval]).to eql(30)
+      expect(options).to have_key :max_outstanding_pings
+      expect(options[:max_outstanding_pings]).to eql(4)
       NATS.stop
     end
   end
-
 
   it 'should honor environment vars options' do
     ENV['NATS_VERBOSE'] = 'true'
@@ -111,23 +110,23 @@ describe "Client - configuration" do
 
     NATS.start do
       options = NATS.options
-      options.should be_an_instance_of Hash
-      options.should have_key :debug
-      options[:debug].should be_truthy
-      options.should have_key :pedantic
-      options[:pedantic].should be_truthy
-      options.should have_key :verbose
-      options[:verbose].should be_truthy
-      options.should have_key :reconnect
-      options[:reconnect].should be_truthy
-      options.should have_key :fast_producer_error
-      options[:fast_producer_error].should be_truthy
-      options.should have_key :max_reconnect_attempts
-      options[:max_reconnect_attempts].should == 100
-      options.should have_key :reconnect_time_wait
-      options[:reconnect_time_wait].should == 5
-      options.should have_key :uri
-      options[:uri].to_s.should == 'nats://127.0.0.1:4222'
+      expect(options).to be_a Hash
+      expect(options).to have_key :debug
+      expect(options[:debug]).to eql(true)
+      expect(options).to have_key :pedantic
+      expect(options[:pedantic]).to eql(true)
+      expect(options).to have_key :verbose
+      expect(options[:verbose]).to eql(true)
+      expect(options).to have_key :reconnect
+      expect(options[:reconnect]).to eql(true)
+      expect(options).to have_key :fast_producer_error
+      expect(options[:fast_producer_error]).to eql(true)
+      expect(options).to have_key :max_reconnect_attempts
+      expect(options[:max_reconnect_attempts]).to eql(100)
+      expect(options).to have_key :reconnect_time_wait
+      expect(options[:reconnect_time_wait]).to eql(5)
+      expect(options).to have_key :uri
+      expect(options[:uri].to_s).to eql('nats://127.0.0.1:4222')
       NATS.stop
     end
 
@@ -153,19 +152,26 @@ describe "Client - configuration" do
 
     # Stop the server, make sure it can't connect and see that the time to fail make sense
     start_at = nil
-    expect do
-      with_em_timeout(5) do
-        NATS.start(:max_reconnect_attempts => 1, :reconnect_time_wait => 1) do
-          start_at = Time.now
-          @s.kill_server
-        end
+    closed_at = nil
+    errors = []
+    with_em_timeout(5) do
+      NATS.on_error do |e|
+        errors << e
       end
-    end.to raise_error
-    time_diff = Time.now - start_at
+      NATS.on_close do
+        closed_at = Time.now
+      end
+      NATS.start(:max_reconnect_attempts => 1, :reconnect_time_wait => 1) do
+        start_at = Time.now
+        @s.kill_server
+      end
+    end
+    time_diff = closed_at - start_at
+    expect(errors.count).to eql(1)
+    expect(errors.first).to be_a NATS::ConnectError
 
     # Check if the reconnect took more than the expected 4 secs...
-    time_diff.should > 1
-    time_diff.should < 4
+    expect(time_diff > 1).to eql(true)
+    expect(time_diff < 4).to eql(true)
   end
-
 end

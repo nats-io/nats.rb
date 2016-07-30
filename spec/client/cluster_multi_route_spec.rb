@@ -90,11 +90,11 @@ describe 'Client - cluster' do
       c1 = NATS.connect(:uri => @s1.uri)
       c2 = NATS.connect(:uri => @s2.uri)
       c1.subscribe('foo') do |msg|
-        msg.should == data
+        expect(msg).to eql(data)
         received += 1
       end
       c2.subscribe('foo') do |msg|
-        msg.should == data
+        expect(msg).to eql(data)
         received += 1
       end
       wait_on_routes_connected([c1, c2]) do
@@ -103,7 +103,7 @@ describe 'Client - cluster' do
         flush_routes([c1, c2]) { EM.stop }
       end
     end
-    received.should == 4
+    expect(received).to eql(4)
   end
 
   it 'should properly route messages with staggered startup' do
@@ -114,7 +114,7 @@ describe 'Client - cluster' do
     EM.run do
       c1 = NATS.connect(:uri => @s1.uri) do
         c1.subscribe('foo') do |msg|
-          msg.should == data
+          expect(msg).to eql(data)
           received += 1
         end
         c1.flush do
@@ -129,7 +129,6 @@ describe 'Client - cluster' do
         end
       end
     end
-    received.should == 2
+    expect(received).to eql(2)
   end
-
 end

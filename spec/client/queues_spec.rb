@@ -15,12 +15,12 @@ describe "Client - queue group support" do
     received = 0
     NATS.start do
       s1 = NATS.subscribe('foo', :queue => 'g1') { received += 1 }
-      s1.should_not be_nil
+      expect(s1).to_not eql(nil)
       s2 = NATS.subscribe('foo', :queue => 'g1') { received += 1 }
-      s2.should_not be_nil
+      expect(s2).to_not eql(nil)
       NATS.publish('foo', 'hello') { NATS.stop }
     end
-    received.should == 1
+    expect(received).to eql(1)
   end
 
   it "should allow queue receivers and normal receivers to work together" do
@@ -30,7 +30,7 @@ describe "Client - queue group support" do
       NATS.subscribe('foo') { received += 1 }
       NATS.publish('foo', 'hello') { NATS.stop }
     end
-    received.should == 2
+    expect(received).to eql(2)
   end
 
   it "should spread messages equally across multiple receivers" do
@@ -50,8 +50,10 @@ describe "Client - queue group support" do
       (0...TOTAL).each { NATS.publish('foo.bar', 'ok') }
       NATS.flush { NATS.stop }
     end
-    received.each_value { |count| (AVG - count).abs.should < ALLOWED_V }
-    total.should == TOTAL
+    received.each_value do |count|
+      expect((AVG - count).abs < ALLOWED_V).to eql(true)
+    end
+    expect(total).to eql(TOTAL)
   end
 
   it "should deliver a message to only one subscriber in a queue group, regardless of wildcard subjects" do
@@ -62,7 +64,7 @@ describe "Client - queue group support" do
       NATS.subscribe('foo.>', :queue => 'g1') { received += 1 }
       NATS.publish('foo.bar', 'hello') { NATS.stop }
     end
-    received.should == 1
+    expect(received).to eql(1)
   end
 
   it "should deliver 1 message/group for each publish" do
@@ -79,8 +81,8 @@ describe "Client - queue group support" do
       end
       NATS.flush { NATS.stop }
     end
-    received_g1.should == 10
-    received_g2.should == 10
+    expect(received_g1).to eql(10)
+    expect(received_g2).to eql(10)
   end
 
   it "should re-establish queue groups on reconnect" do
@@ -141,6 +143,8 @@ describe "Client - queue group support" do
     # message) of .5 in the two subscriber case. This verifies that the receive
     # count of each subscriber is within 3 standard deviations of the mean.
     # In theory, this means that the test will fail ~ .3% of the time.
-    buckets.values.each { |msg_count| msg_count.should be_within(150).of(500) }
+    buckets.values.each do |msg_count|
+      expect(msg_count).to be_within(150).of(500)
+    end
   end
 end

@@ -20,7 +20,7 @@ describe 'Client - subscriptions with timeouts' do
       NATS.timeout(sid, TIMEOUT)
       EM.add_timer(WAIT) { NATS.publish('foo') { NATS.stop } }
     end
-    received.should == 0
+    expect(received).to eql(0)
   end
 
   it "a subscription should call the timeout callback if no messages are received" do
@@ -31,8 +31,8 @@ describe 'Client - subscriptions with timeouts' do
       NATS.timeout(sid, TIMEOUT) { timeout_recvd = true }
       EM.add_timer(WAIT) { NATS.stop }
     end
-    timeout_recvd.should be_truthy
-    received.should == 0
+    expect(timeout_recvd).to eql(true)
+    expect(received).to eql(0)
   end
 
   it "a subscription should call the timeout callback if no messages are received, connection version" do
@@ -43,8 +43,8 @@ describe 'Client - subscriptions with timeouts' do
       c.timeout(sid, TIMEOUT) { timeout_recvd = true }
       EM.add_timer(WAIT) { NATS.stop }
     end
-    timeout_recvd.should be_truthy
-    received.should == 0
+    expect(timeout_recvd).to eql(true)
+    expect(received).to eql(0)
   end
 
   it "a subscription should not call the timeout callback if a message is received" do
@@ -57,8 +57,8 @@ describe 'Client - subscriptions with timeouts' do
       NATS.publish('foo')
       EM.add_timer(WAIT) { NATS.stop }
     end
-    timeout_recvd.should be_falsey
-    received.should == 2
+    expect(timeout_recvd).to eql(false)
+    expect(received).to eql(2)
   end
 
   it "a subscription should not call the timeout callback if a correct # messages are received" do
@@ -71,8 +71,8 @@ describe 'Client - subscriptions with timeouts' do
       NATS.publish('foo')
       EM.add_timer(WAIT) { NATS.stop }
     end
-    timeout_recvd.should be_falsey
-    received.should == 2
+    expect(timeout_recvd).to eql(false)
+    expect(received).to eql(2)
   end
 
   it "a subscription should call the timeout callback if a correct # messages are not received" do
@@ -84,8 +84,8 @@ describe 'Client - subscriptions with timeouts' do
       NATS.publish('foo')
       EM.add_timer(WAIT) { NATS.publish('foo') { NATS.stop} }
     end
-    timeout_recvd.should be_truthy
-    received.should == 1
+    expect(timeout_recvd).to eql(true)
+    expect(received).to eql(1)
   end
 
   it "a subscription should call the timeout callback and message callback if requested" do
@@ -96,8 +96,7 @@ describe 'Client - subscriptions with timeouts' do
       NATS.timeout(sid, TIMEOUT, :auto_unsubscribe => false) { timeout_recvd = true }
       EM.add_timer(WAIT) { NATS.publish('foo') { NATS.stop} }
     end
-    timeout_recvd.should be_truthy
-    received.should == 1
+    expect(timeout_recvd).to eql(true)
+    expect(received).to eql(1)
   end
-
 end

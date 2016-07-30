@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe 'Client - TLS spec' do
+describe 'Client - TLS spec', :jruby_excluded do
 
   context 'when server does not support TLS' do
 
