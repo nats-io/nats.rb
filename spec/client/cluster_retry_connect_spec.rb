@@ -83,7 +83,7 @@ describe 'Client - cluster retry connect' do
     end
   end
 
-  it 'should re-establish asymmetric route connections upon restart' do
+  it 'should re-establish asymmetric route connections upon restart', :jruby_excluded do
     data = 'Hello World!'
     received = 0
     with_em_timeout(5) do |future|

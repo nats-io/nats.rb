@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 'yaml'
 
-describe 'Client - cluster' do
+describe 'Client - cluster', :jruby_excluded do
 
   before(:all) do
 

@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe 'Client - cluster' do
+describe 'Client - cluster', :jruby_excluded do
 
   before(:all) do
     auth_options = {
@@ -86,21 +86,28 @@ describe 'Client - cluster' do
   it 'should properly route plain messages between different servers' do
     data = 'Hello World!'
     received = 0
-    EM.run do
-      c1 = NATS.connect(:uri => @s1.uri)
-      c2 = NATS.connect(:uri => @s2.uri)
-      c1.subscribe('foo') do |msg|
-        expect(msg).to eql(data)
-        received += 1
+    with_em_timeout do
+      c1 = NATS.connect(:uri => @s1.uri) do |nats|
+        nats.subscribe('foo') do |msg|
+          expect(msg).to eql(data)
+          received += 1
+        end
       end
-      c2.subscribe('foo') do |msg|
-        expect(msg).to eql(data)
-        received += 1
+      c2 = NATS.connect(:uri => @s2.uri) do |nats|
+        nats.subscribe('foo') do |msg|
+          expect(msg).to eql(data)
+          received += 1
+        end
       end
-      wait_on_routes_connected([c1, c2]) do
-        c2.publish('foo', data)
-        c2.publish('foo', data)
-        flush_routes([c1, c2]) { EM.stop }
+
+      c1.flush do
+        c2.flush do
+          wait_on_routes_connected([c1, c2]) do
+            c2.publish('foo', data)
+            c2.publish('foo', data)
+            flush_routes([c1, c2]) { EM.stop }
+          end
+        end
       end
     end
     expect(received).to eql(4)
