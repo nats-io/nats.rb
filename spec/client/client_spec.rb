@@ -430,7 +430,7 @@ describe 'Client - specification' do
     NATS.start(opts) { NATS.stop }
   end
 
-  describe '#create_inbox' do
+  describe '#create_inbox', :jruby_excluded do
     it 'create the expected format' do
       expect(NATS.create_inbox).to match(/_INBOX\.[a-f0-9]{12}/)
     end
