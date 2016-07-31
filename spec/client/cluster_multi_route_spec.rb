@@ -7,7 +7,7 @@ describe 'Client - cluster' do
       'user'     => 'derek',
       'password' => 'bella',
       'token'    => 'deadbeef',
-      'timeout'  => 1
+      'timeout'  => 5
     }
 
     s1_config_opts = {
@@ -48,7 +48,7 @@ describe 'Client - cluster' do
         authorization {
           user: '#{auth_options["user"]}'
           password: '#{auth_options["password"]}'
-          timeout: 0.5
+          timeout: #{auth_options["timeout"]}
         }
 
         cluster {
@@ -58,7 +58,7 @@ describe 'Client - cluster' do
           authorization {
             user: foo
             password: bar
-            timeout: 1
+            timeout: #{auth_options["timeout"]}
           }
 
           routes = [
