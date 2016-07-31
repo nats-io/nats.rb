@@ -95,29 +95,6 @@ describe 'Client - cluster' do
     end
   end
 
-  it 'should properly route plain messages between different servers' do
-    data = 'Hello World!'
-    received = 0
-    EM.run do
-      c1 = NATS.connect(:uri => @s1.uri)
-      c2 = NATS.connect(:uri => @s2.uri)
-      c1.subscribe('foo') do |msg|
-        expect(msg).to eql(data)
-        received += 1
-      end
-      c2.subscribe('foo') do |msg|
-        expect(msg).to eql(data)
-        received += 1
-      end
-      wait_on_routes_connected([c1, c2]) do
-        c2.publish('foo', data)
-        c2.publish('foo', data)
-        flush_routes([c1, c2]) { EM.stop }
-      end
-    end
-    expect(received).to eql(4)
-  end
-
   it 'should properly route messages for distributed queues on different servers' do
     data = 'Hello World!'
     to_send = 100
