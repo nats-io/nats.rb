@@ -10,6 +10,7 @@ require "#{ep}/version"
 
 module NATS
 
+  PROTOCOL_VERSION = 1
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
 
@@ -519,7 +520,8 @@ module NATS
       :verbose => @options[:verbose],
       :pedantic => @options[:pedantic],
       :lang => :ruby,
-      :version => VERSION
+      :version => VERSION,
+      :protocol => PROTOCOL_VERSION
     }
     if auth_connection?
       cs[:user] = @uri.user
@@ -655,6 +657,15 @@ module NATS
     else
       # Otherwise, use a regular connection.
     end
+
+    # Detect any announced server that we might not be aware of...
+    connect_urls = @server_info[:connect_urls]
+    connect_urls.each do |url|
+      u = URI.parse("nats://#{url}")
+      present = server_pool.detect { |srv| srv[:uri] == u }
+      server_pool << { :uri => u, :reconnect_attempts => 0 } if not present
+      server_pool.shuffle! unless @options[:dont_randomize_servers]
+    end if connect_urls
 
     if @server_info[:auth_required]
       current = server_pool.first
