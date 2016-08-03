@@ -392,7 +392,7 @@ describe 'Client - specification' do
   end
 
   it 'should not repeat SUB commands when connecting' do
-    pending_commands = "CONNECT {\"verbose\":false,\"pedantic\":true,\"lang\":\"ruby\",\"version\":\"#{NATS::VERSION}\"}\r\n"
+    pending_commands = "CONNECT {\"verbose\":false,\"pedantic\":true,\"lang\":\"ruby\",\"version\":\"#{NATS::VERSION}\",\"protocol\":1}\r\n"
     pending_commands += "PING\r\n"
     pending_commands += "SUB hello  2\r\nSUB hello  3\r\nSUB hello  4\r\nSUB hello  5\r\nSUB hello  6\r\n"
 
