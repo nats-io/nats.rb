@@ -660,12 +660,19 @@ module NATS
 
     # Detect any announced server that we might not be aware of...
     connect_urls = @server_info[:connect_urls]
-    connect_urls.each do |url|
-      u = URI.parse("nats://#{url}")
-      present = server_pool.detect { |srv| srv[:uri] == u }
-      server_pool << { :uri => u, :reconnect_attempts => 0 } if not present
-      server_pool.shuffle! unless @options[:dont_randomize_servers]
-    end if connect_urls
+    if connect_urls
+      srvs = []
+
+      connect_urls.each do |url|
+        u = URI.parse("nats://#{url}")
+        present = server_pool.detect { |srv| srv[:uri] == u }
+        srvs << { :uri => u, :reconnect_attempts => 0 } if not present
+      end
+      srvs.shuffle! unless @options[:dont_randomize_servers]
+
+      # Include in server pool but keep current one as the first one.
+      server_pool.push(*srvs)
+    end
 
     if @server_info[:auth_required]
       current = server_pool.first

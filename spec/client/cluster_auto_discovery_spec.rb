@@ -99,6 +99,7 @@ describe 'Client - cluster auto discovery' do
     with_em_timeout do
       c1 = NATS.connect(:servers => [@s1.uri]) do |nats|
         servers_upon_connect = nats.server_pool.count
+        expect(nats.server_pool.first[:uri]).to eql(nats.connected_server)
         NATS.stop
       end
 
@@ -119,6 +120,7 @@ describe 'Client - cluster auto discovery' do
     with_em_timeout(5) do
       c1 = NATS.connect(:servers => [@s2.uri]) do |nats|
         servers_upon_connect = nats.server_pool.count
+        expect(nats.server_pool.first[:uri]).to eql(nats.connected_server)
 
         @s3.start_server(true)
         EM.add_timer(2) do
@@ -129,5 +131,29 @@ describe 'Client - cluster auto discovery' do
     end
     expect(servers_upon_connect).to eql(2)
     expect(servers_after_connect).to eql(3)
-  end  
+  end
+
+  it 'should properly discover nodes in cluster eventually after first connect' do
+    [@s1, @s2].each do |node|
+      node.start_server(true)
+    end
+
+    servers_upon_connect = 0
+    servers_after_connect = 0
+    with_em_timeout(5) do
+      c1 = NATS.connect(:servers => [@s2.uri]) do |nats|
+        servers_upon_connect = nats.server_pool.count
+        expect(nats.server_pool.first[:uri]).to eql(nats.connected_server)
+
+        @s3.start_server(true)
+        EM.add_timer(2) do
+          # Should have detected new server asynchronously
+          servers_after_connect = nats.server_pool.count
+          expect(nats.server_pool.first[:uri]).to eql(nats.connected_server)
+        end
+      end
+    end
+    expect(servers_upon_connect).to eql(2)
+    expect(servers_after_connect).to eql(3)
+  end
 end
