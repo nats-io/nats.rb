@@ -1,3 +1,4 @@
+require 'pp'
 
 def fast_uuid #:nodoc:
   v = [rand(0x0010000),rand(0x0010000),rand(0x0010000),
