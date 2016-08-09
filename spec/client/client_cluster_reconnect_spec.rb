@@ -182,6 +182,8 @@ describe 'Client - cluster reconnect' do
 
   it 'should use reconnect logic to connect to a previous server if multiple servers exit' do
     @s2.kill_server # Take this one offline
+    @s3.kill_server # Take this one offline too, since it will be discovered in cluster
+
     options = {
       :dont_randomize_servers => true,
       :servers => [@s1.uri, @s2.uri],
@@ -189,21 +191,24 @@ describe 'Client - cluster reconnect' do
       :max_reconnect_attempts => 2,
       :reconnect_time_wait => 1
     }
-    NATS.start(options) do |c|
-      timeout_nats_on_failure(15)
-      expect(c.connected_server).to eql(@s1.uri)
-      c.on_reconnect do
-        expect(c.connected?).to eql(true)
+    with_em_timeout do
+      NATS.start(options) do |c|
         expect(c.connected_server).to eql(@s1.uri)
-        NATS.stop
+        c.on_reconnect do
+          expect(c.connected?).to eql(true)
+          expect(c.connected_server).to eql(@s1.uri)
+          NATS.stop
+        end
+        @s1.kill_server
+        @s1.start_server
       end
-      @s1.kill_server
-      @s1.start_server
     end
   end
 
   context 'when max_reconnect_attempts == -1 (do not remove servers)' do
     it 'should never remove servers that fail' do
+      @s3.kill_server # Server is offline though it still is discovered
+
       options = {
         :dont_randomize_servers => true,
         :servers => [@s1.uri, @s2.uri],
@@ -213,10 +218,11 @@ describe 'Client - cluster reconnect' do
       }
 
       @s1.kill_server
-      NATS.start(options) do |c|
-        timeout_nats_on_failure(15)
-        expect(c.connected_server).to eql(@s2.uri)
-        expect(c.server_pool.size).to eq(2)
+      with_em_timeout do
+        NATS.start(options) do |c|
+          expect(c.connected_server).to eql(@s2.uri)
+          expect(c.server_pool.size).to eq(3)
+        end
       end
     end
   end

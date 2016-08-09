@@ -104,7 +104,8 @@ describe 'Client - cluster retry connect' do
           @s1.start_server
 
           wait_on_routes_connected([c1, c2]) do
-            expect(c1.connected_server).to eql(@s1.uri)
+            # Auto discovery kicks in so connects to next one available
+            expect(c1.connected_server).to eql(@s2.uri)
             c2.publish('foo', data)
           end
         end
