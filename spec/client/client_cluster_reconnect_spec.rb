@@ -145,9 +145,9 @@ describe 'Client - cluster reconnect' do
   it 'should connect to another server if possible before reconnect' do
     NATS.start(:dont_randomize_servers => true, :servers => [@s1.uri, @s2.uri, @s3.uri]) do |c|
       timeout_nats_on_failure(15)
-      c.connected_server.should == @s1.uri
+      expect(c.connected_server).to eql(@s1.uri)
       c.on_reconnect do
-        c.connected_server.should == @s2.uri
+        expect(c.connected_server).to eql(@s2.uri)
         NATS.stop
       end
       @s1.kill_server
@@ -157,12 +157,12 @@ describe 'Client - cluster reconnect' do
   it 'should connect to a previous server if multiple servers exit' do
     NATS.start(:dont_randomize_servers => true, :servers => [@s1.uri, @s2.uri, @s3.uri]) do |c|
       timeout_nats_on_failure(15)
-      c.connected_server.should == @s1.uri
+      expect(c.connected_server).to eql(@s1.uri)
       kill_time = Time.now
 
       expected_uri = nil
       c.on_reconnect do
-        c.connected_server.should == expected_uri
+        expect(c.connected_server).to eql(expected_uri)
         if expected_uri == @s2.uri
           # Expect to connect back to S1
           expected_uri = @s1.uri
@@ -191,10 +191,10 @@ describe 'Client - cluster reconnect' do
     }
     NATS.start(options) do |c|
       timeout_nats_on_failure(15)
-      c.connected_server.should == @s1.uri
+      expect(c.connected_server).to eql(@s1.uri)
       c.on_reconnect do
-        c.connected?.should be_truthy
-        c.connected_server.should == @s1.uri
+        expect(c.connected?).to eql(true)
+        expect(c.connected_server).to eql(@s1.uri)
         NATS.stop
       end
       @s1.kill_server
@@ -215,7 +215,7 @@ describe 'Client - cluster reconnect' do
       @s1.kill_server
       NATS.start(options) do |c|
         timeout_nats_on_failure(15)
-        c.connected_server.should == @s2.uri
+        expect(c.connected_server).to eql(@s2.uri)
         expect(c.server_pool.size).to eq(2)
       end
     end

@@ -62,8 +62,8 @@ describe 'Client - authorization' do
 
       NATS.connect(:uri => TEST_AUTH_SERVER_NO_CRED)
     end
-    auth_error_callbacks.should == 1
-    connect_error_callbacks.should == 1
+    expect(auth_error_callbacks).to eql(1)
+    expect(connect_error_callbacks).to eql(1)
   end
 
   it 'should remove server from the pool on unauthorized access' do
@@ -78,10 +78,10 @@ describe 'Client - authorization' do
         EM.stop
       end
     end
-    error_cb.should == 1
-    connect_cb.should be_truthy
-    NATS.client.should_not == nil
-    NATS.client.server_pool.size.should == 1
+    expect(error_cb).to eql(1)
+    expect(connect_cb).to eql(true)
+    expect(NATS.client).to_not be(nil)
+    expect(NATS.client.server_pool.size).to eql(1)
     NATS.stop # clears err_cb
   end
 

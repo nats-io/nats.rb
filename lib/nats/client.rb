@@ -243,7 +243,7 @@ module NATS
     end
 
     # Set the default on_closed callback.
-    # @param [Block] &callback called when will reach a state when will no longer be connected. 
+    # @param [Block] &callback called when will reach a state when will no longer be connected.
     def on_close(&callback)
       @close_cb = callback
       @client.on_close(&callback) unless @client.nil?
@@ -707,7 +707,7 @@ module NATS
     # Mark that we established already TCP connection to the server. In case of TLS,
     # prepare commands which will be dispatched to server and delay flushing until
     # we have processed the INFO line sent by the server and done the handshake.
-    @connected = true 
+    @connected = true
     process_connect
   end
 
@@ -716,7 +716,7 @@ module NATS
     process_connect
   end
 
-  def process_connect #:nodoc:   
+  def process_connect #:nodoc:
     # Reset reconnect attempts since TCP connection has been successful at this point.
     current = server_pool.first
     current[:was_connected] = true

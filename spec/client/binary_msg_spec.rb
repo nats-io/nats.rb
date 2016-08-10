@@ -15,11 +15,11 @@ describe 'Client - test binary message payloads to avoid connection drop' do
     got_error = false
     NATS.on_error { got_error = true; NATS.stop }
     NATS.start(:reconnect => false) do
-      NATS.connected?.should == true
+      expect(NATS.connected?).to eql(true)
       NATS.publish('dont_disconnect_me', "\006")
       NATS.flush { NATS.stop }
     end
-    got_error.should == false
+    expect(got_error).to eql(false)
   end
 
 end

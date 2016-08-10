@@ -10,7 +10,7 @@ describe 'Client - server attacks' do
 
   before (:each) do
     @s = NatsServerControl.new(TEST_SERVER, "/tmp/nats_attack.pid")
-    @s.start_server
+    @s.start_server(true)
   end
 
   after (:each) do
@@ -62,11 +62,14 @@ describe 'Client - server attacks' do
   end
 
   it "should complain if we can't kill our server that we started" do
-    unless @s.was_running?
-      @s.kill_server
-      expect do
-        NATS.start(:uri => TEST_SERVER) { NATS.stop }
-      end.to raise_error NATS::ConnectError
+    errors = []
+    @s.kill_server
+    with_em_timeout(5) do
+      NATS.on_error do |e|
+        errors << e
+      end
+      NATS.connect(:uri => TEST_SERVER)
     end
+    expect(errors.first).to be_a(NATS::ConnectError)
   end
 end

@@ -26,8 +26,8 @@ describe 'Client - reconnect specification' do
 
   it 'should properly report connected after connect callback' do
     NATS.start do
-      NATS.connected?.should be_truthy
-      NATS.reconnecting?.should be_falsey
+      expect(NATS.connected?).to eql(true)
+      expect(NATS.reconnecting?).to eql(false)
       NATS.stop
     end
   end
@@ -68,6 +68,6 @@ describe 'Client - reconnect specification' do
       }
     end
 
-    received.should be_truthy
+    expect(received).to eql(true)
   end
 end
