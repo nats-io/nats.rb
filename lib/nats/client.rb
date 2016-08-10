@@ -670,15 +670,16 @@ module NATS
         end
 
         if not present
-          # Default to the creds from the current server
+          # Let explicit user and pass options set the credentials.
+          u.user = options[:user] if options[:user]
+          u.password = options[:pass] if options[:pass]
+
+          # Use creds from the current server if not set explicitly.
           if @uri
-            u.user = @uri.user
-            u.password = @uri.password
+            u.user ||= @uri.user if @uri.user
+            u.password ||= @uri.password if @uri.password
           end
 
-          # Let explicit user and pass options override other credentials.
-          u.user = options[:user] if options[:user]
-          u.password = options[:password] if options[:pass]
           srvs << { :uri => u, :reconnect_attempts => 0 }
         end
       end

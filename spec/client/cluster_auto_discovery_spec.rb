@@ -224,14 +224,6 @@ describe 'Client - cluster auto discovery' do
     expect(c1_errors.count).to eql(0)
     expect(c2_errors.count).to eql(0)
     expect(c3_errors.count).to eql(0)
-
-    # Uncommented as this can flap
-    #
-    # a = (pool_a[1][:uri].port == pool_c[1][:uri].port) && (pool_b[1][:uri].port == pool_c[1][:uri].port)
-    # b = (pool_a[2][:uri].port == pool_c[2][:uri].port) && (pool_b[2][:uri].port == pool_c[2][:uri].port)
-    # c = (pool_a[3][:uri].port == pool_c[3][:uri].port) && (pool_b[3][:uri].port == pool_c[3][:uri].port)
-    # d = (pool_a[4][:uri].port == pool_c[4][:uri].port) && (pool_b[4][:uri].port == pool_c[4][:uri].port)
-    # expect(a && b && c && d).to eql(false)
   end
 
   it 'should properly discover nodes in cluster and reconnect to new one on failure' do
@@ -250,6 +242,54 @@ describe 'Client - cluster auto discovery' do
       end
 
       NATS.connect(:servers => [@s1.uri], :dont_randomize_servers => true) do |nats|
+        servers_upon_connect = nats.server_pool.count
+        expect(nats.server_pool.first[:uri]).to eql(nats.connected_server)
+
+        @s3.start_server(true)
+        EM.add_timer(2) do
+          # Should have detected new server asynchronously
+          servers_after_connect = nats.server_pool.count
+          expect(nats.server_pool.first[:uri]).to eql(nats.connected_server)
+          @s1.kill_server
+          EM.add_timer(2) do
+            @s1.start_server(true)
+            @s2.kill_server
+          end
+        end
+      end
+    end
+    expect(servers_upon_connect).to eql(2)
+    expect(servers_after_connect).to eql(3)
+    expect(reconnects.count).to eql(2)
+    expect(reconnects.first.port).to eql(@s2.uri.port)
+    expect(reconnects.last.port).to eql(@s3.uri.port)
+    expect(server_pool_state.count).to eql(3)
+    server_pool_state.each do |srv|
+      expect(srv[:was_connected]).to eql(true)
+    end
+  end
+
+  it 'should authenticate to discovered nodes using explicit credentials' do
+    [@s1, @s2].each do |node|
+      node.start_server(true)
+    end
+
+    reconnects = []
+    servers_upon_connect = 0
+    servers_after_connect = 0
+    server_pool_state = nil
+    with_em_timeout(10) do
+      NATS.on_reconnect do |nats|
+        reconnects << nats.connected_server
+        server_pool_state = nats.server_pool
+      end
+
+      NATS.connect({
+          :servers => ["nats://#{@s1.uri.host}:#{@s1.uri.port}"], 
+          :dont_randomize_servers => true,
+          :user => @s1.uri.user,
+          :pass => @s1.uri.password
+        }) do |nats|
         servers_upon_connect = nats.server_pool.count
         expect(nats.server_pool.first[:uri]).to eql(nats.connected_server)
 
