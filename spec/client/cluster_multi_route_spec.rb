@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe 'Client - cluster', :jruby_excluded do
+describe 'Client - cluster' do
 
   before(:all) do
     auth_options = {

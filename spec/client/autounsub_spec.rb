@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe 'Client - max responses and auto-unsubscribe', :jruby_excluded  do
+describe 'Client - max responses and auto-unsubscribe' do
 
   before(:each) do
     @s = NatsServerControl.new("nats://127.0.0.1:4222")

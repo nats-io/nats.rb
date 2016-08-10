@@ -98,7 +98,7 @@ describe 'Client - specification' do
     expect(sid).to_not eql(nil)
   end
 
-  it 'should receive a sid when doing a request', :jruby_excluded do
+  it 'should receive a sid when doing a request' do
     sid = nil
     errors = []
     with_em_timeout do
@@ -162,7 +162,7 @@ describe 'Client - specification' do
     expect(msgs.first).to eql('xxx')
   end
 
-  it 'should receive a response from a request', :jruby_excluded do
+  it 'should receive a response from a request' do
     received = false
     NATS.start do |nc|
       nc.subscribe('need_help') do |msg, reply|
@@ -179,7 +179,7 @@ describe 'Client - specification' do
     expect(received).to eql(true)
   end
 
-  it 'should perform similar using class mirror functions', :jruby_excluded do
+  it 'should perform similar using class mirror functions' do
     received = false
     NATS.start do
       s = NATS.subscribe('need_help') do |msg, reply|
@@ -243,7 +243,7 @@ describe 'Client - specification' do
     expect(received).to eql(true)
   end
 
-  it 'should allow proper request/reply across multiple connections', :jruby_excluded do
+  it 'should allow proper request/reply across multiple connections' do
     new_conn = nil
     received_request = false
     received_reply = false
@@ -430,7 +430,7 @@ describe 'Client - specification' do
     NATS.start(opts) { NATS.stop }
   end
 
-  describe '#create_inbox', :jruby_excluded do
+  describe '#create_inbox' do
     it 'create the expected format' do
       expect(NATS.create_inbox).to match(/_INBOX\.[a-f0-9]{12}/)
     end
