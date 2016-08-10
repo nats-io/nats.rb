@@ -3,15 +3,14 @@
 A [Ruby](http://ruby-lang.org) client for the [NATS messaging system](https://nats.io).
 
 [![License MIT](https://img.shields.io/npm/l/express.svg)](http://opensource.org/licenses/MIT)
-[![Build Status](https://travis-ci.org/nats-io/ruby-nats.svg)](http://travis-ci.org/nats-io/ruby-nats) [![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.7.1)](https://rubygems.org/gems/nats/versions/0.7.1) [![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](http://www.rubydoc.info/github/nats-io/ruby-nats)
-
+[![Build Status](https://travis-ci.org/nats-io/ruby-nats.svg)](http://travis-ci.org/nats-io/ruby-nats) [![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.8.0)](https://rubygems.org/gems/nats/versions/0.8.0) [![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](http://www.rubydoc.info/github/nats-io/ruby-nats)
 
 ## Supported Platforms
 
 This gem and the client are known to work on the following Ruby platforms:
 
 - MRI 1.9, 2.0, 2.1, 2.2, 2.3.0
-- JRuby 1.6.8 (experimental)
+- JRuby 9.1.2.0
 
 ## Getting Started
 
@@ -96,14 +95,36 @@ end
 opts = {
   :dont_randomize_servers => true,
   :reconnect_time_wait => 0.5,
-  :max_reconnect_attempts = 10,
+  :max_reconnect_attempts => 10,
   :servers => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223', 'nats://127.0.0.1:4224']
 }
 
 NATS.connect(opts) do |c|
   puts "NATS is connected!"
 end
+```
 
+### Auto discovery
+
+Starting from release `0.8.0` of the gem, the client also auto discovers
+new nodes announced by the server as they attach to the cluster.
+Reconnection logic parameters such as time to back-off on failure and max attempts
+apply the same to both discovered nodes and those defined explicitly on connect:
+
+```ruby
+opts = {
+  :dont_randomize_servers => true,
+  :reconnect_time_wait => 0.5,
+  :max_reconnect_attempts => 10,
+  :servers => ['nats://127.0.0.1:4222', 'nats://127.0.0.1:4223'],
+  :user => 'secret',
+  :pass => 'deadbeef'
+}
+
+NATS.connect(opts) do |c|
+  # Confirm number of available servers in cluster.
+  puts "Connected to NATS! Servers in pool: #{c.server_pool.count}"
+end
 ```
 
 ## Advanced Usage
