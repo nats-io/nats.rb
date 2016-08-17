@@ -391,6 +391,14 @@ describe 'Client - specification' do
     end
   end
 
+  it 'should allowing setting name for the client on connect' do
+    with_em_timeout do
+      connect_command = "CONNECT {\"verbose\":false,\"pedantic\":false,\"lang\":\"ruby\",\"version\":\"0.8.0\",\"protocol\":1,\"name\":\"hello\"}\r\n"
+      conn = NATS.connect(:name => "hello")
+      expect(conn.connect_command).to eql(connect_command)
+    end
+  end
+
   it 'should not repeat SUB commands when connecting' do
     pending_commands = "CONNECT {\"verbose\":false,\"pedantic\":true,\"lang\":\"ruby\",\"version\":\"#{NATS::VERSION}\",\"protocol\":1}\r\n"
     pending_commands += "PING\r\n"
