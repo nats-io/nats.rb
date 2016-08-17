@@ -41,7 +41,7 @@ end
 
 NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
-NATS.start(:uri => $nats_server,  :autostart => true) do
+NATS.start(:uri => $nats_server) do
   puts "Listening on [#{subject}], queue group [#{queue_group}]" unless $show_raw
   NATS.subscribe(subject, :queue => queue_group) { |msg, _, sub|
     puts decorate(sub, msg)
