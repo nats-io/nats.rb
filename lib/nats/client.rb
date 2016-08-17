@@ -527,6 +527,7 @@ module NATS
       cs[:user] = @uri.user
       cs[:pass] = @uri.password
     end
+    cs[:name] = @options[:name] if @options[:name]
     cs[:ssl_required] = @ssl if @ssl
     cs[:tls_required] = true if @tls
 

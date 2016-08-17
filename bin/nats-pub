@@ -20,7 +20,7 @@ msg ||= 'Hello World'
 
 NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
-NATS.start(:uri => $nats_server, :autostart => true) do
+NATS.start(:uri => $nats_server) do
   NATS.publish(subject, msg) { NATS.stop }
 end
 
