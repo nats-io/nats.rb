@@ -1,0 +1,23 @@
+
+
+- [X] pub
+- [X] sub
+- [X] unsub
+- [X] ping/pong interval
+- [X] spec
+- [X] request/response
+- [X] authorization
+- [X] reconnection
+- [X] benchmark scripts
+- [X] process op errors from read/parser
+- [X] reading deadlines
+- [X] graceful close
+- [X] error/disconnect/close callbacks
+- [X] cluster support
+- [ ] increase test coverage
+- [ ] max payload err handling
+- [ ] gem release
+- [ ] TLS
+- [ ] read dynamic socket buffer
+- [ ] travis
+- [ ] nuid
