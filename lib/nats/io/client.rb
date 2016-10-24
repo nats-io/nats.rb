@@ -52,7 +52,7 @@ module NATS
 
     class Error < StandardError; end
 
-    # When the NATS server sends us an ERR message.
+    # When the NATS server sends us an 'ERR' message.
     class ServerError < Error; end
 
     # When we detect error on the client side.
@@ -195,40 +195,38 @@ module NATS
             raise e
           end
 
-          # Continue retrying until there are no options left in the server pool.
+          # Continue retrying until there are no options left in the server pool
           retry
         end
-
-        # Server roundtrip went ok so consider to be connected at this point
-        @status = CONNECTED
 
         # Initialize queues and loops for message dispatching and processing engine
         @flush_queue = SizedQueue.new(MAX_FLUSH_KICK_SIZE)
         @pending_queue = SizedQueue.new(MAX_PENDING_SIZE)
-
-        # Reading loop for gathering data
-        @read_loop_thread = Thread.new { read_loop }
-        @read_loop_thread.abort_on_exception = true
-
-        # Flusher loop for sending commands
-        @flusher_thread = Thread.new { flusher_loop }
-        @flusher_thread.abort_on_exception = true
-
-        # Ping interval handling for keeping alive the connection
         @pings_outstanding = 0
         @pongs_received = 0
-        @ping_interval_thread = Thread.new { ping_interval_loop }
-        @ping_interval_thread.abort_on_exception = true
+        @pending_size = 0
+
+        # Server roundtrip went ok so consider to be connected at this point
+        @status = CONNECTED
+
+        # Connected to NATS so Ready to start parser loop, flusher and ping interval
+        start_threads!
       end
 
       def publish(subject, msg=EMPTY_MSG, opt_reply=nil, &blk)
         raise BadSubject if !subject or subject.empty?
-
         msg_size = msg.bytesize
-        send_command("PUB #{subject} #{opt_reply} #{msg_size}\r\n#{msg}\r\n")
 
+        # Accounting
         @stats[:out_msgs] += 1
         @stats[:out_bytes] += msg_size
+
+        # Split the command in control line from payload here since concatenation
+        # happening on flush anyway.
+        send_command("PUB #{subject} #{opt_reply} #{msg_size}\r\n")
+        send_command(msg)
+        send_command("\r\n")
+
         @flush_queue << :pub if @flush_queue.empty?
       end
 
@@ -236,14 +234,18 @@ module NATS
       # messages to a callback.
       def subscribe(subject, opts={}, &callback)
         sid = (@ssid += 1)
-        sub = @subs[sid] = { :subject => subject, :callback => callback, :received => 0 }
+        sub = @subs[sid] = {
+          subject:  subject,
+          callback: callback,
+          received: 0
+        }
         sub[:queue] = opts[:queue] if opts[:queue]
         sub[:max] = opts[:max] if opts[:max]
 
         send_command("SUB #{subject} #{opts[:queue]} #{sid}#{CR_LF}")
         @flush_queue << :sub
 
-        # Setup server support for auto-unsubscribe
+        # Setup server support for auto-unsubscribe when receiving enough messages
         unsubscribe(sid, opts[:max]) if opts[:max]
 
         sid
@@ -365,10 +367,10 @@ module NATS
         close
       end
 
-      def process_msg(subject, sid, reply, msg)
+      def process_msg(subject, sid, reply, data)
         # Accounting
         @stats[:in_msgs] += 1
-        @stats[:in_bytes] += msg.size
+        @stats[:in_bytes] += data.size
 
         # Throw away in case we no longer manage the subscription
         sub = nil
@@ -391,14 +393,18 @@ module NATS
           cb = sub[:callback]
           case cb.arity
           when 0 then cb.call
-          when 1 then cb.call(msg)
-          when 2 then cb.call(msg, reply)
-          else cb.call(msg, reply, subject)
+          when 1 then cb.call(data)
+          when 2 then cb.call(data, reply)
+          else cb.call(data, reply, subject)
           end
         elsif sub[:future]
           sub.synchronize do
             future = sub[:future]
-            sub[:response] = { :subject => subject, :reply => reply, :data => msg }
+            sub[:response] = {
+              subject: subject,
+              reply:   reply,
+              data:    data
+            }
             future.signal
           end
         end
@@ -408,13 +414,10 @@ module NATS
       # and there are any pending messages, should not be used while
       # holding the lock.
       def close
-        should_bail = synchronize do
-          return true if @status == CLOSED
+        synchronize do
+          return if @status == CLOSED
           @status = CLOSED
-
-          false
         end
-        return if should_bail
 
         # Kick the flusher so it bails due to closed state
         @flush_queue << :fallout
@@ -515,8 +518,9 @@ module NATS
         srv[:reconnect_attempts] ||= 0
         srv[:reconnect_attempts] += 1
 
-        # In case there was an error from the server we will take it out from rotation
-        # unless we specify infinite reconnects via setting :max_reconnect_attempts to -1
+        # In case there was an error from the server we will
+        # take it out from rotation unless we specify infinite
+        # reconnects via setting :max_reconnect_attempts to -1
         if options[:max_reconnect_attempts] < 0 || can_reuse_server?(srv)
           server_pool << srv
         end
@@ -532,23 +536,30 @@ module NATS
         srv
       end
 
-      def process_info(info)
-        # Each JSON parser uses a different key/value pair to use symbol keys
-        # instead of strings when parsing. Passing all three pairs assures each
-        # parser gets what it needs. For the json gem :symbolize_name, for yajl
-        # :symbolize_keys, and for oj :symbol_keys.
-        @server_info = JSON.parse(info, :symbolize_keys => true, :symbolize_names => true, :symbol_keys => true)
+      def process_info(line)
+        parsed_info = JSON.parse(line)
 
-        # TODO: Handle upgrading connection to TLS secure connection
+        # INFO can be received asynchronously too,
+        # so has to be done under the lock.
+        synchronize do
+          # Symbolize keys from parsed info line
+          @server_info = parsed_info.reduce({}) do |info, (k,v)|
+            info[k.to_sym] = v
 
-        if server_using_secure_connection?
-          @err_cb.call(NATS::IO::ClientError.new('TLS/SSL required by server'))
-          return
-        end
+            info
+          end
 
-        if @server_info[:auth_required]
-          current = server_pool.first
-          current[:auth_required] = true
+          # TODO: Handle upgrading connection to TLS secure connection
+
+          if server_using_secure_connection?
+            @err_cb.call(NATS::IO::ClientError.new('TLS/SSL required by server'))
+            return
+          end
+
+          if @server_info[:auth_required]
+            current = server_pool.first
+            current[:auth_required] = true
+          end
         end
 
         @server_info
@@ -794,38 +805,45 @@ module NATS
           retry
         end
 
-        # Clear pending flush calls before restarting loop
+        # Clear pending flush calls and reset state before restarting loops
         @flush_queue.clear
+        @pings_outstanding = 0
+        @pongs_received = 0
 
         # Replay all subscriptions
         @subs.each_pair do |k, v|
           @io.write("SUB #{v[:subject]} #{v[:queue]} #{k}#{CR_LF}")
         end
 
-        # Flush anything which was left pending.
-        # TODO: In case of errors during flush then we should raise error
-        # then retry the reconnect logic with another server
+        # Flush anything which was left pending, in case of errors during flush
+        # then we should raise error then retry the reconnect logic
         cmds = []
         cmds << @pending_queue.pop until @pending_queue.empty?
         @io.write(cmds.join)
-        @pending_size = 0
         @status = CONNECTED
+        @pending_size = 0
 
-        # Now connected to NATS, and we can restart reading, flusher and ping interval loops
+        # Now connected to NATS, and we can restart parser loop, flusher
+        # and ping interval
+        start_threads!
+
+        # Dispatch the reconnected callback while holding lock
+        # which we should have already
+        @reconnect_cb.call if @reconnect_cb
+      end
+
+      def start_threads!
+        # Reading loop for gathering data
         @read_loop_thread = Thread.new { read_loop }
         @read_loop_thread.abort_on_exception = true
 
+        # Flusher loop for sending commands
         @flusher_thread = Thread.new { flusher_loop }
         @flusher_thread.abort_on_exception = true
 
-        @pings_outstanding = 0
-        @pongs_received = 0
-        @pongs.clear
+        # Ping interval handling for keeping alive the connection
         @ping_interval_thread = Thread.new { ping_interval_loop }
         @ping_interval_thread.abort_on_exception = true
-
-        # Dispatch the reconnected callback while holding lock too
-        @reconnect_cb.call if @reconnect_cb
       end
 
       def can_reuse_server?(server)
@@ -848,10 +866,8 @@ module NATS
 
       def create_socket
         NATS::IO::Socket.new({
-          :uri             => @uri,
-          :connect_timeout => DEFAULT_CONNECT_TIMEOUT,
-          :read_timeout    => DEFAULT_READ_WRITE_TIMEOUT,
-          :write_timeout   => DEFAULT_READ_WRITE_TIMEOUT
+          uri: @uri,
+          connect_timeout: DEFAULT_CONNECT_TIMEOUT
         })
       end
     end
@@ -861,10 +877,7 @@ module NATS
     end
 
     class Socket
-
-      # Exceptions raised during non-blocking I/O ops that require retrying the op
-      NBIO_EXCEPTIONS = [Errno::EWOULDBLOCK, Errno::EAGAIN]
-      NBIO_EXCEPTIONS << ::IO::WaitReadable if RUBY_VERSION >= "1.9.3"
+      IO_EXCEPTIONS = [Errno::EWOULDBLOCK, Errno::EAGAIN, ::IO::WaitReadable]
 
       def initialize(options={})
         @uri = options[:uri]
@@ -888,7 +901,27 @@ module NATS
         @socket.setsockopt(::Socket::IPPROTO_TCP, ::Socket::TCP_NODELAY, 1)
       end
 
-      def write(data)
+      def read_line(deadline=nil)
+        # FIXME: Should accumulate and read in a non blocking way instead
+        raise Errno::ETIMEDOUT unless ::IO.select([@socket], nil, nil, deadline)
+        @socket.gets
+      end
+
+      def read(max_bytes, deadline=nil)
+        begin
+          @socket.read_nonblock(max_bytes)
+        rescue *IO_EXCEPTIONS
+          if ::IO.select([@socket], nil, nil, deadline)
+            retry
+          else
+            raise Errno::ETIMEDOUT
+          end
+        end
+      rescue EOFError
+        raise Errno::ECONNRESET
+      end
+
+      def write(data, deadline=nil)
         length = data.bytesize
         total_written = 0
 
@@ -899,8 +932,8 @@ module NATS
             total_written += written
             break total_written if total_written >= length
             data = data.byteslice(written..-1)
-          rescue *NBIO_EXCEPTIONS
-            if ::IO.select(nil, [@socket], nil, @write_timeout)
+          rescue *IO_EXCEPTIONS
+            if ::IO.select(nil, [@socket], nil, deadline)
               retry
             else
               raise Errno::ETIMEDOUT
@@ -908,26 +941,6 @@ module NATS
           end
         end
 
-      rescue EOFError
-        raise Errno::ECONNRESET
-      end
-
-      def read_line
-        # FIXME: Should accumulate and read in a non blocking way instead
-        raise Errno::ETIMEDOUT unless ::IO.select([@socket], nil, nil, @read_timeout)
-        @socket.gets
-      end
-
-      def read(max_bytes)
-        begin
-          @socket.read_nonblock(max_bytes)
-        rescue *NBIO_EXCEPTIONS
-          if ::IO.select([@socket], nil, nil, @read_timeout)
-            retry
-          else
-            raise Errno::ETIMEDOUT
-          end
-        end
       rescue EOFError
         raise Errno::ECONNRESET
       end
