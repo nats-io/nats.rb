@@ -10,13 +10,15 @@ describe 'Client - Specification' do
 
   after(:each) do
     @s.kill_server
+    sleep 1
   end
 
   it 'should connect to locally available server by default' do
     nc = NATS::IO::Client.new
     expect do
-      nc.connect
+      nc.connect(:servers => ["nats://127.0.0.1:4222"])
     end.to_not raise_error
+    nc.close
   end
 
   it 'should received a message when subscribed to a topic' do
@@ -37,11 +39,13 @@ describe 'Client - Specification' do
     expect(msgs.count).to eql(5)
     expect(msgs.first).to eql('world-1')
     expect(msgs.last).to eql('world-5')
+
+    nc.close
   end
 
   it 'should be able to receive requests synchronously with a timeout' do
     nc = NATS::IO::Client.new
-    nc.connect
+    nc.connect(:servers => ["nats://127.0.0.1:4222"])
 
     received = []
     nc.subscribe("help") do |msg, reply, subject|
@@ -56,6 +60,8 @@ describe 'Client - Specification' do
     expect(responses.count).to eql(2)
     expect(responses.first[:data]).to eql('reply.1')
     expect(responses.last[:data]).to eql('reply.2')
+
+    nc.close
   end
 
   it 'should be able to receive limited requests asynchronously' do
@@ -63,7 +69,7 @@ describe 'Client - Specification' do
     done = mon.new_cond
 
     nc = NATS::IO::Client.new
-    nc.connect
+    nc.connect(:servers => ["nats://127.0.0.1:4222"])
 
     received = []
     nc.subscribe("help") do |msg, reply, subject|
@@ -96,7 +102,7 @@ describe 'Client - Specification' do
 
   it 'should be able to unsubscribe' do
     nc = NATS::IO::Client.new
-    nc.connect
+    nc.connect(:servers => ["nats://127.0.0.1:4222"], :reconnect => false)
 
     msgs = []
     sid = nc.subscribe("foo") do |msg|
@@ -115,11 +121,12 @@ describe 'Client - Specification' do
     nc.flush
 
     expect(msgs.count).to eql(2)
+    nc.close
   end
 
   it 'should be able to create many subscriptions' do
     nc = NATS::IO::Client.new
-    nc.connect
+    nc.connect(:servers => ["nats://127.0.0.1:4222"])
 
     msgs = { }
     1.upto(100).each do |n|
@@ -139,24 +146,29 @@ describe 'Client - Specification' do
     1.upto(100).each do |n|
       expect(msgs["quux.#{n}"].count).to eql(1)
     end
+
+    nc.close
   end
 
   it 'should be raise timeout error if timed request does not get response' do
     nc = NATS::IO::Client.new
-    nc.connect
+    nc.connect(:servers => ["nats://127.0.0.1:4222"])
 
     expect do
       nc.timed_request("hello", "timeout")
     end.to raise_error(NATS::IO::Timeout)
+
+    nc.close
   end
 
   it 'should be able to receive response to requests' do
     mon = Monitor.new
     subscribed_done = mon.new_cond
+    test_done = mon.new_cond
 
     another_thread = Thread.new do
       nats = NATS::IO::Client.new
-      nats.connect(:reconnect => false)
+      nats.connect(:servers => ["nats://127.0.0.1:4222"], :reconnect => false)
       nats.subscribe("help") do |msg, reply|
         nats.publish(reply, "I can help")
       end
@@ -164,10 +176,14 @@ describe 'Client - Specification' do
       mon.synchronize do
         subscribed_done.signal
       end
+      mon.synchronize do
+        test_done.wait(1)
+        nats.close
+      end
     end
 
     nc = NATS::IO::Client.new
-    nc.connect
+    nc.connect(:servers => ["nats://127.0.0.1:4222"])
     mon.synchronize do
       subscribed_done.wait(1)
     end
@@ -183,6 +199,11 @@ describe 'Client - Specification' do
     # A new subscription would have the next sid for this client
     sid = nc.subscribe("hello"){}
     expect(sid).to eql(4)
+    mon.synchronize do
+      test_done.signal
+    end
+
+    nc.close
   end
 
   it 'should close connection gracefully' do
@@ -190,7 +211,7 @@ describe 'Client - Specification' do
     test_is_done = mon.new_cond
 
     nats = NATS::IO::Client.new
-    nats.connect(:reconnect => false)
+    nats.connect(:servers => ["nats://127.0.0.1:4222"], :reconnect => false)
 
     errors = []
     disconnects = 0

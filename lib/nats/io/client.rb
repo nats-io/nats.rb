@@ -52,20 +52,26 @@ module NATS
 
     class Error < StandardError; end
 
-    # When the NATS server sends us an ERROR message, this is raised/passed by default
+    # When the NATS server sends us an ERR message.
     class ServerError < Error; end
 
-    # When we detect error on the client side (e.g. Fast Producer, TLS required)
+    # When we detect error on the client side.
     class ClientError < Error; end
 
-    # When we cannot connect to the server (either initially or after a reconnect), this is raised/passed
+    # When we cannot connect to the server (either initially or after a reconnect).
     class ConnectError < Error; end
 
     # When we cannot connect to the server because authorization failed.
     class AuthError < ConnectError; end
 
+    # When we cannot connect since there are no servers available.
+    class NoServersError < ConnectError; end
+
     # When we do not get a result within a specified time.
     class Timeout < Error; end
+
+    # When we use an invalid subject.
+    class BadSubject < Error; end
 
     class Client
       include MonitorMixin
@@ -154,32 +160,44 @@ module NATS
         # Process servers in the NATS cluster and pick one to connect
         uris = opts[:servers] || [DEFAULT_URI]
         uris.shuffle! unless @options[:dont_randomize_servers]
-        uris.each { |u| @server_pool << { :uri => u.is_a?(URI) ? u.dup : URI.parse(u) } }
-        bind_primary
+        uris.each do |u|
+          @server_pool << { :uri => u.is_a?(URI) ? u.dup : URI.parse(u) }
+        end
 
-        # TODO: TLS options
+        begin
+          current = select_next_server
 
-        # Create TCP socket connection to NATS.
-        # TODO: Make this tunable?
-        @io = create_socket
-        @io.connect
+          # Create TCP socket connection to NATS
+          @io = create_socket
+          @io.connect
 
-        # Capture state that we have had a TCP connection established against
-        # this server and could potentially be used for reconnecting.
-        current = server_pool.first
-        current[:was_connected] = true
-        current[:reconnect_attempts] = 0
+          # Capture state that we have had a TCP connection established against
+          # this server and could potentially be used for reconnecting.
+          current[:was_connected] = true
 
-        # Connection established and now in process of sending CONNECT to NATS
-        @status = CONNECTING
+          # Connection established and now in process of sending CONNECT to NATS
+          @status = CONNECTING
 
-        line = @io.read_line
-        _, info_json = line.split(' ')
-        process_info(info_json)
+          # Established TCP connection successfully so can start connect
+          process_connect_init
 
-        # TODO: Handle upgrading connection to TLS secure connection
+          # Reset reconnection attempts if connection is valid
+          current[:reconnect_attempts] = 0
+        rescue NoServersError => e
+          @disconnect_cb.call(e) if @disconnect_cb
+          raise e
+        rescue => e
+          # Capture sticky error
+          synchronize { @last_err = e }
 
-        process_connect_init
+          if should_not_reconnect?
+            @disconnect_cb.call(e) if @disconnect_cb
+            raise e
+          end
+
+          # Continue retrying until there are no options left in the server pool.
+          retry
+        end
 
         # Server roundtrip went ok so consider to be connected at this point
         @status = CONNECTED
@@ -204,6 +222,8 @@ module NATS
       end
 
       def publish(subject, msg=EMPTY_MSG, opt_reply=nil, &blk)
+        raise BadSubject if !subject or subject.empty?
+
         msg_size = msg.bytesize
         send_command("PUB #{subject} #{opt_reply} #{msg_size}\r\n#{msg}\r\n")
 
@@ -215,7 +235,6 @@ module NATS
       # Create subscription which is dispatched asynchronously
       # messages to a callback.
       def subscribe(subject, opts={}, &callback)
-        return unless subject
         sid = (@ssid += 1)
         sub = @subs[sid] = { :subject => subject, :callback => callback, :received => 0 }
         sub[:queue] = opts[:queue] if opts[:queue]
@@ -254,8 +273,12 @@ module NATS
         sub[:future]   = future
         sub[:received] = 0
 
-        sid = (@ssid += 1)
-        @subs[sid] = sub
+        sid = nil
+        synchronize do
+          sid = (@ssid += 1)
+          @subs[sid] = sub
+        end
+
         send_command("SUB #{inbox} #{sid}#{CR_LF}")
         @flush_queue << :sub
         unsubscribe(sid, 1)
@@ -272,15 +295,18 @@ module NATS
         response
       end
 
-      # Auto unsubscribes the server sending UNSUB
+      # Auto unsubscribes the server by sending UNSUB command and throws away
+      # subscription in case already present and has received enough messages.
       def unsubscribe(sid, opt_max=nil)
         opt_max_str = " #{opt_max}" unless opt_max.nil?
         send_command("UNSUB #{sid}#{opt_max_str}#{CR_LF}")
         @flush_queue << :unsub
 
         return unless sub = @subs[sid]
-        sub[:max] = opt_max
-        @subs.delete(sid) unless (sub[:max] && (sub[:received] < sub[:max]))
+        synchronize do
+          sub[:max] = opt_max
+          @subs.delete(sid) unless (sub[:max] && (sub[:received] < sub[:max]))
+        end
       end
 
       # Send a ping and wait for a pong back within a timeout.
@@ -318,7 +344,7 @@ module NATS
 
       # Handles protocol errors being sent by the server.
       def process_err(err)
-        # TODO: In case of a stale connection, then handle as process op err.
+        # FIXME: In case of a stale connection, then handle as process_op_error
 
         # In case of permissions violation then dispatch the error callback
         # while holding the lock.
@@ -330,7 +356,8 @@ module NATS
           @err_cb.call(NATS::IO::ServerError.new(err))
         end
 
-        # Otherwise, capture the error under a lock and close the connection gracefully.
+        # Otherwise, capture the error under a lock and close
+        # the connection gracefully.
         synchronize do
           @last_err = NATS::IO::ServerError.new(err)
         end
@@ -339,7 +366,14 @@ module NATS
       end
 
       def process_msg(subject, sid, reply, msg)
-        return unless sub = @subs[sid]
+        # Accounting
+        @stats[:in_msgs] += 1
+        @stats[:in_bytes] += msg.size
+
+        # Throw away in case we no longer manage the subscription
+        sub = nil
+        synchronize { sub = @subs[sid] }
+        return unless sub
 
         # Check for auto_unsubscribe
         sub[:received] += 1
@@ -362,18 +396,18 @@ module NATS
           else cb.call(msg, reply, subject)
           end
         elsif sub[:future]
-          future = sub[:future]
-          sub[:response] = { :subject => subject, :reply => reply, :data => msg }
           sub.synchronize do
+            future = sub[:future]
+            sub[:response] = { :subject => subject, :reply => reply, :data => msg }
             future.signal
           end
         end
       end
 
-      # Close connection to NATS, blocking in case connection is alive
-      # and there are any pending messages.
+      # Close connection to NATS, flushing in case connection is alive
+      # and there are any pending messages, should not be used while
+      # holding the lock.
       def close
-        # Should only close once...
         should_bail = synchronize do
           return true if @status == CLOSED
           @status = CLOSED
@@ -386,9 +420,11 @@ module NATS
         @flush_queue << :fallout
         Thread.pass
 
+        # FIXME: More graceful way of handling the following?
         # Ensure ping interval and flusher are not running anymore
-        @ping_interval_thread.kill if @ping_interval_thread.alive?
-        @flusher_thread.kill if @flusher_thread.alive?
+        @ping_interval_thread.exit if @ping_interval_thread.alive?
+        @flusher_thread.exit if @flusher_thread.alive?
+        @read_loop_thread.exit if @read_loop_thread.alive?
 
         # TODO: Delete any other state which we are not using here too.
         synchronize do
@@ -406,8 +442,9 @@ module NATS
             cmds << @pending_queue.pop until @pending_queue.empty?
             @io.write(cmds.join)
           rescue => e
+            @last_err = e
             @err_cb.call(e) if @err_cb
-          end if @io
+          end if @io or @io.closed?
 
           # TODO: Destroy any remaining subscriptions
           @disconnect_cb.call if @disconnect_cb
@@ -416,7 +453,8 @@ module NATS
 
         # Close the established connection in case
         # we still have it.
-        @io.close if @io
+        @io.close
+        @io = nil
       end
 
       def new_inbox
@@ -467,15 +505,34 @@ module NATS
 
       private
 
-      def bind_primary
-        first = server_pool.first
-        @uri = first[:uri]
+      def select_next_server
+        raise NoServersError.new("nats: No servers available") if server_pool.empty?
+
+        # Pick next from head of the list
+        srv = server_pool.shift
+
+        # Track connection attempts to this server
+        srv[:reconnect_attempts] ||= 0
+        srv[:reconnect_attempts] += 1
+
+        # In case there was an error from the server we will take it out from rotation
+        # unless we specify infinite reconnects via setting :max_reconnect_attempts to -1
+        if options[:max_reconnect_attempts] < 0 || can_reuse_server?(srv)
+          server_pool << srv
+        end
+
+        # Back off in case we are reconnecting to it and have been connected
+        sleep @options[:reconnect_time_wait] if should_delay_connect?(srv)
+
+        # Set url of the server to which we would be connected
+        @uri = srv[:uri]
         @uri.user = @options[:user] if @options[:user]
         @uri.password = @options[:pass] if @options[:pass]
-        first
+
+        srv
       end
 
-      def process_info(info) #:nodoc:
+      def process_info(info)
         # Each JSON parser uses a different key/value pair to use symbol keys
         # instead of strings when parsing. Passing all three pairs assures each
         # parser gets what it needs. For the json gem :symbolize_name, for yajl
@@ -512,11 +569,11 @@ module NATS
         !@uri.user.nil?
       end
 
-      def connect_command #:nodoc:
+      def connect_command
         cs = {
           :verbose  => @options[:verbose],
           :pedantic => @options[:pedantic],
-          :lang     => 'ruby-pure',
+          :lang     => :ruby2,
           :version  => NATS::IO::VERSION
         }
         if auth_connection?
@@ -547,23 +604,36 @@ module NATS
 
         synchronize do
           # If we were connected and configured to reconnect,
-          # then trigger disconnection and start reconnection logic
-          if @options[:reconnect] and connected?
+          # then trigger disconnect and start reconnection logic
+          if connected? and should_reconnect?
             @status = RECONNECTING
-
-            # Stop ping timer
-            @ping_interval_thread.kill if @ping_interval_thread.alive?
-
-            # Close socket if present
             @io.close if @io
+            @io = nil
 
             # TODO: Reconnecting pending buffer?
 
-            # Do reconnect
-            attempt_reconnect
+            # Reconnect under a different thread than the one
+            # which got the error.
+            Thread.new do
+              begin
+                # Abort currently running reads in case they're around
+                # FIXME: There might be more graceful way here...
+                @read_loop_thread.exit if @read_loop_thread.alive?
+                @flusher_thread.exit if @flusher_thread.alive?
+                @ping_interval_thread.exit if @ping_interval_thread.alive?
+
+                attempt_reconnect
+              rescue NoServersError => e
+                @last_err = e
+                close
+              end
+            end
+
+            Thread.exit
             return
           end
 
+          # Otherwise, stop trying to reconnect and close the connection
           @status = DISCONNECTED
           @last_err = e
         end
@@ -578,12 +648,18 @@ module NATS
           begin
             should_bail = synchronize do
               # FIXME: In case of reconnect as well?
-              return true if @status == CLOSED
+              @status == CLOSED or @status == RECONNECTING
             end
-            return if should_bail
+            if !@io or @io.closed? or should_bail
+              return
+            end
 
+            # TODO: Remove timeout and just wait to be ready
             data = @io.read(MAX_SOCKET_READ_BYTES)
             @parser.parse(data)
+          rescue Errno::ETIMEDOUT
+            # FIXME: We do not really need a timeout here...
+            retry
           rescue => e
             # In case of reading/parser errors, trigger
             # reconnection logic in case desired.
@@ -608,12 +684,32 @@ module NATS
           next if @pending_queue.empty?
 
           # FIXME: should limit how many commands to take at once
-          # since producers could be adding as much as possible
+          # since producers could be adding as many as possible
           # until reaching the max pending queue size.
+          cmds = []
+          cmds << @pending_queue.pop until @pending_queue.empty?
+          data = cmds.join
+
+          begin
+            # FIXME: We do not really need a timeout here
+            @io.write(data)
+
+          rescue Errno::ETIMEDOUT => e
+            #
+            # FIXME: We do not really need a timeout here
+            #
+          rescue => e
+            synchronize do
+              @last_err = e
+              @err_cb.call(e) if @err_cb
+            end
+
+            # TODO: Thread.exit?
+            process_op_error(e)
+            return
+          end if @io
+
           synchronize do
-            cmds = []
-            cmds << @pending_queue.pop until @pending_queue.empty?
-            @io.write(cmds.join)
             @pending_size = 0
           end
         end
@@ -626,7 +722,6 @@ module NATS
             # FIXME: Check if we have to dispatch callbacks.
             close
           end
-
           @pings_outstanding += 1
 
           send_command(PING_REQUEST)
@@ -636,79 +731,12 @@ module NATS
         process_op_error(e)
       end
 
-      # Reconnect logic, this is done while holding the lock.
-      def attempt_reconnect
-
-        # FIXME: There might be more graceful way here...
-        @flusher_thread.kill if @flusher_thread.alive?
-
-        @disconnect_cb.call(@last_err) if @disconnect_cb
-
-        # Clear sticky error
-        @last_err = nil
-
-        # Rotate server to use
-        current = server_pool.shift
-
-        # In case there was an error from the server we will take it out from rotation
-        # unless we specify infinite reconnects via setting :max_reconnect_attempts to -1
-        if current && (options[:max_reconnect_attempts] < 0 || can_reuse_server?(current))
-          server_pool << current
-        end
-
-        bind_primary
-        current = server_pool.first
-        current[:reconnect_attempts] ||= 0
-        current[:reconnect_attempts] += 1
-        sleep @options[:reconnect_time_wait] if current[:was_connected]
-
-        # Establish TCP connection with new server
-        @io = create_socket
-        @io.connect
-
+      def process_connect_init
         line = @io.read_line
         _, info_json = line.split(' ')
         process_info(info_json)
 
         # TODO: Handle upgrading connection to TLS secure connection
-
-        process_connect_init
-
-        # Now connected, so restart flusher and ping interval
-        @flusher_thread = Thread.new { flusher_loop }
-        @flusher_thread.abort_on_exception = true
-        @flush_queue.clear
-
-        @pings_outstanding = 0
-        @pongs_received = 0
-        @pongs.clear
-        @ping_interval_thread = Thread.new { ping_interval_loop }
-        @ping_interval_thread.abort_on_exception = true
-
-        # Replay all subscriptions
-        @subs.each_pair do |k, v|
-          @io.write("SUB #{v[:subject]} #{v[:queue]} #{k}#{CR_LF}")
-        end
-
-        # Flush anything which was left pending.
-        # TODO: In case of errors during flush then we should raise error
-        # then retry the reconnect logic with another server
-        cmds = []
-        cmds << @pending_queue.pop until @pending_queue.empty?
-        @io.write(cmds.join)
-        @pending_size = 0
-        @status = CONNECTED
-
-        @reconnect_cb.call if @reconnect_cb
-      end
-
-      def can_reuse_server?(server) #:nodoc:
-        # If we will retry a number of times to reconnect to a server
-        # unless we got an error from it already.
-        reconnecting? && server[:reconnect_attempts] <= @options[:max_reconnect_attempts] && !server[:error_received]
-      end
-
-      def process_connect_init
 
         # Send connect and process synchronously
         @io.write(connect_command)
@@ -736,6 +764,88 @@ module NATS
         end
       end
 
+      # Reconnect logic, this is done while holding the lock.
+      def attempt_reconnect
+        @disconnect_cb.call(@last_err) if @disconnect_cb
+
+        # Clear sticky error
+        @last_err = nil
+
+        # Do reconnect
+        begin
+          current = select_next_server
+
+          # Establish TCP connection with new server
+          @io = create_socket
+          @io.connect
+          @stats[:reconnects] += 1
+
+          # Established TCP connection successfully so can start connect
+          process_connect_init
+
+          # Reset reconnection attempts if connection is valid
+          current[:reconnect_attempts] = 0
+        rescue NoServersError => e
+          raise e
+        rescue => e
+          @last_err = e
+
+          # Continue retrying until there are no options left in the server pool
+          retry
+        end
+
+        # Clear pending flush calls before restarting loop
+        @flush_queue.clear
+
+        # Replay all subscriptions
+        @subs.each_pair do |k, v|
+          @io.write("SUB #{v[:subject]} #{v[:queue]} #{k}#{CR_LF}")
+        end
+
+        # Flush anything which was left pending.
+        # TODO: In case of errors during flush then we should raise error
+        # then retry the reconnect logic with another server
+        cmds = []
+        cmds << @pending_queue.pop until @pending_queue.empty?
+        @io.write(cmds.join)
+        @pending_size = 0
+        @status = CONNECTED
+
+        # Now connected to NATS, and we can restart reading, flusher and ping interval loops
+        @read_loop_thread = Thread.new { read_loop }
+        @read_loop_thread.abort_on_exception = true
+
+        @flusher_thread = Thread.new { flusher_loop }
+        @flusher_thread.abort_on_exception = true
+
+        @pings_outstanding = 0
+        @pongs_received = 0
+        @pongs.clear
+        @ping_interval_thread = Thread.new { ping_interval_loop }
+        @ping_interval_thread.abort_on_exception = true
+
+        # Dispatch the reconnected callback while holding lock too
+        @reconnect_cb.call if @reconnect_cb
+      end
+
+      def can_reuse_server?(server)
+        # We will retry a number of times to reconnect to a server
+        # unless we got a hard error from it already.
+        server[:reconnect_attempts] <= @options[:max_reconnect_attempts] && !server[:error_received]
+      end
+
+      def should_delay_connect?(server)
+        server[:was_connected] && server[:reconnect_attempts] >= 0
+      end
+
+      def should_not_reconnect?
+        !@options[:reconnect]
+      end
+
+      def should_reconnect?
+        @options[:reconnect]
+      end
+
       def create_socket
         NATS::IO::Socket.new({
           :uri             => @uri,
@@ -752,56 +862,104 @@ module NATS
 
     class Socket
 
+      # Exceptions raised during non-blocking I/O ops that require retrying the op
+      NBIO_EXCEPTIONS = [Errno::EWOULDBLOCK, Errno::EAGAIN]
+      NBIO_EXCEPTIONS << ::IO::WaitReadable if RUBY_VERSION >= "1.9.3"
+
       def initialize(options={})
         @uri = options[:uri]
         @connect_timeout = options[:connect_timeout]
         @write_timeout = options[:write_timeout]
         @read_timeout = options[:read_timeout]
+      end
 
-        addr = ::Socket.getaddrinfo(@uri.host, nil)
-        @sockaddr = ::Socket.pack_sockaddr_in(@uri.port, addr[0][3])
-        @socket = ::Socket.new(::Socket.const_get(addr[0][0]), ::Socket::SOCK_STREAM, 0)
+      def connect
+        addrinfo = ::Socket.getaddrinfo(@uri.host, nil, ::Socket::AF_UNSPEC, ::Socket::SOCK_STREAM)
+        addrinfo.each_with_index do |ai, i|
+          begin
+            @socket = connect_addrinfo(ai, @uri.port, @connect_timeout)
+          rescue SystemCallError
+            # Give up if no more available
+            raise if addrinfo.length == i+1
+          end
+        end
 
         # Set TCP no delay by default
         @socket.setsockopt(::Socket::IPPROTO_TCP, ::Socket::TCP_NODELAY, 1)
       end
 
-      def connect
-        return @socket.connect(sockaddr) unless @connect_timeout
+      def write(data)
+        length = data.bytesize
+        total_written = 0
 
-        begin
-          @socket.connect_nonblock(@sockaddr)
-        rescue Errno::EINPROGRESS
-          raise Errno::ETIMEDOUT unless ::IO.select(nil, [@socket], nil, @connect_timeout)
-
-          # Confirm that connection was established
+        loop do
           begin
-            @socket.connect_nonblock(@sockaddr)
-          rescue Errno::EISCONN
-            # Connection was established without issues.
+            written = @socket.write_nonblock(data)
+
+            total_written += written
+            break total_written if total_written >= length
+            data = data.byteslice(written..-1)
+          rescue *NBIO_EXCEPTIONS
+            if ::IO.select(nil, [@socket], nil, @write_timeout)
+              retry
+            else
+              raise Errno::ETIMEDOUT
+            end
           end
         end
-      end
 
-      def write(bytes)
-        raise Errno::ETIMEDOUT unless ::IO.select(nil, [@socket], nil, @write_timeout)
-        @socket.write(bytes)
+      rescue EOFError
+        raise Errno::ECONNRESET
       end
 
       def read_line
-        raise Errno::ETIMEDOUT unless ::IO.select(nil, [@socket], nil, @read_timeout)
+        # FIXME: Should accumulate and read in a non blocking way instead
+        raise Errno::ETIMEDOUT unless ::IO.select([@socket], nil, nil, @read_timeout)
         @socket.gets
       end
 
       def read(max_bytes)
-        raise Errno::ETIMEDOUT unless ::IO.select(nil, [@socket], nil, @read_timeout)
-        data, _ = @socket.recvfrom(max_bytes)
-
-        data
+        begin
+          @socket.read_nonblock(max_bytes)
+        rescue *NBIO_EXCEPTIONS
+          if ::IO.select([@socket], nil, nil, @read_timeout)
+            retry
+          else
+            raise Errno::ETIMEDOUT
+          end
+        end
+      rescue EOFError
+        raise Errno::ECONNRESET
       end
 
       def close
         @socket.close
+      end
+
+      def closed?
+        @socket.closed?
+      end
+
+      private
+
+      def connect_addrinfo(ai, port, timeout)
+        sock = ::Socket.new(::Socket.const_get(ai[0]), ::Socket::SOCK_STREAM, 0)
+        sockaddr = ::Socket.pack_sockaddr_in(port, ai[3])
+
+        begin
+          sock.connect_nonblock(sockaddr)
+        rescue Errno::EINPROGRESS
+          raise Errno::ETIMEDOUT unless ::IO.select(nil, [sock], nil, @connect_timeout)
+
+          # Confirm that connection was established
+          begin
+            sock.connect_nonblock(sockaddr)
+          rescue Errno::EISCONN
+            # Connection was established without issues.
+          end
+        end
+
+        sock
       end
     end
   end

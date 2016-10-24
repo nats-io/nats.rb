@@ -54,6 +54,7 @@ describe 'Client - Reconnect' do
     nats.flush
 
     nats.publish("foo", "hello.0")
+    nats.flush
     @s.kill_server
 
     1.upto(10).each do |n|
@@ -65,13 +66,15 @@ describe 'Client - Reconnect' do
 
     mon.synchronize { done.wait(1) }
     expect(disconnects).to eql(1)
-    expect(msgs.count).to eql(10)
+    expect(msgs.count).to eql(11)
 
     # Cannot guarantee to get all of them since the server
     # was interrupted during send but at least some which
     # were pending during reconnect should have made it.
     expect(msgs.count > 5).to eql(true)
     expect(nats.status).to eql(NATS::IO::CONNECTED)
+
+    nats.close
   end
 
   it 'should abort reconnecting if disabled' do
@@ -125,5 +128,7 @@ describe 'Client - Reconnect' do
     mon.synchronize { done.wait(1) }
     expect(nats.last_error).to be_a(Errno::ECONNRESET)
     expect(nats.status).to eql(NATS::IO::CLOSED)
+
+    nats.close
   end
 end

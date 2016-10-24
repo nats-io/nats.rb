@@ -1,6 +1,7 @@
 require 'spec_helper'
+require 'time'
 
-describe 'Client - cluster reconnect' do
+describe 'Client - Cluster reconnect' do
 
   before(:all) do
     auth_options = {
@@ -136,5 +137,82 @@ describe 'Client - cluster reconnect' do
     expect(reconnects).to eql(1)
     expect(disconnects).to eql(2)
     expect(closes).to eql(1)
+  end
+
+  it 'should gracefully reconnect to another available server while publishing' do
+    @s3.kill_server
+
+    mon = Monitor.new
+    reconnected = mon.new_cond
+
+    nats = NATS::IO::Client.new
+    nats.connect({
+      servers: [@s1.uri, @s2.uri],
+      dont_randomize_servers: true
+    })
+
+    disconnects = 0
+    nats.on_disconnect do |e|
+      disconnects += 1
+    end
+
+    closes = 0
+    nats.on_close do
+      closes += 1
+    end
+
+    reconnects = 0
+    nats.on_reconnect do |s|
+      reconnects += 1
+      mon.synchronize do
+        reconnected.signal
+      end
+    end
+
+    errors = []
+    nats.on_error do |e|
+      errors << e
+    end
+
+    msgs = []
+    nats.subscribe("hello.*") do |msg|
+      msgs << msg
+    end
+    nats.flush
+    expect(nats.connected_server).to eql(@s1.uri)
+
+    msg_payload = "A" * 10_000
+    1000.times do |n|
+      # Receive 100 messages initially and then failover
+      case
+      when n == 100
+        nats.flush
+        expect(msgs.count).to eql(100)
+        @s1.kill_server
+      when (n % 100 == 0)
+        # puts "#{Time.now.utc.iso8601(6)}\t-\t#{n}\t-\tsleep\t-\t#{nats.stats}"
+        # yield a millisecond
+        sleep 0.001
+      end
+
+      # Messages sent here can be lost
+      nats.publish("hello.#{n}", msg_payload)
+    end
+
+    # Flush everything we have sent so far
+    nats.flush(5)
+    errors = []
+    errors.each do |e|
+      errors << e
+    end
+    # expect(errors.first).to be_kind_of(Errno::EPIPE)
+    mon.synchronize { reconnected.wait(1) }
+    expect(nats.connected_server).to eql(@s2.uri)
+    nats.close
+
+    expect(reconnects).to eql(1)
+    expect(disconnects).to eql(2)
+    expect(closes).to eql(1)
+    expect(errors).to be_empty
   end
 end

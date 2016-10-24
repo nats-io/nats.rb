@@ -20,10 +20,16 @@ describe 'Client - Specification' do
       errors << e
     end
 
+    # Trigger invalid subject server error which the client
+    # detects so that it will disconnect
     nats.subscribe("hello.")
-    nats.flush
-    nats.close
 
+    # FIXME: This can fail due to timeout because
+    # disconnection may have already occurred.
+    nats.flush(1) rescue nil
+
+    # Should have a connection closed at this without reconnecting.
+    expect(nats.closed?).to eql(true)
     expect(errors.count).to eql(1)
     expect(errors.first).to be_a(NATS::IO::ServerError)
   end

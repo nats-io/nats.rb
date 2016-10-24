@@ -12,8 +12,6 @@ module NATS
     AWAITING_CONTROL_LINE = 1
     AWAITING_MSG_PAYLOAD  = 2
 
-    MAX_CONTROL_LINE_SIZE = 1024
-
     CR_LF = ("\r\n".freeze)
     CR_LF_SIZE = (CR_LF.bytesize)
 
@@ -60,7 +58,8 @@ module NATS
             when INFO
               @buf = $'
               # First INFO message is processed synchronously on connect,
-              # technically this should not be used by the parser right now.
+              # and onwards we would be receiving asynchronously INFO commands
+              # signaling possible changes in the topology of the NATS cluster.
               # @nc.process_info($1)
             when UNKNOWN
               @buf = $'
