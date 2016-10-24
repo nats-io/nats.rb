@@ -221,12 +221,7 @@ module NATS
         @stats[:out_msgs] += 1
         @stats[:out_bytes] += msg_size
 
-        # Split the command in control line from payload here since concatenation
-        # happening on flush anyway.
-        send_command("PUB #{subject} #{opt_reply} #{msg_size}\r\n")
-        send_command(msg)
-        send_command("\r\n")
-
+        send_command("PUB #{subject} #{opt_reply} #{msg_size}\r\n#{msg}\r\n")
         @flush_queue << :pub if @flush_queue.empty?
       end
 
