@@ -254,12 +254,12 @@ describe 'Client - TLS spec', :jruby_excluded do
           connects += 1
         end
 
-        nc.subscribe("hello") do |msg|
+        sid = nc.subscribe("hello") do |msg|
           messages << msg
         end
         nc.flush do
           nc.publish("hello", "world") do
-            nc.unsubscribe("hello")
+            nc.unsubscribe(sid)
             nc.close
             expect(messages.count).to eql(1)
           end
@@ -312,12 +312,12 @@ describe 'Client - TLS spec', :jruby_excluded do
           connects += 1
         end
 
-        nc.subscribe("hello") do |msg|
+        sid = nc.subscribe("hello") do |msg|
           messages << msg
         end
         nc.flush do
           nc.publish("hello", "world") do
-            nc.unsubscribe("hello")
+            nc.unsubscribe(sid)
             nc.close
           end
         end
@@ -375,12 +375,12 @@ describe 'Client - TLS spec', :jruby_excluded do
           connects += 1
         end
 
-        nc.subscribe("hello") do |msg|
+        sid = nc.subscribe("hello") do |msg|
           messages << msg
         end
         nc.flush do
           nc.publish("hello", "world") do
-            nc.unsubscribe("hello")
+            nc.unsubscribe(sid)
             nc.close
           end
         end
@@ -549,12 +549,12 @@ describe 'Client - TLS spec', :jruby_excluded do
           connects += 1
         end
 
-        nc.subscribe("hello") do |msg|
+        sid = nc.subscribe("hello") do |msg|
           messages << msg
         end
         nc.flush do
           nc.publish("hello", "world") do
-            nc.unsubscribe("hello")
+            nc.unsubscribe(sid)
             nc.close
           end
         end
@@ -606,12 +606,12 @@ describe 'Client - TLS spec', :jruby_excluded do
           connects += 1
         end
 
-        nc.subscribe("hello") do |msg|
+        sid = nc.subscribe("hello") do |msg|
           messages << msg
         end
         nc.flush do
           nc.publish("hello", "world") do
-            nc.unsubscribe("hello")
+            nc.unsubscribe(sid)
             nc.close
           end
         end
@@ -779,12 +779,12 @@ describe 'Client - TLS spec', :jruby_excluded do
           connects += 1
         end
 
-        nc.subscribe("hello") do |msg|
+        sid = nc.subscribe("hello") do |msg|
           messages << msg
         end
         nc.flush do
           nc.publish("hello", "world") do
-            nc.unsubscribe("hello")
+            nc.unsubscribe(sid)
             nc.close
             future.resume(nc)
           end
@@ -841,12 +841,12 @@ describe 'Client - TLS spec', :jruby_excluded do
           connects += 1
         end
 
-        nc.subscribe("hello") do |msg|
+        sid = nc.subscribe("hello") do |msg|
           messages << msg
         end
         nc.flush do
           nc.publish("hello", "world") do
-            nc.unsubscribe("hello")
+            nc.unsubscribe(sid)
             nc.close
             future.resume(nc)
           end
@@ -902,12 +902,12 @@ describe 'Client - TLS spec', :jruby_excluded do
           connects += 1
         end
 
-        nc.subscribe("hello") do |msg|
+        sid = nc.subscribe("hello") do |msg|
           messages << msg
         end
         nc.flush do
           nc.publish("hello", "world") do
-            nc.unsubscribe("hello")
+            nc.unsubscribe(sid)
             nc.close
           end
         end
@@ -917,6 +917,93 @@ describe 'Client - TLS spec', :jruby_excluded do
       expect(closes).to eql(1)
       expect(reconnects).to eql(0)
       expect(disconnects).to eql(0)
+    end
+  end
+
+  context 'when servers require TLS' do
+
+    before(:each) do
+      @tls_server = NatsServerControl.new("nats://127.0.0.1:4445", '/tmp/test-nats-4445.pid', "-c ./spec/configs/tls-no-auth.conf")
+      @tls_server.start_server
+      @tls_server2 = NatsServerControl.new("nats://127.0.0.1:4446", '/tmp/test-nats-4446.pid', "-c ./spec/configs/tls-no-auth.conf")
+      @tls_server2.start_server
+    end
+
+    after(:each) do
+      @tls_server.kill_server if NATS.server_running?(@tls_server.uri)
+      @tls_server2.kill_server if NATS.server_running?(@tls_server2.uri)
+    end
+
+    it 'should connect securely to server and reconnect' do
+      errors = []
+      messages = []
+      connects = 0
+      reconnects = 0
+      disconnects = 0
+      closes = 0
+
+      with_em_timeout(10) do |future|
+        NATS.on_error do |e|
+          errors << e
+        end
+
+        NATS.on_disconnect do |e|
+          disconnects += 1
+        end
+
+        NATS.on_reconnect do
+          reconnects += 1
+        end
+
+        NATS.on_close do
+          closes += 1
+        end
+
+        options = {
+          :servers => ['nats://127.0.0.1:4445','nats://127.0.0.1:4446'],
+          :max_reconnect_attempts => 1,
+          :dont_randomize_servers => true,
+          :tls => {
+            :ssl_version => :TLSv1_2,
+            :protocols => [:tlsv1_2],
+            :private_key_file => './spec/configs/certs/key.pem',
+            :cert_chain_file  => './spec/configs/certs/server.pem',
+          }
+        }
+
+        # Confirm connect is ok
+        nc = NATS.connect(options) do |conn|
+          expect(conn.connected_server).to eql(URI.parse('nats://127.0.0.1:4445'))
+
+          connects += 1
+        end
+        sid = nc.subscribe("hello") do |msg|
+          messages << msg
+        end
+        nc.flush do
+          nc.publish("hello", "world")
+        end
+
+        # Confirm that the client reconnects
+        EM.add_timer(1) do
+          @tls_server.kill_server
+        end
+
+        # Should be reconnected at this point and subscriptions replayed
+        EM.add_timer(2) do
+          nc.flush do
+            nc.publish("hello", "again") do
+              nc.unsubscribe(sid)
+              nc.close
+              future.resume
+            end
+          end
+        end
+      end
+      expect(errors.count).to eql(0)
+      expect(messages.count).to eql(2)
+      expect(disconnects).to eql(1)
+      expect(closes).to eql(1)
     end
   end
 end
