@@ -225,5 +225,51 @@ describe 'Client - cluster reconnect' do
         end
       end
     end
+
+    it 'should never remove servers due to client triggered disconnect' do
+      @s3.kill_server # Server is offline though it still is discovered
+
+      options = {
+        :dont_randomize_servers => true,
+        :servers => [@s1.uri, @s2.uri],
+        :reconnect => true,
+        :max_reconnect_attempts => -1,
+        :reconnect_time_wait => 2
+      }
+
+      with_em_timeout do |future|
+        errors = []
+        reconnects = 0
+        NATS.start(options) do |nc|
+          nc.on_error do |e|
+            errors << e
+          end
+
+          nc.on_reconnect do
+            reconnects += 1
+          end
+          expect(nc.connected_server).to eql(@s1.uri)
+          expect(nc.server_pool.size).to eq(3)
+
+          messages = []
+          nc.subscribe("hello") do |msg|
+            messages << msg
+          end
+
+          payload = nc.server_info[:max_payload] + 100
+          nc.publish("hello", 'A' * payload)
+
+          EM.add_timer(1) { @s1.kill_server }
+          EM.add_timer(2) do
+            expect(nc.connected_server).to eql(@s2.uri)
+            expect(errors.count).to eql(1)
+            expect(nc.server_pool.size).to eq(3)
+            expect(messages.count).to eql(0)
+            nc.close
+            future.resume
+          end
+        end
+      end
+    end
   end
 end
