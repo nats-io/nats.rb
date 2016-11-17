@@ -1,0 +1,19 @@
+rvm:
+  - 2.2
+  - 2.3.2
+  - 2.4.0-preview1
+  - ruby-head  
+
+cache:
+  directories:
+  - $HOME/gnatsd
+
+before_install:
+  - bash ./scripts/install_gnatsd.sh
+
+before_script:
+  - export PATH=$HOME/gnatsd:$PATH
+
+sudo: required
+dist: trusty
+
