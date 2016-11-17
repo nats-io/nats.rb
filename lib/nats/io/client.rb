@@ -7,6 +7,12 @@ require 'monitor'
 require 'uri'
 require 'securerandom'
 
+begin
+  require "openssl"
+rescue LoadError
+  # Not all systems have OpenSSL support
+end
+
 module NATS
   module IO
 
@@ -110,7 +116,7 @@ module NATS
         @subs = { }
         @ssid = 0
 
-        # TODO: connect, reconnect, close, disconnect callbacks
+        # Ping interval
         @pings_outstanding = 0
         @pongs_received = 0
         @pongs = []
@@ -129,9 +135,14 @@ module NATS
         # Sticky error
         @last_err = nil
 
+        # Async callbacks
         @err_cb = proc { |e| raise e }
         @close_cb = proc { }
         @disconnect_cb = proc { }
+        @reconnect_cb = proc { }
+
+        # Secure TLS options
+        @tls = nil
       end
 
       # Establishes connection to NATS
@@ -139,20 +150,17 @@ module NATS
         opts[:verbose] = false if opts[:verbose].nil?
         opts[:pedantic] = false if opts[:pedantic].nil?
         opts[:reconnect] = true if opts[:reconnect].nil?
-        opts[:max_reconnect_attempts] = MAX_RECONNECT_ATTEMPTS if opts[:max_reconnect_attempts].nil?
         opts[:reconnect_time_wait] = RECONNECT_TIME_WAIT if opts[:reconnect_time_wait].nil?
+        opts[:max_reconnect_attempts] = MAX_RECONNECT_ATTEMPTS if opts[:max_reconnect_attempts].nil?
         opts[:ping_interval] = DEFAULT_PING_INTERVAL if opts[:ping_interval].nil?
         opts[:max_outstanding_pings] = DEFAULT_PING_MAX if opts[:max_outstanding_pings].nil?
 
         # Override with ENV
         opts[:verbose] = ENV['NATS_VERBOSE'].downcase == 'true' unless ENV['NATS_VERBOSE'].nil?
         opts[:pedantic] = ENV['NATS_PEDANTIC'].downcase == 'true' unless ENV['NATS_PEDANTIC'].nil?
-        opts[:debug] = ENV['NATS_DEBUG'].downcase == 'true' unless ENV['NATS_DEBUG'].nil?
         opts[:reconnect] = ENV['NATS_RECONNECT'].downcase == 'true' unless ENV['NATS_RECONNECT'].nil?
-        opts[:fast_producer_error] = ENV['NATS_FAST_PRODUCER'].downcase == 'true' unless ENV['NATS_FAST_PRODUCER'].nil?
-        opts[:ssl] = ENV['NATS_SSL'].downcase == 'true' unless ENV['NATS_SSL'].nil?
-        opts[:max_reconnect_attempts] = ENV['NATS_MAX_RECONNECT_ATTEMPTS'].to_i unless ENV['NATS_MAX_RECONNECT_ATTEMPTS'].nil?
         opts[:reconnect_time_wait] = ENV['NATS_RECONNECT_TIME_WAIT'].to_i unless ENV['NATS_RECONNECT_TIME_WAIT'].nil?
+        opts[:max_reconnect_attempts] = ENV['NATS_MAX_RECONNECT_ATTEMPTS'].to_i unless ENV['NATS_MAX_RECONNECT_ATTEMPTS'].nil?
         opts[:ping_interval] = ENV['NATS_PING_INTERVAL'].to_i unless ENV['NATS_PING_INTERVAL'].nil?
         opts[:max_outstanding_pings] = ENV['NATS_MAX_OUTSTANDING_PINGS'].to_i unless ENV['NATS_MAX_OUTSTANDING_PINGS'].nil?
         @options = opts
@@ -163,6 +171,9 @@ module NATS
         uris.each do |u|
           @server_pool << { :uri => u.is_a?(URI) ? u.dup : URI.parse(u) }
         end
+
+        # Check for TLS usage
+        @tls = @options[:tls]
 
         begin
           current = select_next_server
@@ -438,7 +449,9 @@ module NATS
           begin
             cmds = []
             cmds << @pending_queue.pop until @pending_queue.empty?
-            @io.write(cmds.join)
+
+            # FIXME: Fails when empty on TLS connection?
+            @io.write(cmds.join) unless cmds.empty?
           rescue => e
             @last_err = e
             @err_cb.call(e) if @err_cb
@@ -543,18 +556,6 @@ module NATS
 
             info
           end
-
-          # TODO: Handle upgrading connection to TLS secure connection
-
-          if server_using_secure_connection?
-            @err_cb.call(NATS::IO::ClientError.new('TLS/SSL required by server'))
-            return
-          end
-
-          if @server_info[:auth_required]
-            current = server_pool.first
-            current[:auth_required] = true
-          end
         end
 
         @server_info
@@ -562,6 +563,10 @@ module NATS
 
       def server_using_secure_connection?
         @server_info[:ssl_required] || @server_info[:tls_required]
+      end
+
+      def client_using_secure_connection?
+        @uri.scheme == "tls" || @tls
       end
 
       def send_command(command)
@@ -694,11 +699,9 @@ module NATS
           # until reaching the max pending queue size.
           cmds = []
           cmds << @pending_queue.pop until @pending_queue.empty?
-          data = cmds.join
-
           begin
             # FIXME: We do not really need a timeout here
-            @io.write(data)
+            @io.write(cmds.join) unless cmds.empty?
 
           rescue Errno::ETIMEDOUT => e
             #
@@ -742,9 +745,38 @@ module NATS
         _, info_json = line.split(' ')
         process_info(info_json)
 
-        # TODO: Handle upgrading connection to TLS secure connection
+        case
+        when (server_using_secure_connection? and client_using_secure_connection?)
+          tls_context = nil
 
-        # Send connect and process synchronously
+          if @tls
+            # Allow prepared context and customizations via :tls opts
+            tls_context = @tls[:context] if @tls[:context]
+          else
+            # Defaults
+            tls_context = OpenSSL::SSL::SSLContext.new
+            tls_context.ssl_version = :TLSv1_2
+          end
+
+          # Setup TLS connection by rewrapping the socket
+          tls_socket = OpenSSL::SSL::SSLSocket.new(@io.socket, tls_context)
+          tls_socket.connect
+          @io.socket = tls_socket
+        when (server_using_secure_connection? and !client_using_secure_connection?)
+          raise NATS::IO::ConnectError.new('TLS/SSL required by server')
+        when (client_using_secure_connection? and !server_using_secure_connection?)
+          raise NATS::IO::ConnectError.new('TLS/SSL not supported by server')
+        else
+          # Otherwise, use a regular connection.
+        end
+
+        if @server_info[:auth_required]
+          current = server_pool.first
+          current[:auth_required] = true
+        end
+
+        # Send connect and process synchronously. If using TLS,
+        # it should have handled upgrading at this point.
         @io.write(connect_command)
 
         # Send ping/pong after connect
@@ -814,7 +846,7 @@ module NATS
         # then we should raise error then retry the reconnect logic
         cmds = []
         cmds << @pending_queue.pop until @pending_queue.empty?
-        @io.write(cmds.join)
+        @io.write(cmds.join) unless cmds.empty?
         @status = CONNECTED
         @pending_size = 0
 
@@ -871,7 +903,11 @@ module NATS
       include MonitorMixin
     end
 
+    # Implementation adapted from https://github.com/redis/redis-rb
     class Socket
+      attr_accessor :socket
+
+      # Exceptions raised during non-blocking I/O ops that require retrying the op
       IO_EXCEPTIONS = [Errno::EWOULDBLOCK, Errno::EAGAIN, ::IO::WaitReadable]
 
       def initialize(options={})
@@ -879,6 +915,7 @@ module NATS
         @connect_timeout = options[:connect_timeout]
         @write_timeout = options[:write_timeout]
         @read_timeout = options[:read_timeout]
+        @socket = nil
       end
 
       def connect

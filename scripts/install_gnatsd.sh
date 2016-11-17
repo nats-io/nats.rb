@@ -2,7 +2,7 @@
 
 set -e
 
-
+if [ ! "$(ls -A $HOME/gnatsd)" ]; then
   mkdir -p $HOME/gnatsd
   cd $HOME/gnatsd
   wget https://github.com/nats-io/gnatsd/releases/download/v0.9.4/gnatsd-v0.9.4-linux-amd64.zip -O gnatsd.zip
