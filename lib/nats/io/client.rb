@@ -584,9 +584,16 @@ module NATS
         cs = {
           :verbose  => @options[:verbose],
           :pedantic => @options[:pedantic],
-          :lang     => :ruby2,
           :version  => NATS::IO::VERSION
         }
+
+        case RUBY_PLATFORM
+        when "java"
+          cs[:lang] = :jruby2
+        else
+          cs[:lang] = :ruby2
+        end
+
         if auth_connection?
           cs[:user] = @uri.user
           cs[:pass] = @uri.password
