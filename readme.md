@@ -101,6 +101,24 @@ loop do
 end
 ```
 
+## TLS
+
+It is possible to setup a custom TLS connection to NATS by passing
+an [OpenSSL](http://ruby-doc.org/stdlib-2.3.2/libdoc/openssl/rdoc/OpenSSL/SSL/SSLContext.html) context to the client to be used on connect:
+
+```ruby
+tls_context = OpenSSL::SSL::SSLContext.new
+tls_context.ssl_version = :TLSv1_2
+
+nats.connect({
+ servers: ['tls://127.0.0.1:4444'],
+ reconnect: false,
+ tls: {
+   context: tls_context
+ }
+})
+```
+
 ## License
 
 (The MIT License)
