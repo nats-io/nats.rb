@@ -150,12 +150,12 @@ describe 'Client - Specification' do
     nc.close
   end
 
-  it 'should be raise timeout error if timed request does not get response' do
+  it 'should raise timeout error if timed request does not get response' do
     nc = NATS::IO::Client.new
     nc.connect(:servers => ["nats://127.0.0.1:4222"])
 
     expect do
-      nc.timed_request("hello", "timeout")
+      nc.timed_request("hello", "timeout", 1)
     end.to raise_error(NATS::IO::Timeout)
 
     nc.close
