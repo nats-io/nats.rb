@@ -29,8 +29,6 @@ matrix:
     - rvm: jruby
       env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
       jdk: oraclejdk8
-    - rvm: 2.3.2
-      env: EVENTMACHINE_LIBRARY="pure_ruby"
   allow_failures:
     - rvm: jruby
       env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'

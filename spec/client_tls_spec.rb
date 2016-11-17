@@ -1,10 +1,40 @@
 require 'spec_helper'
 require 'openssl'
+require 'erb'
 
 describe 'Client - TLS spec' do
+
   context 'when server requires TLS and no auth needed' do
     before(:each) do
-      @tls_no_auth = NatsServerControl.new("nats://127.0.0.1:4444", '/tmp/test-nats-4444.pid', "-c ./spec/configs/tls-no-auth.conf")
+      opts = {
+        'pid_file' => '/tmp/test-nats-4444.pid',
+        'host' => '127.0.0.1',
+        'port' => 4444
+      }
+      config = ERB.new(%Q(
+        net:  "<%= opts['host'] %>"
+        port: <%= opts['port'] %>
+
+        tls {
+          cert_file:  "./spec/configs/certs/server.pem"
+          key_file:   "./spec/configs/certs/key.pem"
+          timeout:    10
+
+          <% if RUBY_PLATFORM == "java" %>
+          # JRuby is sensible to the ciphers being used
+          # so we specify the ones that are available on it here.
+          # See: https://github.com/jruby/jruby/issues/1738
+          cipher_suites: [
+            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+            "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+            "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+            "TLS_RSA_WITH_AES_128_CBC_SHA",
+            "TLS_RSA_WITH_AES_256_CBC_SHA",
+            "TLS_RSA_WITH_3DES_EDE_CBC_SHA"
+          ]
+          <% end %>
+      }))
+      @tls_no_auth = NatsServerControl.init_with_config_from_string(config.result(binding), opts)
       @tls_no_auth.start_server
     end
 
