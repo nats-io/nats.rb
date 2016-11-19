@@ -33,7 +33,7 @@ sid = nats.subscribe('bar') { |msg| puts "Received : '#{msg}'" }
 nats.unsubscribe(sid)
 
 # Requests
-nats.request('help') { |response| puts "Got a response: '#{response}'" }
+nats.request('help', 'please') { |response| puts "Got a response: '#{response}'" }
 
 # Replies
 nats.subscribe('help') do |msg, reply, subject|
@@ -43,7 +43,7 @@ end
 
 # Request with timeout
 begin
-  msg = nats.timed_request('help', 'please', 0.5)
+  msg = nats.request('help', 'please', timeout: 0.5)
   puts "Received on '#{msg[:subject]}': #{msg[:data]}"
 rescue NATS::IO::Timeout
   puts "nats: request timed out"

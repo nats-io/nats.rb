@@ -35,7 +35,6 @@ nats.subscribe("hello") {|data| msgs_received += 1; bytes_received += data.size 
 Thread.new do
   loop do
     puts "#{Time.now} #{Thread.list.count} - [Sent/Received] #{msgs_sent}/#{msgs_received} msgs (#{msgs_sent - msgs_received}) | [Received] #{bytes_sent}/#{bytes_received} B (#{bytes_sent - bytes_received})"
-    p Thread.list
     sleep 1
   end
 end

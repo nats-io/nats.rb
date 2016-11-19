@@ -55,8 +55,8 @@ describe 'Client - Specification' do
     nc.flush
 
     responses = []
-    responses << nc.timed_request("help", 'please', 1)
-    responses << nc.timed_request("help", 'again', 1)
+    responses << nc.request("help", 'please', timeout: 1)
+    responses << nc.request("help", 'again', timeout: 1)
     expect(responses.count).to eql(2)
     expect(responses.first[:data]).to eql('reply.1')
     expect(responses.last[:data]).to eql('reply.2')
@@ -155,7 +155,7 @@ describe 'Client - Specification' do
     nc.connect(:servers => ["nats://127.0.0.1:4222"])
 
     expect do
-      nc.timed_request("hello", "timeout", 1)
+      nc.request("hello", "timeout", timeout: 1)
     end.to raise_error(NATS::IO::Timeout)
 
     nc.close
@@ -191,7 +191,7 @@ describe 'Client - Specification' do
     responses = []
     expect do
       3.times do
-        responses << nc.timed_request("help", "please", 1)
+        responses << nc.request("help", "please", timeout: 1)
       end
     end.to_not raise_error
     expect(responses.count).to eql(3)
