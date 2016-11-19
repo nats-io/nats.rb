@@ -10,7 +10,6 @@ require 'securerandom'
 begin
   require "openssl"
 rescue LoadError
-  # Not all systems have OpenSSL support
 end
 
 module NATS
@@ -257,25 +256,35 @@ module NATS
         sid
       end
 
-      # Creates a requests which is handled asynchronously via a callback.
-      def request(subject, data=nil, opts={}, &cb)
-        return unless subject
-        inbox = new_inbox
-        s = subscribe(inbox, opts) do |msg, reply|
-          case cb.arity
-          when 0 then cb.call
-          when 1 then cb.call(msg)
-          else cb.call(msg, reply)
-          end
-        end
-        publish(subject, data, inbox)
-      end
-
       # Sends a request expecting a single response or raises a timeout
       # in case the request is not retrieved within the specified deadline.
-      def timed_request(subject, payload, timeout=0.5)
-        sub = Subscription.new
+      # If given a callback, then the request happens asynchronously.
+      def request(subject, payload, opts={}, &blk)
+        return unless subject
         inbox = new_inbox
+
+        # If a callback was passed, then have it process
+        # the messages asynchronously and return the sid.
+        if blk
+          opts[:max] ||= 1
+          s = subscribe(inbox, opts) do |msg, reply|
+            case blk.arity
+            when 0 then blk.call
+            when 1 then blk.call(msg)
+            else blk.call(msg, reply)
+            end
+          end
+          publish(subject, payload, inbox)
+
+          return s
+        end
+
+        # In case block was not given, handle synchronously
+        # with a timeout and only allow a single response.
+        timeout = opts[:timeout] ||= 0.5
+        opts[:max] = 1
+
+        sub = Subscription.new
         future = sub.new_cond
         sub[:subject]  = inbox
         sub[:future]   = future
@@ -455,17 +464,19 @@ module NATS
           rescue => e
             @last_err = e
             @err_cb.call(e) if @err_cb
-          end if @io or @io.closed?
+          end if @io and not @io.closed?
 
           # TODO: Destroy any remaining subscriptions
           @disconnect_cb.call if @disconnect_cb
           @close_cb.call if @close_cb
-        end
 
-        # Close the established connection in case
-        # we still have it.
-        @io.close
-        @io = nil
+          # Close the established connection in case
+          # we still have it.
+          if @io
+            @io.close
+            @io = nil
+          end
+        end
       end
 
       def new_inbox
