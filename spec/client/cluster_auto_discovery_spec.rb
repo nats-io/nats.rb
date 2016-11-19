@@ -154,6 +154,7 @@ describe 'Client - cluster auto discovery' do
           # Should have detected new server asynchronously
           servers_after_connect = nats.server_pool.count
           expect(nats.server_pool.first[:uri]).to eql(nats.connected_server)
+          expect(nats.discovered_servers.count).to eql(2)
         end
       end
     end
@@ -285,7 +286,7 @@ describe 'Client - cluster auto discovery' do
       end
 
       NATS.connect({
-          :servers => ["nats://#{@s1.uri.host}:#{@s1.uri.port}"], 
+          :servers => ["nats://#{@s1.uri.host}:#{@s1.uri.port}"],
           :dont_randomize_servers => true,
           :user => @s1.uri.user,
           :pass => @s1.uri.password
