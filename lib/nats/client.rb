@@ -10,7 +10,6 @@ require "#{ep}/version"
 
 module NATS
 
-  PROTOCOL_VERSION = 1
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
 
@@ -519,17 +518,10 @@ module NATS
     cs = {
       :verbose => @options[:verbose],
       :pedantic => @options[:pedantic],
-      :version => VERSION,
-      :protocol => PROTOCOL_VERSION
+      :lang => ::NATS::LANG,
+      :version => ::NATS::VERSION,
+      :protocol => ::NATS::PROTOCOL_VERSION
     }
-
-    case RUBY_PLATFORM
-    when "java"
-      cs[:lang] = :jruby
-    else
-      cs[:lang] = :ruby
-    end
-
     if auth_connection?
       cs[:user] = @uri.user
       cs[:pass] = @uri.password
