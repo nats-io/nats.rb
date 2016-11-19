@@ -584,9 +584,10 @@ module NATS
         cs = {
           :verbose  => @options[:verbose],
           :pedantic => @options[:pedantic],
-          :lang     => :ruby2,
+          :lang     => NATS::IO::LANG,
           :version  => NATS::IO::VERSION
         }
+
         if auth_connection?
           cs[:user] = @uri.user
           cs[:pass] = @uri.password

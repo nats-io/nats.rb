@@ -45,7 +45,7 @@ describe 'Client - Thread safety' do
     end
 
     # More than enough for subscriptions to have been flushed already.
-    sleep 0.500
+    sleep 1
 
     thr_c = Thread.new do
       (1..100).step(2) do |n|
@@ -61,7 +61,7 @@ describe 'Client - Thread safety' do
       component.nats.flush
     end
 
-    sleep 0.500
+    sleep 1
     expect(component.msgs.count).to eql(100)
 
     result = component.msgs.select { |msg| msg[:subject] != "hello" && msg[:data].to_i % 2 == 1 }
