@@ -681,7 +681,7 @@ module NATS
             u.password ||= @uri.password if @uri.password
           end
 
-          srvs << { :uri => u, :reconnect_attempts => 0 }
+          srvs << { :uri => u, :reconnect_attempts => 0, :discovered => true }
         end
       end
       srvs.shuffle! unless @options[:dont_randomize_servers]
@@ -933,6 +933,12 @@ module NATS
   # @return [URI] Connected server
   def connected_server
     connected? ? @uri : nil
+  end
+
+  # Retrieves the list of servers which have been discovered
+  # via server connect_urls announcements
+  def discovered_servers
+    server_pool.select {|s| s[:discovered] }
   end
 
   def bind_primary #:nodoc:
