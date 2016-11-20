@@ -38,7 +38,7 @@ puts "Sending #{$loop} request/responses"
 $start = Time.now
 
 loop do
-  nats.timed_request($sub, '')
+  nats.request($sub, '')
 
   $drain-=1
   if $drain == 0
