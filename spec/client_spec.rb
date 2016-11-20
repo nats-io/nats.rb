@@ -82,10 +82,13 @@ describe 'Client - Specification' do
     nc.flush
 
     responses = []
-    nc.request("help", "please", :max => 2) do |msg|
+    nc.request("help", "please", max: 2) do |msg|
       responses << msg
-      mon.synchronize do
-        done.signal
+
+      if responses.count == 2
+        mon.synchronize do
+          done.signal
+        end
       end
     end
 
@@ -133,15 +136,17 @@ describe 'Client - Specification' do
       sid = nc.subscribe("quux.#{n}") do |msg, reply, subject|
         msgs[subject] << msg
       end
+      nc.flush(1)
+
       msgs["quux.#{sid}"] = []
     end
-    nc.flush
+    nc.flush(1)
 
     expect(msgs.keys.count).to eql(100)
     1.upto(100).each do |n|
       nc.publish("quux.#{n}")
     end
-    nc.flush
+    nc.flush(1)
 
     1.upto(100).each do |n|
       expect(msgs["quux.#{n}"].count).to eql(1)
@@ -155,7 +160,7 @@ describe 'Client - Specification' do
     nc.connect(:servers => ["nats://127.0.0.1:4222"])
 
     expect do
-      nc.request("hello", "timeout", timeout: 1)
+      nc.request("hi", "timeout", timeout: 1)
     end.to raise_error(NATS::IO::Timeout)
 
     nc.close

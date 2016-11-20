@@ -27,23 +27,43 @@ trap("TERM") { exit! }
 trap("INT")  { exit! }
 
 nats = NATS::IO::Client.new
-nats.connect
+
+nats.on_error do |e|
+  puts "nats: error: #{e}"
+end
+nats.on_close do
+  puts "nats: connection closed"
+end
+nats.on_disconnect do
+  puts "nats: disconnected!"
+end
+nats.on_reconnect do
+  puts "nats: reconnected!"
+end
+
+nats.connect(:max_reconnect => 10)
 
 nats.subscribe($sub) do |msg, reply|
   nats.publish(reply)
 end
-nats.flush
+nats.flush(5)
 
+timeouts = 0
 puts "Sending #{$loop} request/responses"
 $start = Time.now
 
 loop do
-  nats.request($sub, '')
+  begin
+    nats.request($sub, "AAA-#{$drain}", timeout: 2)
+  rescue NATS::IO::Timeout => e
+    timeouts += 1
+  end
 
   $drain-=1
   if $drain == 0
     ms = "%.2f" % (((Time.now-$start)/$loop)*1000.0)
     puts "\nTest completed : #{ms} ms avg request/response latency\n"
+    puts "Timeouts: #{timeouts}" if timeouts > 0
     exit!
   else
     printf('#') if $drain.modulo($hash) == 0
