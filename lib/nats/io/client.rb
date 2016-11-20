@@ -593,6 +593,7 @@ module NATS
           :lang     => NATS::IO::LANG,
           :version  => NATS::IO::VERSION
         }
+        cs[:name] = @options[:name] if @options[:name]
 
         if auth_connection?
           cs[:user] = @uri.user
