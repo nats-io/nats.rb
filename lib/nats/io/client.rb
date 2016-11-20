@@ -600,8 +600,6 @@ module NATS
           cs[:pass] = @uri.password
         end
 
-        # TODO: TLS options
-
         "CONNECT #{cs.to_json}#{CR_LF}"
       end
 
@@ -609,7 +607,6 @@ module NATS
         start_time = Time.now
         yield
         end_time = Time.now
-        duration = end_time - start_time
         raise NATS::IO::Timeout.new if end_time - start_time > timeout
       end
 
@@ -708,13 +705,7 @@ module NATS
           cmds = []
           cmds << @pending_queue.pop until @pending_queue.empty?
           begin
-            # FIXME: We do not really need a timeout here
             @io.write(cmds.join) unless cmds.empty?
-
-          rescue Errno::ETIMEDOUT => e
-            #
-            # FIXME: We do not really need a timeout here
-            #
           rescue => e
             synchronize do
               @last_err = e
