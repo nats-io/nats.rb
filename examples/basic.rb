@@ -20,7 +20,7 @@ loop do
 
     # Request which waits until given a response or a timeout
     msg = nats.request("hello", "world")
-    puts "Received on '#{msg[:subject]} #{msg[:reply]}': #{msg[:data]}"
+    puts "Received on '#{msg.subject} #{msg.reply}': #{msg.data}"
 
     total += 1
     sleep 0.0001 if total % 1000 == 0

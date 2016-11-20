@@ -239,13 +239,12 @@ module NATS
       # messages to a callback.
       def subscribe(subject, opts={}, &callback)
         sid = (@ssid += 1)
-        sub = @subs[sid] = {
-          subject:  subject,
-          callback: callback,
-          received: 0
-        }
-        sub[:queue] = opts[:queue] if opts[:queue]
-        sub[:max] = opts[:max] if opts[:max]
+        sub = @subs[sid] = Subscription.new
+        sub.subject = subject
+        sub.callback = callback
+        sub.received = 0
+        sub.queue = opts[:queue] if opts[:queue]
+        sub.max = opts[:max] if opts[:max]
 
         send_command("SUB #{subject} #{opts[:queue]} #{sid}#{CR_LF}")
         @flush_queue << :sub
@@ -285,10 +284,10 @@ module NATS
         opts[:max] = 1
 
         sub = Subscription.new
+        sub.subject = inbox
+        sub.received = 0
         future = sub.new_cond
-        sub[:subject]  = inbox
-        sub[:future]   = future
-        sub[:received] = 0
+        sub.future = future
 
         sid = nil
         synchronize do
@@ -307,7 +306,7 @@ module NATS
             future.wait(timeout)
           end
         end
-        response = sub[:response]
+        response = sub.response
 
         response
       end
@@ -321,8 +320,8 @@ module NATS
 
         return unless sub = @subs[sid]
         synchronize do
-          sub[:max] = opt_max
-          @subs.delete(sid) unless (sub[:max] && (sub[:received] < sub[:max]))
+          sub.max = opt_max
+          @subs.delete(sid) unless (sub.max && (sub.received < sub.max))
         end
       end
 
@@ -393,33 +392,29 @@ module NATS
         return unless sub
 
         # Check for auto_unsubscribe
-        sub[:received] += 1
-        if sub[:max]
+        sub.received += 1
+        if sub.max
           # Client side support in case server did not receive unsubscribe
-          return unsubscribe(sid) if (sub[:received] > sub[:max])
+          return unsubscribe(sid) if sub.received > sub.max
 
           # Cleanup here if we have hit the max..
-          @subs.delete(sid) if (sub[:received] == sub[:max])
+          @subs.delete(sid) if sub.received == sub.max
         end
 
         # Distinguish between async subscriptions with callbacks
         # and request subscriptions which expect a single response.
-        if sub[:callback]
-          cb = sub[:callback]
+        if sub.callback
+          cb = sub.callback
           case cb.arity
           when 0 then cb.call
           when 1 then cb.call(data)
           when 2 then cb.call(data, reply)
           else cb.call(data, reply, subject)
           end
-        elsif sub[:future]
+        elsif sub.future
           sub.synchronize do
-            future = sub[:future]
-            sub[:response] = {
-              subject: subject,
-              reply:   reply,
-              data:    data
-            }
+            future = sub.future
+            sub.response = Msg.new(subject, reply, data)
             future.signal
           end
         end
@@ -850,8 +845,8 @@ module NATS
         @pongs_received = 0
 
         # Replay all subscriptions
-        @subs.each_pair do |k, v|
-          @io.write("SUB #{v[:subject]} #{v[:queue]} #{k}#{CR_LF}")
+        @subs.each_pair do |sid, sub|
+          @io.write("SUB #{sub.subject} #{sub.queue} #{sid}#{CR_LF}")
         end
 
         # Flush anything which was left pending, in case of errors during flush
@@ -909,10 +904,6 @@ module NATS
           connect_timeout: DEFAULT_CONNECT_TIMEOUT
         })
       end
-    end
-
-    class Subscription < Hash
-      include MonitorMixin
     end
 
     # Implementation adapted from https://github.com/redis/redis-rb
@@ -1020,4 +1011,24 @@ module NATS
       end
     end
   end
+
+  Msg = Struct.new(:subject, :reply, :data)
+
+  class Subscription
+    include MonitorMixin
+
+    attr_accessor :subject, :queue, :future, :callback, :response, :received, :max
+
+    def initialize
+      super # required to initialize monitor
+      @subject  = ''
+      @queue    = nil
+      @future   = nil
+      @callback = nil
+      @response = nil
+      @received = 0
+      @max      = nil
+    end
+  end
 end
+

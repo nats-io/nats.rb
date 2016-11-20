@@ -34,7 +34,7 @@ end
 # Request without a callback waits for the response or times out.
 begin
   msg = nats.request('help', 'please', timeout: 1.0)
-  puts "[Response] '#{msg[:subject]}': #{msg[:data]}"
+  puts "[Response] '#{msg.subject}': #{msg.data}"
 rescue NATS::IO::Timeout
   puts "nats: request timed out"
 end
