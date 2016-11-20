@@ -1,7 +1,5 @@
 # NATS - Pure Ruby Client
 
-**Status**: _work in progress_
-
 A thread safe [Ruby](http://ruby-lang.org) client for the [NATS messaging system](https://nats.io) written in pure Ruby with no dependencies.
 
 [![License MIT](https://img.shields.io/npm/l/express.svg)](http://opensource.org/licenses/MIT)[![Build Status](https://travis-ci.org/wallyqs/pure-ruby-nats.svg)](http://travis-ci.org/wallyqs/pure-ruby-nats)
@@ -123,7 +121,7 @@ nats.connect({
 
 (The MIT License)
 
-Copyright (c) 2016 Apcera
+Copyright (c) 2016 Apcera Inc.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to
