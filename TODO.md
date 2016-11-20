@@ -17,7 +17,7 @@
 - [ ] increase test coverage
 - [ ] max payload err handling
 - [ ] gem release
-- [ ] TLS
+- [X] TLS
 - [ ] read dynamic socket buffer
-- [ ] travis
+- [X] travis
 - [ ] nuid
