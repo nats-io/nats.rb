@@ -262,4 +262,40 @@ describe 'Client - Specification' do
     # Make sure to kill the publishing thread
     pub_thread.kill
   end
+
+  it "should support distributed queues" do
+    conns = Hash.new { |h,k| h[k] = {}}
+    5.times do |n|
+      nc = NATS::IO::Client.new
+      conns[n][:nats] = nc
+      conns[n][:msgs] = []
+
+      nc.connect({
+        name: "nats-#{n}",
+        servers: ["nats://127.0.0.1:4222"],
+        reconnect: false
+      })
+      nc.subscribe("foo", queue: 'bar') do |msg|
+        conns[n][:msgs] << msg
+      end
+      nc.flush
+    end
+
+    # Publish messages on using the first connection
+    nc = conns[0][:nats]
+    1000.times do |n|
+      nc.publish("foo", 'hi')
+    end
+    nc.flush
+
+    # Wait more than enough all messages to have been consumed
+    sleep 1
+
+    total = 0
+    conns.each_pair do |i, conn|
+      total += conn[:msgs].count
+      expect(conn[:msgs].count > 1).to eql(true)
+    end
+    expect(total).to eql(1000)
+  end
 end
