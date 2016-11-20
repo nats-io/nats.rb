@@ -14,10 +14,11 @@
 - [X] graceful close
 - [X] error/disconnect/close callbacks
 - [X] cluster support
+- [X] TLS
+- [X] travis
 - [ ] increase test coverage
 - [ ] max payload err handling
 - [ ] gem release
-- [X] TLS
 - [ ] read dynamic socket buffer
-- [X] travis
 - [ ] nuid
+- [ ] auto discovery
