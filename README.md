@@ -30,8 +30,8 @@ nats.publish('foo.bar.baz', 'Hello World!')
 sid = nats.subscribe('bar') { |msg| puts "Received : '#{msg}'" }
 nats.unsubscribe(sid)
 
-# Requests
-nats.request('help', 'please') { |response| puts "Got a response: '#{response}'" }
+# Requests with a block handles replies asynchronously
+nats.request('help', 'please', max: 5) { |response| puts "Got a response: '#{response}'" }
 
 # Replies
 nats.subscribe('help') do |msg, reply, subject|
@@ -39,10 +39,10 @@ nats.subscribe('help') do |msg, reply, subject|
   nats.publish(reply, "I'll help!")
 end
 
-# Request with timeout
+# Request without a block waits for response or timeout
 begin
   msg = nats.request('help', 'please', timeout: 0.5)
-  puts "Received on '#{msg[:subject]}': #{msg[:data]}"
+  puts "Received on '#{msg.subject}': #{msg.data}"
 rescue NATS::IO::Timeout
   puts "nats: request timed out"
 end
