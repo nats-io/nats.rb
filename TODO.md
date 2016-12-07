@@ -16,9 +16,9 @@
 - [X] cluster support
 - [X] TLS
 - [X] travis
+- [X] auto discovery
 - [ ] increase test coverage
 - [ ] max payload err handling
 - [ ] gem release
 - [ ] read dynamic socket buffer
 - [ ] nuid
-- [ ] auto discovery

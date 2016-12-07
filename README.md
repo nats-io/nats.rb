@@ -109,12 +109,13 @@ tls_context = OpenSSL::SSL::SSLContext.new
 tls_context.ssl_version = :TLSv1_2
 
 nats.connect({
- servers: ['tls://127.0.0.1:4444'],
- reconnect: false,
- tls: {
-   context: tls_context
+   servers: ['tls://127.0.0.1:4444'],
+   reconnect: false,
+   tls: {
+     context: tls_context
+   }
  }
-})
+)
 ```
 
 ## License
