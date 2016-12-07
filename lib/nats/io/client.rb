@@ -343,6 +343,14 @@ module NATS
         end
       end
 
+      alias :servers :server_pool
+
+      def discovered_servers
+        servers.select {|s| s[:discovered] }
+      end
+
+      # Methods only used by the parser
+
       def process_pong
         # Take first pong wait and signal any flush in case there was one
         @pongs.synchronize do

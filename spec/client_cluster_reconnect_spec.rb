@@ -308,6 +308,11 @@ describe 'Client - Cluster reconnect' do
         mon.synchronize do
           reconnected.wait(3)
         end
+
+        # We still consider the original node and we have new ones
+        # which can be used to failover.
+        expect(nats.servers.count).to eql(3)
+        expect(nats.discovered_servers.count).to eql(2)
         expect(nats.connected_server).to eql(@s2.uri)
         expect(reconnects).to eql(2)
         expect(disconnects).to eql(2)
