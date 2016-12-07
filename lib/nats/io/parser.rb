@@ -60,7 +60,7 @@ module NATS
               # First INFO message is processed synchronously on connect,
               # and onwards we would be receiving asynchronously INFO commands
               # signaling possible changes in the topology of the NATS cluster.
-              # @nc.process_info($1)
+              @nc.process_info($1)
             when UNKNOWN
               @buf = $'
               @nc.process_err("Unknown protocol: #{$1}")
