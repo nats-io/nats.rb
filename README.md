@@ -1,8 +1,8 @@
 # NATS - Pure Ruby Client
 
-A thread safe [Ruby](http://ruby-lang.org) client for the [NATS messaging system](https://nats.io) written in pure Ruby with no dependencies.
+A thread safe [Ruby](http://ruby-lang.org) client for the [NATS messaging system](https://nats.io) written in pure Ruby.
 
-[![License MIT](https://img.shields.io/npm/l/express.svg)](http://opensource.org/licenses/MIT)[![Build Status](https://travis-ci.org/wallyqs/pure-ruby-nats.svg)](http://travis-ci.org/wallyqs/pure-ruby-nats)
+[![License MIT](https://img.shields.io/npm/l/express.svg)](http://opensource.org/licenses/MIT)[![Build Status](https://travis-ci.org/wallyqs/pure-ruby-nats.svg)](http://travis-ci.org/wallyqs/pure-ruby-nats)(https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.1.0)](https://rubygems.org/gems/nats-pure/versions/0.1.0)
 
 ## Getting Started
 
