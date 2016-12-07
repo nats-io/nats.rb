@@ -343,6 +343,14 @@ module NATS
         end
       end
 
+      alias :servers :server_pool
+
+      def discovered_servers
+        servers.select {|s| s[:discovered] }
+      end
+
+      # Methods only used by the parser
+
       def process_pong
         # Take first pong wait and signal any flush in case there was one
         @pongs.synchronize do
@@ -575,6 +583,36 @@ module NATS
 
             info
           end
+
+          # Detect any announced server that we might not be aware of...
+          connect_urls = @server_info[:connect_urls]
+          if connect_urls
+            srvs = []
+            connect_urls.each do |url|
+              u = URI.parse("nats://#{url}")
+              present = server_pool.detect do |srv|
+                srv[:uri].host == u.host && srv[:uri].port == u.port
+              end
+
+              if not present
+                # Let explicit user and pass options set the credentials.
+                u.user = options[:user] if options[:user]
+                u.password = options[:pass] if options[:pass]
+
+                # Use creds from the current server if not set explicitly.
+                if @uri
+                  u.user ||= @uri.user if @uri.user
+                  u.password ||= @uri.password if @uri.password
+                end
+
+                srvs << { :uri => u, :reconnect_attempts => 0, :discovered => true }
+              end
+            end
+            srvs.shuffle! unless @options[:dont_randomize_servers]
+
+            # Include in server pool but keep current one as the first one.
+            server_pool.push(*srvs)
+          end
         end
 
         @server_info
@@ -604,7 +642,8 @@ module NATS
           :verbose  => @options[:verbose],
           :pedantic => @options[:pedantic],
           :lang     => NATS::IO::LANG,
-          :version  => NATS::IO::VERSION
+          :version  => NATS::IO::VERSION,
+          :protocol => NATS::IO::PROTOCOL
         }
         cs[:name] = @options[:name] if @options[:name]
 
