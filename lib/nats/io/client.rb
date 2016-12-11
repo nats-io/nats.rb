@@ -200,10 +200,16 @@ module NATS
           # Capture sticky error
           synchronize { @last_err = e }
 
+          @err_cb.call(e) if @err_cb
+
           if should_not_reconnect?
             @disconnect_cb.call(e) if @disconnect_cb
             raise e
           end
+
+          # always sleep here to safe guard against errors before current[:was_connected]
+          # is set for the first time
+          sleep @options[:reconnect_time_wait] if @options[:reconnect_time_wait]
 
           # Continue retrying until there are no options left in the server pool
           retry
@@ -972,6 +978,7 @@ module NATS
         addrinfo.each_with_index do |ai, i|
           begin
             @socket = connect_addrinfo(ai, @uri.port, @connect_timeout)
+            break
           rescue SystemCallError
             # Give up if no more available
             raise if addrinfo.length == i+1
