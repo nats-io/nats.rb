@@ -51,7 +51,8 @@ describe 'Client - Authorization' do
         reconnect: false
       })
     end.to raise_error(NATS::IO::AuthError)
-    expect(errors).to be_empty
+    expect(errors.count).to eql(1)
+    expect(errors.first).to be_a(NATS::IO::AuthError)
     expect(disconnect_errors.count).to eql(1)
     expect(disconnect_errors.first).to be_a(NATS::IO::AuthError)
   end
