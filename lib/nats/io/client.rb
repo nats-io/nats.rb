@@ -886,6 +886,9 @@ module NATS
         rescue => e
           @last_err = e
 
+          # Trigger async error handler
+          @err_cb.call(e) if @err_cb
+
           # Continue retrying until there are no options left in the server pool
           retry
         end
@@ -979,9 +982,9 @@ module NATS
           begin
             @socket = connect_addrinfo(ai, @uri.port, @connect_timeout)
             break
-          rescue SystemCallError
+          rescue SystemCallError => e
             # Give up if no more available
-            raise if addrinfo.length == i+1
+            raise e if addrinfo.length == i+1
           end
         end
 
