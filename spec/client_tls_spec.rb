@@ -61,8 +61,9 @@ describe 'Client - TLS spec' do
         nats.connect(:servers => ['nats://127.0.0.1:4444'], :reconnect => false)
       end.to raise_error(NATS::IO::ConnectError)
 
-      # No async errors, only synchronous error of disconnection failing
-      expect(errors.count).to eql(0)
+      # Async handler also gets triggered since defined
+      expect(errors.count).to eql(1)
+      expect(errors.first).to be_a(NATS::IO::ConnectError)
 
       # No close since we were not even connected
       expect(closes).to eql(0)

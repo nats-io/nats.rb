@@ -246,6 +246,11 @@ describe 'Client - Cluster reconnect' do
           end
         end
 
+        errors = []
+        nats.on_error do |e|
+          errors << e
+        end
+
         # Connect to first server only and trigger reconnect
         nats.connect(:servers => [@s1.uri], :dont_randomize_servers => true)
         expect(nats.connected_server).to eql(@s1.uri)
@@ -258,6 +263,9 @@ describe 'Client - Cluster reconnect' do
         expect(reconnects).to eql(1)
         expect(disconnects).to eql(1)
         expect(closes).to eql(0)
+        expect(errors.count).to eql(1)
+        expect(errors.first).to be_a(Errno::ECONNREFUSED)
+        expect(nats.last_error).to be_a(Errno::ECONNREFUSED)
 
         nats.close
       ensure
@@ -291,6 +299,11 @@ describe 'Client - Cluster reconnect' do
         end
       end
 
+      errors = []
+      nats.on_error do |e|
+        errors << e
+      end
+
       # Connect to first server only and trigger reconnect
       nats.connect(:servers => [@s1.uri], :dont_randomize_servers => true, :user => 'secret', :pass => 'password')
       expect(nats.connected_server).to eql(@s1.uri)
@@ -317,6 +330,9 @@ describe 'Client - Cluster reconnect' do
         expect(reconnects).to eql(2)
         expect(disconnects).to eql(2)
         expect(closes).to eql(0)
+        expect(errors.count).to eql(1)
+        expect(errors.first).to be_a(Errno::ECONNREFUSED)
+        expect(nats.last_error).to be_a(Errno::ECONNREFUSED)
 
         nats.close
       ensure
