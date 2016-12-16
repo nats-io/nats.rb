@@ -195,7 +195,7 @@ module NATS
           current[:reconnect_attempts] = 0
         rescue NoServersError => e
           @disconnect_cb.call(e) if @disconnect_cb
-          raise e
+          raise @last_err || e
         rescue => e
           # Capture sticky error
           synchronize { @last_err = e }
