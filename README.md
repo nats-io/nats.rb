@@ -65,6 +65,10 @@ require 'nats/io/client'
 
 nats = NATS::IO::Client.new
 
+nats.on_error do |e|
+  puts "Error: #{e}"
+end
+
 nats.on_reconnect do
   puts "Reconnected to server at #{nats.connected_server}"
 end
