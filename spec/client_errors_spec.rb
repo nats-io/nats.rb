@@ -97,7 +97,7 @@ describe 'Client - Specification' do
       @fake_nats_server = TCPServer.new 4555
       @fake_nats_server_th = Thread.new do
         loop do
-          # Wait for a client to connect but
+          # Wait for a client to connect and linger
           @fake_nats_server.accept
         end
       end
@@ -143,15 +143,15 @@ describe 'Client - Specification' do
         :reconnect_time_wait => 1,
         :connect_timeout => 1
       })
-      end.to raise_error(Errno::ETIMEDOUT)
+      end.to raise_error(NATS::IO::SocketTimeoutError)
 
       expect(disconnects.count).to eql(1)
       expect(reconnects).to eql(0)
       expect(closes).to eql(0)
       expect(disconnects.last).to be_a(NATS::IO::NoServersError)
-      expect(nats.last_error).to be_a(Errno::ETIMEDOUT)
-      expect(errors.first).to be_a(Errno::ETIMEDOUT)
-      expect(errors.last).to be_a(Errno::ETIMEDOUT)
+      expect(nats.last_error).to be_a(NATS::IO::SocketTimeoutError)
+      expect(errors.first).to be_a(NATS::IO::SocketTimeoutError)
+      expect(errors.last).to be_a(NATS::IO::SocketTimeoutError)
 
       # Fails on the second reconnect attempt
       expect(errors.count).to eql(2)

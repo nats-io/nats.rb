@@ -75,6 +75,9 @@ module NATS
     # When we do not get a result within a specified time.
     class Timeout < Error; end
 
+    # When there is an i/o timeout with the socket.
+    class SocketTimeoutError < Error; end
+
     # When we use an invalid subject.
     class BadSubject < Error; end
 
@@ -917,6 +920,7 @@ module NATS
 
           # Try to write any pending flushes in case
           # we have a connection then close it.
+          should_flush = (@pending_queue && @io && @io.socket && !@io.closed?)
           begin
             cmds = []
             cmds << @pending_queue.pop until @pending_queue.empty?
@@ -926,7 +930,7 @@ module NATS
           rescue => e
             @last_err = e
             @err_cb.call(e) if @err_cb
-          end if (@io and @pending_queue) and not @io.closed?
+          end if should_flush
 
           # TODO: Destroy any remaining subscriptions
           if do_cbs
@@ -939,7 +943,7 @@ module NATS
           # Close the established connection in case
           # we still have it.
           if @io
-            @io.close
+            @io.close if @io.socket
             @io = nil
           end
         end
@@ -1019,12 +1023,13 @@ module NATS
 
       def read_line(deadline=nil)
         # FIXME: Should accumulate and read in a non blocking way instead
-        raise Errno::ETIMEDOUT unless ::IO.select([@socket], nil, nil, deadline)
+        unless ::IO.select([@socket], nil, nil, deadline)
+          raise SocketTimeoutError
+        end
         @socket.gets
       end
 
       def read(max_bytes, deadline=nil)
-        return unless @socket
 
         begin
           return @socket.read_nonblock(max_bytes)
@@ -1032,13 +1037,13 @@ module NATS
           if ::IO.select([@socket], nil, nil, deadline)
             retry
           else
-            raise Errno::ETIMEDOUT
+            raise SocketTimeoutError
           end
         rescue *NBIO_WRITE_EXCEPTIONS
           if ::IO.select(nil, [@socket], nil, deadline)
             retry
           else
-            raise Errno::ETIMEDOUT
+            raise SocketTimeoutError
           end
         end
       rescue EOFError => e
@@ -1052,8 +1057,6 @@ module NATS
       end
 
       def write(data, deadline=nil)
-        return unless @socket
-
         length = data.bytesize
         total_written = 0
 
@@ -1068,13 +1071,13 @@ module NATS
             if ::IO.select(nil, [@socket], nil, deadline)
               retry
             else
-              raise Errno::ETIMEDOUT
+              raise SocketTimeoutError
             end
           rescue *NBIO_READ_EXCEPTIONS => e
             if ::IO.select([@socket], nil, nil, deadline)
               retry
             else
-              raise Errno::ETIMEDOUT
+              raise SocketTimeoutError
             end
           end
         end
@@ -1084,12 +1087,10 @@ module NATS
       end
 
       def close
-        @socket && @socket.close
+        @socket.close
       end
 
       def closed?
-        return unless @socket
-
         @socket.closed?
       end
 
@@ -1102,7 +1103,9 @@ module NATS
         begin
           sock.connect_nonblock(sockaddr)
         rescue Errno::EINPROGRESS
-          raise Errno::ETIMEDOUT unless ::IO.select(nil, [sock], nil, @connect_timeout)
+          unless ::IO.select(nil, [sock], nil, @connect_timeout)
+            raise SocketTimeoutError
+          end
 
           # Confirm that connection was established
           begin

@@ -307,7 +307,7 @@ describe 'Client - Reconnect' do
       expect(closes).to eql(1)
       expect(disconnects.last).to be_a(NATS::IO::NoServersError)
       expect(nats.last_error).to be_a(NATS::IO::NoServersError)
-      expect(errors.first).to be_a(Errno::ETIMEDOUT)
+      expect(errors.first).to be_a(NATS::IO::SocketTimeoutError)
       expect(errors.last).to be_a(Errno::ECONNREFUSED)
       expect(errors.count).to eql(4)
       expect(nats.status).to eql(NATS::IO::CLOSED)
