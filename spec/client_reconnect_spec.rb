@@ -10,6 +10,7 @@ describe 'Client - Reconnect' do
 
   after(:each) do
     @s.kill_server
+    sleep 1
   end
 
   it 'should reconnect to server and replay all subscriptions' do
