@@ -1102,7 +1102,7 @@ module NATS
 
         begin
           sock.connect_nonblock(sockaddr)
-        rescue Errno::EINPROGRESS, ::IO::EINPROGRESSWaitWritable
+        rescue Errno::EINPROGRESS, Errno::EALREADY, ::IO::WaitWritable
           unless ::IO.select(nil, [sock], nil, @connect_timeout)
             raise SocketTimeoutError
           end
