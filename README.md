@@ -2,7 +2,7 @@
 
 A thread safe [Ruby](http://ruby-lang.org) client for the [NATS messaging system](https://nats.io) written in pure Ruby.
 
-[![License MIT](https://img.shields.io/npm/l/express.svg)](http://opensource.org/licenses/MIT)[![Build Status](https://travis-ci.org/wallyqs/pure-ruby-nats.svg)](http://travis-ci.org/wallyqs/pure-ruby-nats)[![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.1.2)](https://rubygems.org/gems/nats-pure/versions/0.1.2)
+[![License MIT](https://img.shields.io/npm/l/express.svg)](http://opensource.org/licenses/MIT)[![Build Status](https://travis-ci.org/wallyqs/pure-ruby-nats.svg)](http://travis-ci.org/nats-io/pure-ruby-nats)[![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.1.2)](https://rubygems.org/gems/nats-pure/versions/0.1.2)
 
 ## Getting Started
 
@@ -64,6 +64,10 @@ nats.close
 require 'nats/io/client'
 
 nats = NATS::IO::Client.new
+
+nats.on_error do |e|
+  puts "Error: #{e}"
+end
 
 nats.on_reconnect do
   puts "Reconnected to server at #{nats.connected_server}"

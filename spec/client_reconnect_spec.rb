@@ -129,7 +129,7 @@ describe 'Client - Reconnect' do
     # Wait for a bit before checking state again
     mon.synchronize { done.wait(1) }
     expect(nats.last_error).to be_a(Errno::ECONNRESET)
-    expect(nats.status).to eql(NATS::IO::CLOSED)
+    expect(nats.status).to eql(NATS::IO::DISCONNECTED)
 
     nats.close
   end
@@ -139,7 +139,7 @@ describe 'Client - Reconnect' do
     errors = []
     closes = 0
     reconnects = 0
-    disconnects = 0
+    disconnects = []
 
     nats = NATS::IO::Client.new
     mon = Monitor.new
@@ -153,8 +153,8 @@ describe 'Client - Reconnect' do
       reconnects += 1
     end
 
-    nats.on_disconnect do
-      disconnects += 1
+    nats.on_disconnect do |e|
+      disconnects << e
     end
 
     nats.on_close do
@@ -168,7 +168,7 @@ describe 'Client - Reconnect' do
        :max_reconnect_attempts => 2,
        :reconnect_time_wait => 1
       })
-    end.to raise_error(NATS::IO::NoServersError)
+    end.to raise_error(Errno::ECONNREFUSED)
 
     # Confirm that we have captured the sticky error
     # and that the connection has remained disconnected.
@@ -183,7 +183,7 @@ describe 'Client - Reconnect' do
     errors = []
     closes = 0
     reconnects = 0
-    disconnects = 0
+    disconnects = []
 
     nats = NATS::IO::Client.new
     mon = Monitor.new
@@ -197,8 +197,8 @@ describe 'Client - Reconnect' do
       reconnects += 1
     end
 
-    nats.on_disconnect do
-      disconnects += 1
+    nats.on_disconnect do |e|
+      disconnects << e
     end
 
     nats.on_close do
@@ -232,13 +232,85 @@ describe 'Client - Reconnect' do
 
     # Confirm that we have captured the sticky error
     # and that the connection is closed due no servers left.
+    sleep 0.5
     mon.synchronize { done.wait(5) }
-    expect(disconnects).to eql(1)
+    expect(disconnects.count).to eql(2)
     expect(reconnects).to eql(0)
-    expect(closes).to eql(0)
+    expect(closes).to eql(1)
     expect(nats.last_error).to be_a(NATS::IO::NoServersError)
     expect(errors.first).to be_a(Errno::ECONNREFUSED)
     expect(errors.count).to eql(2)
     expect(nats.status).to eql(NATS::IO::CLOSED)
+  end
+
+  context 'against a server which is idle' do
+    before(:all) do
+      # Start a fake tcp server
+      @fake_nats_server = TCPServer.new 4444
+      @fake_nats_server_th = Thread.new do
+        loop do
+          # Wait for a client to connect but 
+          @fake_nats_server.accept
+        end
+      end
+    end
+
+    after(:all) do
+      @fake_nats_server_th.exit
+      @fake_nats_server.close
+    end
+
+    it 'should give up reconnecting if no servers available due to timeout errors during connect' do
+      msgs = []
+      errors = []
+      closes = 0
+      reconnects = 0
+      disconnects = []
+
+      nats = NATS::IO::Client.new
+      mon = Monitor.new
+      done = mon.new_cond
+
+      nats.on_error do |e|
+        errors << e
+      end
+
+      nats.on_reconnect do
+        reconnects += 1
+      end
+
+      nats.on_disconnect do |e|
+        disconnects << e
+      end
+
+      nats.on_close do
+        closes += 1
+        mon.synchronize { done.signal }
+      end
+
+      nats.connect({
+        :servers => ["nats://127.0.0.1:4222", "nats://127.0.0.1:4444"],
+        :max_reconnect_attempts => 1,
+        :reconnect_time_wait => 1,
+        :dont_randomize_servers => true,
+        :connect_timeout => 1
+      })
+
+      # Trigger reconnect logic
+      @s.kill_server
+
+      # Confirm that we have captured the sticky error
+      # and that the connection is closed due no servers left.
+      mon.synchronize { done.wait(7) }
+      expect(disconnects.count).to eql(2)
+      expect(reconnects).to eql(0)
+      expect(closes).to eql(1)
+      expect(disconnects.last).to be_a(NATS::IO::NoServersError)
+      expect(nats.last_error).to be_a(NATS::IO::NoServersError)
+      expect(errors.first).to be_a(NATS::IO::SocketTimeoutError)
+      expect(errors.last).to be_a(Errno::ECONNREFUSED)
+      expect(errors.count).to eql(4)
+      expect(nats.status).to eql(NATS::IO::CLOSED)
+    end
   end
 end
