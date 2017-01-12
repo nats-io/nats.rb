@@ -751,12 +751,17 @@ module NATS
   end
 
   def send_command(command, priority = false) #:nodoc:
-    EM.next_tick { flush_pending } if (connected? && @pending.nil?)
     @pending ||= []
     @pending << command unless priority
     @pending.unshift(command) if priority
     @pending_size += command.bytesize
-    flush_pending if (connected? && @pending_size > MAX_PENDING_SIZE)
+    if connected?
+      if @pending_size > MAX_PENDING_SIZE
+        flush_pending
+      else
+        EM.next_tick { flush_pending }
+      end
+    end
     if (@options[:fast_producer_error] && pending_data_size > FAST_PRODUCER_THRESHOLD)
       err_cb.call(NATS::ClientError.new("Fast Producer: #{pending_data_size} bytes outstanding"))
     end
