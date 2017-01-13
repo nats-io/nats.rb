@@ -2,4 +2,5 @@
 # NATS command line interface script.
 # Run <tt>nats-server -h</tt> to get more usage.
 
+$:.unshift(File.expand_path(File.dirname(__FILE__) + '/../lib'))
 require 'nats/server'
