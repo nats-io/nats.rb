@@ -58,6 +58,14 @@ module NATSD #:nodoc: all
           :max_payload => @max_payload
         }
 
+        if @options[:http_port]
+          @info[:http_port] = @options[:http_port]
+          if @options[:http_user]
+            @info[:http_user] = @options[:http_user]
+            @info[:http_password] = @options[:http_password]
+          end
+        end
+
         # Check for daemon flag
         if @options[:daemonize]
           require 'rubygems'
