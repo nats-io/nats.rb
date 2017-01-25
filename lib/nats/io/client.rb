@@ -616,8 +616,12 @@ module NATS
         cs[:name] = @options[:name] if @options[:name]
 
         if auth_connection?
-          cs[:user] = @uri.user
-          cs[:pass] = @uri.password
+          if @uri.password
+            cs[:user] = @uri.user
+            cs[:pass] = @uri.password
+          else
+            cs[:auth_token] = @uri.user
+          end
         end
 
         "CONNECT #{cs.to_json}#{CR_LF}"

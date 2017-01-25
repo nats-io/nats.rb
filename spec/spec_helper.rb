@@ -65,8 +65,13 @@ class NatsServerControl
     @pid = nil
 
     args = "-p #{@uri.port} -P #{@pid_file}"
-    args += " --user #{@uri.user}" if @uri.user
-    args += " --pass #{@uri.password}" if @uri.password
+
+    if @uri.user && !@uri.password
+      args += " --auth #{@uri.user}"
+    else
+      args += " --user #{@uri.user}" if @uri.user
+      args += " --pass #{@uri.password}" if @uri.password
+    end
     args += " #{@flags}" if @flags
 
     if ENV["DEBUG_NATS_TEST"] == "true"
