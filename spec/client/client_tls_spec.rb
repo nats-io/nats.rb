@@ -676,7 +676,7 @@ describe 'Client - TLS spec', :jruby_excluded do
           nc = NATS.connect(options) do |conn|
             connects += 1
           end
-        end.to raise_error
+        end.to raise_error(NATS::Error)
       end
       expect(errors.count).to eql(0)
       expect(disconnects).to eql(0)
@@ -725,7 +725,7 @@ describe 'Client - TLS spec', :jruby_excluded do
           nc = NATS.connect(options) do |conn|
             connects += 1
           end
-        end.to raise_error
+        end.to raise_error(NATS::Error)
       end
 
       # No error here since it fails synchronously

@@ -70,4 +70,58 @@ describe 'Client - reconnect specification' do
 
     expect(received).to eql(true)
   end
+
+  it 'should not get stuck reconnecting due to uncaught exceptions' do
+    received = false
+    @as.kill_server
+
+    class SomeException < StandardError; end
+
+    expect do
+      EM.run do
+        NATS.connect(:uri => R_TEST_AUTH_SERVER, :reconnect => true, :max_reconnect_attempts => -1, :reconnect_time_wait => 0.25)
+        raise SomeException.new
+      end
+    end.to raise_error(SomeException)
+  end
+
+  it 'should back off trying to reconnect' do
+    @as.start_server
+
+    disconnected_time = nil
+    reconnected_time = nil
+    connected_once = false
+    EM.run do
+      NATS.on_disconnect do
+        # Capture the time of the first disconnect
+        disconnected_time ||= NATS::MonotonicTime.now
+      end
+
+      NATS.on_reconnect do
+        reconnected_time ||= NATS::MonotonicTime.now
+      end
+
+      NATS.connect(:uri => R_TEST_AUTH_SERVER, :reconnect => true, :max_reconnect_attempts => -1, :reconnect_time_wait => 2) do
+        connected_once = true
+      end
+
+      EM.add_timer(0.5) do
+        @as.kill_server
+      end
+
+      EM.add_timer(1) do
+        @as.start_server
+      end
+
+      EM.add_timer(3) do
+        NATS.stop
+        EM.stop
+      end
+    end
+
+    expect(connected_once).to eql(true)
+    expect(disconnected_time).to_not be(nil)
+    expect(reconnected_time).to_not be(nil)
+    expect(reconnected_time - disconnected_time >= 2).to eql(true)
+  end
 end
