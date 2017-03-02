@@ -811,7 +811,14 @@ module NATS
   end
 
   def should_delay_connect?(server)
-    server[:was_connected] && server[:reconnect_attempts] >= 0
+    case
+    when server[:was_connected]
+      server[:reconnect_attempts] >= 0
+    when server[:last_reconnect_attempt]
+      (MonotonicTime.now - server[:last_reconnect_attempt]) < @options[:reconnect_time_wait]
+    else
+      false
+    end
   end
 
   def schedule_reconnect #:nodoc:
@@ -824,7 +831,7 @@ module NATS
     # Allow notifying from which server we were disconnected,
     # but only when we didn't trigger disconnecting ourselves.
     if @disconnect_cb and connected? and not closing?
-      disconnect_cb.call(NATS::ConnectError.new(disconnect_error_string))
+      @disconnect_cb.call(NATS::ConnectError.new(disconnect_error_string))
     end
 
     # If we are closing or shouldn't reconnect, go ahead and disconnect.
@@ -890,6 +897,10 @@ module NATS
   def attempt_reconnect #:nodoc:
     @reconnect_timer = nil
     current = server_pool.first
+
+    # Snapshot time when trying to reconnect to server
+    # in order to back off for subsequent attempts.
+    current[:last_reconnect_attempt] = MonotonicTime.now
     current[:reconnect_attempts] ||= 0
     current[:reconnect_attempts] += 1
 
@@ -981,4 +992,23 @@ module NATS
     "<nats client v#{NATS::VERSION}>"
   end
 
+  class MonotonicTime
+    class << self
+      case
+      when defined?(Process::CLOCK_MONOTONIC)
+        def now
+          Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        end
+      when RUBY_ENGINE == 'jruby'
+        def now
+          java.lang.System.nanoTime() / 1_000_000_000.0
+        end
+      else
+        def now
+          # Fallback to regular time behavior
+          ::Time.now.to_f
+        end
+      end
+    end
+  end
 end
