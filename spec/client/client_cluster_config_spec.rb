@@ -132,11 +132,11 @@ describe 'Client - cluster config' do
 
   it 'should fail if server is available but does not have proper auth' do
     errors = []
-    with_em_timeout do
+    with_em_timeout(5) do
       NATS.on_error do |e|
         errors << e
       end
-      NATS.connect(:uri => ['nats://127.0.0.1:4224', "nats://127.0.0.1:#{CLUSTER_AUTH_PORT}"])
+      NATS.connect(:uri => ['nats://127.0.0.1:4224', "nats://127.0.0.1:#{CLUSTER_AUTH_PORT}"], :dont_randomize_servers => true)
     end
     expect(errors.count).to eql(2)
     expect(errors.first).to be_a(NATS::AuthError)
