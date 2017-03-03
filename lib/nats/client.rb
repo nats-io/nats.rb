@@ -10,7 +10,6 @@ require "#{ep}/version"
 
 module NATS
 
-  PROTOCOL_VERSION = 1
   DEFAULT_PORT = 4222
   DEFAULT_URI = "nats://localhost:#{DEFAULT_PORT}".freeze
 
@@ -519,9 +518,9 @@ module NATS
     cs = {
       :verbose => @options[:verbose],
       :pedantic => @options[:pedantic],
-      :lang => :ruby,
-      :version => VERSION,
-      :protocol => PROTOCOL_VERSION
+      :lang => ::NATS::LANG,
+      :version => ::NATS::VERSION,
+      :protocol => ::NATS::PROTOCOL_VERSION
     }
     if auth_connection?
       cs[:user] = @uri.user
