@@ -648,6 +648,7 @@ module NATS
 
         synchronize do
           @last_err = e
+          @err_cb.call(e) if @err_cb
 
           # If we were connected and configured to reconnect,
           # then trigger disconnect and start reconnection logic

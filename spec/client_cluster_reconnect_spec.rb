@@ -263,8 +263,8 @@ describe 'Client - Cluster reconnect' do
         expect(reconnects).to eql(1)
         expect(disconnects).to eql(1)
         expect(closes).to eql(0)
-        expect(errors.count).to eql(1)
-        expect(errors.first).to be_a(Errno::ECONNREFUSED)
+        expect(errors.count).to eql(2)
+        expect(errors.first).to be_a(Errno::ECONNRESET)
         expect(nats.last_error).to be_a(Errno::ECONNREFUSED)
 
         nats.close
@@ -327,11 +327,12 @@ describe 'Client - Cluster reconnect' do
         expect(nats.servers.count).to eql(3)
         expect(nats.discovered_servers.count).to eql(2)
         expect(nats.connected_server).to eql(@s2.uri)
-        expect(reconnects).to eql(2)
-        expect(disconnects).to eql(2)
+        expect(reconnects).to eql(1)
+        expect(disconnects).to eql(1)
         expect(closes).to eql(0)
-        expect(errors.count).to eql(1)
-        expect(errors.first).to be_a(Errno::ECONNREFUSED)
+        expect(errors.count).to eql(2)
+        expect(errors.first).to be_a(Errno::ECONNRESET)
+        expect(errors.last).to be_a(Errno::ECONNREFUSED)
         expect(nats.last_error).to be_a(Errno::ECONNREFUSED)
 
         nats.close
