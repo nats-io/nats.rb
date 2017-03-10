@@ -140,8 +140,8 @@ module NATS
         # Sticky error
         @last_err = nil
 
-        # Async callbacks
-        @err_cb = proc { |e| raise e }
+        # Async callbacks, no ops by default.
+        @err_cb = proc { }
         @close_cb = proc { }
         @disconnect_cb = proc { }
         @reconnect_cb = proc { }
