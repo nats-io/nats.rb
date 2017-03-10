@@ -897,6 +897,10 @@ module NATS
         @status = CONNECTED
         @pending_size = 0
 
+        # Reset parser state here to avoid unknown protocol errors
+        # on reconnect...
+        @parser.reset!
+
         # Now connected to NATS, and we can restart parser loop, flusher
         # and ping interval
         start_threads!
