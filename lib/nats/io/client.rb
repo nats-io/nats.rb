@@ -181,8 +181,9 @@ module NATS
         # Check for TLS usage
         @tls = @options[:tls]
 
+        srv = nil
         begin
-          current = select_next_server
+          srv = select_next_server
 
           # Create TCP socket connection to NATS
           @io = create_socket
@@ -190,7 +191,7 @@ module NATS
 
           # Capture state that we have had a TCP connection established against
           # this server and could potentially be used for reconnecting.
-          current[:was_connected] = true
+          srv[:was_connected] = true
 
           # Connection established and now in process of sending CONNECT to NATS
           @status = CONNECTING
@@ -199,13 +200,21 @@ module NATS
           process_connect_init
 
           # Reset reconnection attempts if connection is valid
-          current[:reconnect_attempts] = 0
+          srv[:reconnect_attempts] = 0
+          srv[:auth_required] ||= true if @server_info[:auth_required]
+
+          # Add back to rotation since successfully connected
+          server_pool << srv
         rescue NoServersError => e
           @disconnect_cb.call(e) if @disconnect_cb
           raise @last_err || e
         rescue => e
           # Capture sticky error
-          synchronize { @last_err = e }
+          synchronize do
+            @last_err = e
+            srv[:auth_required] ||= true if @server_info[:auth_required]
+            server_pool << srv if can_reuse_server?(srv)
+          end
 
           @err_cb.call(e) if @err_cb
 
@@ -388,18 +397,22 @@ module NATS
 
       # Handles protocol errors being sent by the server.
       def process_err(err)
-        # FIXME: In case of a stale connection, then handle as process_op_error
-
         # In case of permissions violation then dispatch the error callback
         # while holding the lock.
-        current = server_pool.first
-        current[:error_received] = true
-        e = if current[:auth_required]
-              NATS::IO::AuthError.new(err)
-            else
-              NATS::IO::ServerError.new(err)
-            end
-        synchronize { @last_err = e }
+        e = synchronize do
+          current = server_pool.first
+          case
+          when err =~ /'Stale Connection'/
+            @last_err = NATS::IO::StaleConnectionError.new(err)
+          when current && current[:auth_required]
+            # We cannot recover from auth errors so mark it to avoid
+            # retrying to unecessarily next time.
+            current[:error_received] = true
+            @last_err = NATS::IO::AuthError.new(err)
+          else
+            @last_err = NATS::IO::ServerError.new(err)
+          end
+        end
         process_op_error(e)
       end
 
@@ -471,6 +484,10 @@ module NATS
             srvs = []
             connect_urls.each do |url|
               u = URI.parse("nats://#{url}")
+
+              # Skip in case it is the current server which we already know
+              next if @uri.host == u.host && @uri.port == u.port
+
               present = server_pool.detect do |srv|
                 srv[:uri].host == u.host && srv[:uri].port == u.port
               end
@@ -486,7 +503,8 @@ module NATS
                   u.password ||= @uri.password if @uri.password
                 end
 
-                srvs << { :uri => u, :reconnect_attempts => 0, :discovered => true }
+                srv = { :uri => u, :reconnect_attempts => 0, :discovered => true }
+                srvs << srv
               end
             end
             srvs.shuffle! unless @options[:dont_randomize_servers]
@@ -563,13 +581,6 @@ module NATS
         # Track connection attempts to this server
         srv[:reconnect_attempts] ||= 0
         srv[:reconnect_attempts] += 1
-
-        # In case there was an error from the server we will
-        # take it out from rotation unless we specify infinite
-        # reconnects via setting :max_reconnect_attempts to -1
-        if options[:max_reconnect_attempts] < 0 || can_reuse_server?(srv)
-          server_pool << srv
-        end
 
         # Back off in case we are reconnecting to it and have been connected
         sleep @options[:reconnect_time_wait] if should_delay_connect?(srv)
@@ -767,6 +778,9 @@ module NATS
 
       def process_connect_init
         line = @io.read_line(options[:connect_timeout])
+        if !line or line.empty?
+          raise ConnectError.new("nats: protocol exception, INFO not received")
+        end
         _, info_json = line.split(' ')
         process_info(info_json)
 
@@ -793,11 +807,6 @@ module NATS
           raise NATS::IO::ConnectError.new('TLS/SSL not supported by server')
         else
           # Otherwise, use a regular connection.
-        end
-
-        if @server_info[:auth_required]
-          current = server_pool.first
-          current[:auth_required] = true
         end
 
         # Send connect and process synchronously. If using TLS,
@@ -835,8 +844,9 @@ module NATS
         @last_err = nil
 
         # Do reconnect
+        srv = nil
         begin
-          current = select_next_server
+          srv = select_next_server
 
           # Establish TCP connection with new server
           @io = create_socket
@@ -847,10 +857,19 @@ module NATS
           process_connect_init
 
           # Reset reconnection attempts if connection is valid
-          current[:reconnect_attempts] = 0
+          srv[:reconnect_attempts] = 0
+          srv[:auth_required] ||= true if @server_info[:auth_required]
+
+          # Add back to rotation since successfully connected
+          server_pool << srv
         rescue NoServersError => e
           raise e
         rescue => e
+          # In case there was an error from the server check
+          # to see whether need to take it out from rotation
+          srv[:auth_required] ||= true if @server_info[:auth_required]
+          server_pool << srv if can_reuse_server?(srv)
+          
           @last_err = e
 
           # Trigger async error handler
@@ -968,9 +987,17 @@ module NATS
       end
 
       def can_reuse_server?(server)
-        # We will retry a number of times to reconnect to a server
-        # unless we got a hard error from it already.
-        server[:reconnect_attempts] <= @options[:max_reconnect_attempts] && !server[:error_received]
+        return false if server.nil?
+
+        # We can always reuse servers with infinite reconnects settings
+        return true if @options[:max_reconnect_attempts] < 0
+
+        # In case of hard errors like authorization errors, drop the server
+        # already since won't be able to connect.
+        return false if server[:error_received]
+
+        # We will retry a number of times to reconnect to a server.
+        return server[:reconnect_attempts] <= @options[:max_reconnect_attempts]
       end
 
       def should_delay_connect?(server)

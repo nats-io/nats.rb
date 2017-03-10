@@ -252,20 +252,24 @@ describe 'Client - Cluster reconnect' do
         end
 
         # Connect to first server only and trigger reconnect
-        nats.connect(:servers => [@s1.uri], :dont_randomize_servers => true)
+        nats.connect(:servers => [@s1.uri], :dont_randomize_servers => true, :reconnect => true)
         expect(nats.connected_server).to eql(@s1.uri)
         @s1.kill_server
         sleep 0.1
         mon.synchronize do
           reconnected.wait(3)
         end
+
+        # Reconnected...
         expect(nats.connected_server).to eql(@s2.uri)
         expect(reconnects).to eql(1)
         expect(disconnects).to eql(1)
         expect(closes).to eql(0)
-        expect(errors.count).to eql(2)
+        expect(errors.count).to eql(1)
         expect(errors.first).to be_a(Errno::ECONNRESET)
-        expect(nats.last_error).to be_a(Errno::ECONNREFUSED)
+
+        # There should be no error since we reconnected now
+        expect(nats.last_error).to eql(nil)
 
         nats.close
       ensure
@@ -305,7 +309,13 @@ describe 'Client - Cluster reconnect' do
       end
 
       # Connect to first server only and trigger reconnect
-      nats.connect(:servers => [@s1.uri], :dont_randomize_servers => true, :user => 'secret', :pass => 'password')
+      nats.connect({
+        :servers => [@s1.uri],
+        :dont_randomize_servers => true,
+        :user => 'secret',
+        :pass => 'password',
+        :max_reconnect_attempts => 10
+      })
       expect(nats.connected_server).to eql(@s1.uri)
 
       begin
@@ -325,6 +335,8 @@ describe 'Client - Cluster reconnect' do
         # We still consider the original node and we have new ones
         # which can be used to failover.
         expect(nats.servers.count).to eql(3)
+
+        # Only 2 new ones should be discovered servers even after reconnect
         expect(nats.discovered_servers.count).to eql(2)
         expect(nats.connected_server).to eql(@s2.uri)
         expect(reconnects).to eql(1)
