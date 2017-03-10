@@ -174,6 +174,7 @@ describe 'Client - Reconnect' do
     # Confirm that we have captured the sticky error
     # and that the connection has remained disconnected.
     expect(errors.first).to be_a(Errno::ECONNREFUSED)
+    expect(errors.last).to be_a(Errno::ECONNREFUSED)
     expect(errors.count).to eql(3)
     expect(nats.last_error).to be_a(Errno::ECONNREFUSED)
     expect(nats.status).to eql(NATS::IO::DISCONNECTED)
@@ -239,8 +240,9 @@ describe 'Client - Reconnect' do
     expect(reconnects).to eql(0)
     expect(closes).to eql(1)
     expect(nats.last_error).to be_a(NATS::IO::NoServersError)
-    expect(errors.first).to be_a(Errno::ECONNREFUSED)
-    expect(errors.count).to eql(2)
+    expect(errors.first).to be_a(Errno::ECONNRESET)
+    expect(errors.last).to be_a(Errno::ECONNREFUSED)
+    expect(errors.count).to eql(3)
     expect(nats.status).to eql(NATS::IO::CLOSED)
   end
 
@@ -308,9 +310,10 @@ describe 'Client - Reconnect' do
       expect(closes).to eql(1)
       expect(disconnects.last).to be_a(NATS::IO::NoServersError)
       expect(nats.last_error).to be_a(NATS::IO::NoServersError)
-      expect(errors.first).to be_a(NATS::IO::SocketTimeoutError)
+      expect(errors.first).to be_a(Errno::ECONNRESET)
+      expect(errors[1]).to be_a(NATS::IO::SocketTimeoutError)
       expect(errors.last).to be_a(Errno::ECONNREFUSED)
-      expect(errors.count).to eql(4)
+      expect(errors.count).to eql(5)
       expect(nats.status).to eql(NATS::IO::CLOSED)
     end
   end
@@ -318,7 +321,7 @@ describe 'Client - Reconnect' do
   context 'against a server which becomes idle after being connected' do
     before(:all) do
       # Start a fake tcp server
-      @fake_nats_server = TCPServer.new 4444
+      @fake_nats_server = TCPServer.new 4445
       @fake_nats_server_th = Thread.new do
         loop do
           # Wait for a client to connect
@@ -376,7 +379,7 @@ describe 'Client - Reconnect' do
       end
 
       nats.connect({
-        :servers => ["nats://127.0.0.1:4444","nats://127.0.0.1:4222"],
+        :servers => ["nats://127.0.0.1:4445","nats://127.0.0.1:4222"],
         :max_reconnect_attempts => -1,
         :reconnect_time_wait => 2,
         :dont_randomize_servers => true,
