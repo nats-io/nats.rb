@@ -72,6 +72,9 @@ module NATS
     # When we cannot connect since there are no servers available.
     class NoServersError < ConnectError; end
 
+    # When the connection exhausts max number of pending pings replies.
+    class StaleConnectionError < Error; end
+
     # When we do not get a result within a specified time.
     class Timeout < Error; end
 
@@ -655,8 +658,8 @@ module NATS
 
             # TODO: Reconnecting pending buffer?
 
-            # Reconnect under a different thread than the one
-            # which got the error.
+            # Do reconnect under a different thread than the one
+            # in which we got the error.
             Thread.new do
               begin
                 # Abort currently running reads in case they're around
@@ -738,7 +741,6 @@ module NATS
               @err_cb.call(e) if @err_cb
             end
 
-            # TODO: Thread.exit?
             process_op_error(e)
             return
           end if @io
@@ -752,12 +754,16 @@ module NATS
       def ping_interval_loop
         loop do
           sleep @options[:ping_interval]
-          if @pings_outstanding > @options[:max_outstanding_pings]
-            # FIXME: Check if we have to dispatch callbacks.
-            close
-          end
-          @pings_outstanding += 1
 
+          # Skip ping interval until connected
+          next if !connected?
+
+          if @pings_outstanding >= @options[:max_outstanding_pings]
+            process_op_error(StaleConnectionError.new("nats: stale connection"))
+            return
+          end
+
+          @pings_outstanding += 1
           send_command(PING_REQUEST)
           @flush_queue << :ping
         end
