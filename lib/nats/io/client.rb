@@ -459,6 +459,53 @@ module NATS
         end
       end
 
+      def process_info(line)
+        parsed_info = JSON.parse(line)
+
+        # INFO can be received asynchronously too,
+        # so has to be done under the lock.
+        synchronize do
+          # Symbolize keys from parsed info line
+          @server_info = parsed_info.reduce({}) do |info, (k,v)|
+            info[k.to_sym] = v
+
+            info
+          end
+
+          # Detect any announced server that we might not be aware of...
+          connect_urls = @server_info[:connect_urls]
+          if connect_urls
+            srvs = []
+            connect_urls.each do |url|
+              u = URI.parse("nats://#{url}")
+              present = server_pool.detect do |srv|
+                srv[:uri].host == u.host && srv[:uri].port == u.port
+              end
+
+              if not present
+                # Let explicit user and pass options set the credentials.
+                u.user = options[:user] if options[:user]
+                u.password = options[:pass] if options[:pass]
+
+                # Use creds from the current server if not set explicitly.
+                if @uri
+                  u.user ||= @uri.user if @uri.user
+                  u.password ||= @uri.password if @uri.password
+                end
+
+                srvs << { :uri => u, :reconnect_attempts => 0, :discovered => true }
+              end
+            end
+            srvs.shuffle! unless @options[:dont_randomize_servers]
+
+            # Include in server pool but keep current one as the first one.
+            server_pool.push(*srvs)
+          end
+        end
+
+        @server_info
+      end
+
       # Close connection to NATS, flushing in case connection is alive
       # and there are any pending messages, should not be used while
       # holding the lock.
@@ -540,53 +587,6 @@ module NATS
         @uri.password = @options[:pass] if @options[:pass]
 
         srv
-      end
-
-      def process_info(line)
-        parsed_info = JSON.parse(line)
-
-        # INFO can be received asynchronously too,
-        # so has to be done under the lock.
-        synchronize do
-          # Symbolize keys from parsed info line
-          @server_info = parsed_info.reduce({}) do |info, (k,v)|
-            info[k.to_sym] = v
-
-            info
-          end
-
-          # Detect any announced server that we might not be aware of...
-          connect_urls = @server_info[:connect_urls]
-          if connect_urls
-            srvs = []
-            connect_urls.each do |url|
-              u = URI.parse("nats://#{url}")
-              present = server_pool.detect do |srv|
-                srv[:uri].host == u.host && srv[:uri].port == u.port
-              end
-
-              if not present
-                # Let explicit user and pass options set the credentials.
-                u.user = options[:user] if options[:user]
-                u.password = options[:pass] if options[:pass]
-
-                # Use creds from the current server if not set explicitly.
-                if @uri
-                  u.user ||= @uri.user if @uri.user
-                  u.password ||= @uri.password if @uri.password
-                end
-
-                srvs << { :uri => u, :reconnect_attempts => 0, :discovered => true }
-              end
-            end
-            srvs.shuffle! unless @options[:dont_randomize_servers]
-
-            # Include in server pool but keep current one as the first one.
-            server_pool.push(*srvs)
-          end
-        end
-
-        @server_info
       end
 
       def server_using_secure_connection?
