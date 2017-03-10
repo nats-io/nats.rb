@@ -57,7 +57,7 @@ describe 'Client - Specification' do
     done = mon.new_cond
 
     nats = NATS::IO::Client.new
-    nats.connect
+    nats.connect(reconnect: false)
 
     errors = []
     nats.on_error do |e|
@@ -88,6 +88,7 @@ describe 'Client - Specification' do
     expect(errors.first.to_s).to include("Unknown protocol")
     expect(disconnects).to eql(1)
     expect(closes).to eql(1)
+
     expect(nats.closed?).to eql(true)
   end
 

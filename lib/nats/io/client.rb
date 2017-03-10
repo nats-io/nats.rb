@@ -394,20 +394,13 @@ module NATS
         # while holding the lock.
         current = server_pool.first
         current[:error_received] = true
-        if current[:auth_required]
-          @err_cb.call(NATS::IO::AuthError.new(err))
-        else
-          @err_cb.call(NATS::IO::ServerError.new(err))
-        end
-
-        # Otherwise, capture the error under a lock and close
-        # the connection gracefully.
-        synchronize do
-          @last_err = NATS::IO::ServerError.new(err)
-        end
-
-        # Process disconnect under a different thread as reading loop
-        Thread.new { close }
+        e = if current[:auth_required]
+              NATS::IO::AuthError.new(err)
+            else
+              NATS::IO::ServerError.new(err)
+            end
+        synchronize { @last_err = e }
+        process_op_error(e)
       end
 
       def process_msg(subject, sid, reply, data)
