@@ -26,8 +26,9 @@ cluster_opts = {
   servers: servers,
   reconnect_time_wait: 1,
   max_reconnect_attempts: -1, # Infinite reconnects
-  ping_interval: 30,
-  dont_randomize_servers: true
+  ping_interval: 10,
+  dont_randomize_servers: true,
+  connect_timeout: 2
 }
 
 puts "Attempting to connect to #{servers.first}..."
