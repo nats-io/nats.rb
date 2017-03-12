@@ -174,6 +174,7 @@ describe 'Client - Reconnect' do
     # Confirm that we have captured the sticky error
     # and that the connection has remained disconnected.
     expect(errors.first).to be_a(Errno::ECONNREFUSED)
+    expect(errors.last).to be_a(Errno::ECONNREFUSED)
     expect(errors.count).to eql(3)
     expect(nats.last_error).to be_a(Errno::ECONNREFUSED)
     expect(nats.status).to eql(NATS::IO::DISCONNECTED)
@@ -239,12 +240,13 @@ describe 'Client - Reconnect' do
     expect(reconnects).to eql(0)
     expect(closes).to eql(1)
     expect(nats.last_error).to be_a(NATS::IO::NoServersError)
-    expect(errors.first).to be_a(Errno::ECONNREFUSED)
-    expect(errors.count).to eql(2)
+    expect(errors.first).to be_a(Errno::ECONNRESET)
+    expect(errors.last).to be_a(Errno::ECONNREFUSED)
+    expect(errors.count).to eql(3)
     expect(nats.status).to eql(NATS::IO::CLOSED)
   end
 
-  context 'against a server which is idle' do
+  context 'against a server which is idle during connect' do
     before(:all) do
       # Start a fake tcp server
       @fake_nats_server = TCPServer.new 4444
@@ -308,9 +310,96 @@ describe 'Client - Reconnect' do
       expect(closes).to eql(1)
       expect(disconnects.last).to be_a(NATS::IO::NoServersError)
       expect(nats.last_error).to be_a(NATS::IO::NoServersError)
-      expect(errors.first).to be_a(NATS::IO::SocketTimeoutError)
+      expect(errors.first).to be_a(Errno::ECONNRESET)
+      expect(errors[1]).to be_a(NATS::IO::SocketTimeoutError)
       expect(errors.last).to be_a(Errno::ECONNREFUSED)
-      expect(errors.count).to eql(4)
+      expect(errors.count).to eql(5)
+      expect(nats.status).to eql(NATS::IO::CLOSED)
+    end
+  end
+
+  context 'against a server which becomes idle after being connected' do
+    before(:all) do
+      # Start a fake tcp server
+      @fake_nats_server = TCPServer.new 4445
+      @fake_nats_server_th = Thread.new do
+        loop do
+          # Wait for a client to connect
+          client = @fake_nats_server.accept
+          begin
+            client.puts "INFO {}"
+
+            # Read and ignore CONNECT command send by the client
+            connect_op = client.gets.chomp
+
+            # Reply to any pending pings client may have sent
+            sleep 0.1
+            client.puts "PONG\r\n"
+
+            # Make connection go stale so that client gives up
+            sleep 10
+          ensure
+            client.close
+          end
+        end
+      end
+    end
+
+    after(:all) do
+      @fake_nats_server_th.exit
+      @fake_nats_server.close
+    end
+
+    it 'should reconnect to a healthy server if connection becomes stale' do
+      msgs = []
+      errors = []
+      closes = 0
+      reconnects = 0
+      disconnects = 0
+
+      nats = NATS::IO::Client.new
+      mon = Monitor.new
+      done = mon.new_cond
+
+      nats.on_error do |e|
+        errors << e
+      end
+
+      nats.on_reconnect do
+        reconnects += 1
+      end
+
+      nats.on_disconnect do
+        disconnects += 1
+      end
+
+      nats.on_close do
+        closes += 1
+        mon.synchronize { done.signal }
+      end
+
+      nats.connect({
+        :servers => ["nats://127.0.0.1:4445","nats://127.0.0.1:4222"],
+        :max_reconnect_attempts => -1,
+        :reconnect_time_wait => 2,
+        :dont_randomize_servers => true,
+        :connect_timeout => 1,
+        :ping_interval => 2
+      })
+
+      # Confirm that we have captured the sticky error
+      # and that the connection is closed due no servers left.
+      mon.synchronize { done.wait(7) }
+
+      # Wrap up connection with server and confirm
+      nats.close
+
+      expect(disconnects).to eql(2)
+      expect(reconnects).to eql(1)
+      expect(closes).to eql(1)
+      expect(errors.count).to eql(1)
+      expect(errors.first).to be_a(NATS::IO::StaleConnectionError)
+      expect(nats.last_error).to eql(nil)
       expect(nats.status).to eql(NATS::IO::CLOSED)
     end
   end

@@ -72,6 +72,9 @@ module NATS
     # When we cannot connect since there are no servers available.
     class NoServersError < ConnectError; end
 
+    # When the connection exhausts max number of pending pings replies.
+    class StaleConnectionError < Error; end
+
     # When we do not get a result within a specified time.
     class Timeout < Error; end
 
@@ -137,8 +140,8 @@ module NATS
         # Sticky error
         @last_err = nil
 
-        # Async callbacks
-        @err_cb = proc { |e| raise e }
+        # Async callbacks, no ops by default.
+        @err_cb = proc { }
         @close_cb = proc { }
         @disconnect_cb = proc { }
         @reconnect_cb = proc { }
@@ -456,6 +459,53 @@ module NATS
         end
       end
 
+      def process_info(line)
+        parsed_info = JSON.parse(line)
+
+        # INFO can be received asynchronously too,
+        # so has to be done under the lock.
+        synchronize do
+          # Symbolize keys from parsed info line
+          @server_info = parsed_info.reduce({}) do |info, (k,v)|
+            info[k.to_sym] = v
+
+            info
+          end
+
+          # Detect any announced server that we might not be aware of...
+          connect_urls = @server_info[:connect_urls]
+          if connect_urls
+            srvs = []
+            connect_urls.each do |url|
+              u = URI.parse("nats://#{url}")
+              present = server_pool.detect do |srv|
+                srv[:uri].host == u.host && srv[:uri].port == u.port
+              end
+
+              if not present
+                # Let explicit user and pass options set the credentials.
+                u.user = options[:user] if options[:user]
+                u.password = options[:pass] if options[:pass]
+
+                # Use creds from the current server if not set explicitly.
+                if @uri
+                  u.user ||= @uri.user if @uri.user
+                  u.password ||= @uri.password if @uri.password
+                end
+
+                srvs << { :uri => u, :reconnect_attempts => 0, :discovered => true }
+              end
+            end
+            srvs.shuffle! unless @options[:dont_randomize_servers]
+
+            # Include in server pool but keep current one as the first one.
+            server_pool.push(*srvs)
+          end
+        end
+
+        @server_info
+      end
+
       # Close connection to NATS, flushing in case connection is alive
       # and there are any pending messages, should not be used while
       # holding the lock.
@@ -539,53 +589,6 @@ module NATS
         srv
       end
 
-      def process_info(line)
-        parsed_info = JSON.parse(line)
-
-        # INFO can be received asynchronously too,
-        # so has to be done under the lock.
-        synchronize do
-          # Symbolize keys from parsed info line
-          @server_info = parsed_info.reduce({}) do |info, (k,v)|
-            info[k.to_sym] = v
-
-            info
-          end
-
-          # Detect any announced server that we might not be aware of...
-          connect_urls = @server_info[:connect_urls]
-          if connect_urls
-            srvs = []
-            connect_urls.each do |url|
-              u = URI.parse("nats://#{url}")
-              present = server_pool.detect do |srv|
-                srv[:uri].host == u.host && srv[:uri].port == u.port
-              end
-
-              if not present
-                # Let explicit user and pass options set the credentials.
-                u.user = options[:user] if options[:user]
-                u.password = options[:pass] if options[:pass]
-
-                # Use creds from the current server if not set explicitly.
-                if @uri
-                  u.user ||= @uri.user if @uri.user
-                  u.password ||= @uri.password if @uri.password
-                end
-
-                srvs << { :uri => u, :reconnect_attempts => 0, :discovered => true }
-              end
-            end
-            srvs.shuffle! unless @options[:dont_randomize_servers]
-
-            # Include in server pool but keep current one as the first one.
-            server_pool.push(*srvs)
-          end
-        end
-
-        @server_info
-      end
-
       def server_using_secure_connection?
         @server_info[:ssl_required] || @server_info[:tls_required]
       end
@@ -645,6 +648,7 @@ module NATS
 
         synchronize do
           @last_err = e
+          @err_cb.call(e) if @err_cb
 
           # If we were connected and configured to reconnect,
           # then trigger disconnect and start reconnection logic
@@ -655,8 +659,8 @@ module NATS
 
             # TODO: Reconnecting pending buffer?
 
-            # Reconnect under a different thread than the one
-            # which got the error.
+            # Do reconnect under a different thread than the one
+            # in which we got the error.
             Thread.new do
               begin
                 # Abort currently running reads in case they're around
@@ -738,7 +742,6 @@ module NATS
               @err_cb.call(e) if @err_cb
             end
 
-            # TODO: Thread.exit?
             process_op_error(e)
             return
           end if @io
@@ -752,12 +755,16 @@ module NATS
       def ping_interval_loop
         loop do
           sleep @options[:ping_interval]
-          if @pings_outstanding > @options[:max_outstanding_pings]
-            # FIXME: Check if we have to dispatch callbacks.
-            close
-          end
-          @pings_outstanding += 1
 
+          # Skip ping interval until connected
+          next if !connected?
+
+          if @pings_outstanding >= @options[:max_outstanding_pings]
+            process_op_error(StaleConnectionError.new("nats: stale connection"))
+            return
+          end
+
+          @pings_outstanding += 1
           send_command(PING_REQUEST)
           @flush_queue << :ping
         end

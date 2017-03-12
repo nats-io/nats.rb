@@ -15,14 +15,24 @@ nats.on_close do
   puts "Connection to NATS closed"
 end
 
+nats.on_error do |e|
+  puts "Error: #{e}"
+  puts e.backtrace
+end
+
+servers = ["nats://127.0.0.1:4222", "nats://127.0.0.1:4223"]
+
 cluster_opts = {
-  servers: ["nats://127.0.0.1:4222", "nats://127.0.0.1:4223","nats://127.0.0.1:4224"],
-  dont_randomize_servers: true,
+  servers: servers,
   reconnect_time_wait: 1,
-  max_reconnect_attempts: 5
+  max_reconnect_attempts: -1, # Infinite reconnects
+  ping_interval: 30,
+  dont_randomize_servers: true
 }
 
+puts "Attempting to connect to #{servers.first}..."
 nats.connect(cluster_opts)
+
 puts "Connected to #{nats.connected_server}"
 
 msgs_sent = 0
@@ -40,9 +50,10 @@ Thread.new do
 end
 
 loop do
+  sleep 0.00001
+
   payload = "world.#{msgs_sent}"
   nats.publish("hello", payload)
   msgs_sent += 1
   bytes_sent += payload.size
-  sleep 0.00001
 end
