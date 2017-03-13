@@ -1028,10 +1028,6 @@ module NATS
     class Socket
       attr_accessor :socket
 
-      # Exceptions raised during non-blocking I/O ops that require retrying the op
-      NBIO_READ_EXCEPTIONS  = [Errno::EWOULDBLOCK, Errno::EAGAIN, ::IO::WaitReadable]
-      NBIO_WRITE_EXCEPTIONS = [Errno::EWOULDBLOCK, Errno::EAGAIN, ::IO::WaitWritable]
-
       def initialize(options={})
         @uri = options[:uri]
         @connect_timeout = options[:connect_timeout]
@@ -1068,13 +1064,13 @@ module NATS
 
         begin
           return @socket.read_nonblock(max_bytes)
-        rescue *NBIO_READ_EXCEPTIONS
+        rescue ::IO::WaitReadable
           if ::IO.select([@socket], nil, nil, deadline)
             retry
           else
             raise SocketTimeoutError
           end
-        rescue *NBIO_WRITE_EXCEPTIONS
+        rescue ::IO::WaitWritable
           if ::IO.select(nil, [@socket], nil, deadline)
             retry
           else
@@ -1102,13 +1098,13 @@ module NATS
             total_written += written
             break total_written if total_written >= length
             data = data.byteslice(written..-1)
-          rescue *NBIO_WRITE_EXCEPTIONS
+          rescue ::IO::WaitWritable
             if ::IO.select(nil, [@socket], nil, deadline)
               retry
             else
               raise SocketTimeoutError
             end
-          rescue *NBIO_READ_EXCEPTIONS => e
+          rescue ::IO::WaitReadable
             if ::IO.select([@socket], nil, nil, deadline)
               retry
             else
