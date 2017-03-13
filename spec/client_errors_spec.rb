@@ -13,7 +13,7 @@ describe 'Client - Specification' do
 
   it 'should process errors from server' do
     nats = NATS::IO::Client.new
-    nats.connect(allow_reconnect: false)
+    nats.connect(reconnect: false)
 
     mon = Monitor.new
     done = mon.new_cond
@@ -42,7 +42,7 @@ describe 'Client - Specification' do
     # disconnection may have already occurred.
     nats.flush(1) rescue nil
 
-    # Should have a connection closed at this without reconnecting.
+    nats.close
     mon.synchronize { done.wait(3) }
     expect(errors.count).to eql(1)
     expect(errors.first).to be_a(NATS::IO::ServerError)
@@ -57,7 +57,7 @@ describe 'Client - Specification' do
     done = mon.new_cond
 
     nats = NATS::IO::Client.new
-    nats.connect
+    nats.connect(reconnect: false)
 
     errors = []
     nats.on_error do |e|
@@ -88,6 +88,7 @@ describe 'Client - Specification' do
     expect(errors.first.to_s).to include("Unknown protocol")
     expect(disconnects).to eql(1)
     expect(closes).to eql(1)
+
     expect(nats.closed?).to eql(true)
   end
 

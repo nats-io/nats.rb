@@ -24,8 +24,11 @@ module NATS
     class Parser
       def initialize(nc)
         @nc = nc
+        reset!
+      end
+
+      def reset!
         @buf = nil
-        @needed = nil
         @parse_state = AWAITING_CONTROL_LINE
 
         @sub = nil
