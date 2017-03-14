@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    nats-pure (0.2.0)
+    nats-pure (0.2.2)
 
 GEM
   remote: https://rubygems.org/
@@ -31,4 +31,4 @@ DEPENDENCIES
   rspec
 
 BUNDLED WITH
-   1.13.6
+   1.14.6
