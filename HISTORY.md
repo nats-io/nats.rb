@@ -1,5 +1,17 @@
 # HISTORY
 
+## v0.8.2 (March 14, 2017)
+  - Allow setting name from client on connect (#129)
+  - Add discovered servers helper for servers announced via async INFO (#136)
+  - Add time based reconnect backoff (#139)
+  - Modify lang sent on connect when using jruby (#135)
+  - Update eventmachine dependencies (#134)
+
+## v0.8.0 (August 10, 2016)
+  - Added cluster auto discovery handling which is supported on v0.9.2 server release (#125)
+  - Added jruby part of the build (both in openjdk and oraclejdk runtimes) (#122 #123)
+  - Fixed ping interval accounting (#120)
+
 ## v0.7.1 (July 8, 2016)
   - Remove dependencies which are no longer needed for ruby-client
   - See full list @ https://github.com/nats-io/ruby-nats/compare/v0.7.0...v0.7.1
