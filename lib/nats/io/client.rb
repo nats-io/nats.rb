@@ -264,8 +264,8 @@ module NATS
       # Create subscription which is dispatched asynchronously
       # messages to a callback.
       def subscribe(subject, opts={}, &callback)
-        sid = (@ssid += 1)
-        sub = @subs[sid] = Subscription.new
+        sid = synchronize { @ssid += 1 }
+        sub = synchronize { @subs[sid] = Subscription.new }
         sub.subject = subject
         sub.callback = callback
         sub.received = 0
@@ -437,7 +437,7 @@ module NATS
               return
             when sub.received == sub.max
               # Cleanup here if we have hit the max..
-              @subs.delete(sid)
+              synchronize { @subs.delete(sid) }
             end
           end
 
