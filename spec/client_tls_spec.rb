@@ -130,7 +130,7 @@ describe 'Client - TLS spec' do
 
       expect do
         tls_context = OpenSSL::SSL::SSLContext.new
-        tls_context.ssl_version = :SSLv3
+        tls_context.ssl_version = :TLSv1
 
         nats.connect({
                        servers: ['tls://127.0.0.1:4444'],
