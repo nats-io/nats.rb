@@ -12,6 +12,8 @@ This gem and the client are known to work on the following Ruby platforms:
 - MRI 1.9, 2.0, 2.1, 2.2, 2.3.0, 2.4.0
 - JRuby 9.1.2.0
 
+If you're looking for a non-EventMachine alternative, check out the [nats-pure](https://github.com/nats-io/pure-ruby-nats) gem.
+
 ## Getting Started
 
 ```bash
