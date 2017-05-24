@@ -349,6 +349,7 @@ module NATS
     @connected, @closing, @reconnecting, @conn_cb_called = false, false, false, false
     @msgs_received = @msgs_sent = @bytes_received = @bytes_sent = @pings = 0
     @pending_size = 0
+    @pending_lock = Mutex.new
     @server_info = { }
 
     # Mark whether we should be connecting securely, try best effort
@@ -578,8 +579,10 @@ module NATS
 
   def flush_pending #:nodoc:
     return unless @pending
-    send_data(@pending.join)
-    @pending, @pending_size = nil, 0
+    @pending_lock.synchronize {
+      send_data(@pending.join)
+      @pending, @pending_size = nil, 0
+    }
   end
 
   def receive_data(data) #:nodoc:
@@ -758,7 +761,9 @@ module NATS
 
     # Whip through any pending SUB commands since we replay
     # all subscriptions already done anyway.
-    @pending.delete_if { |sub| sub[0..2] == SUB_OP } if @pending
+    @pending_lock.synchronize {
+      @pending.delete_if { |sub| sub[0..2] == SUB_OP } if @pending
+    }
     @subs.each_pair { |k, v| send_command("SUB #{v[:subject]} #{v[:queue]} #{k}#{CR_LF}") }
 
     unless user_err_cb? or reconnecting?
@@ -837,7 +842,9 @@ module NATS
     process_disconnect and return if (closing? or should_not_reconnect?)
     @reconnecting = true if connected?
     @connected = false
-    @pending = @pongs = nil
+    @pending_lock.synchronize {
+      @pending = @pongs = nil
+    }
     @buf = nil
     cancel_ping_timer
 
@@ -916,11 +923,12 @@ module NATS
   def send_command(command, priority = false) #:nodoc:
     needs_flush = (connected? && @pending.nil?)
 
-    @pending ||= []
-    @pending << command unless priority
-    @pending.unshift(command) if priority
-    @pending_size += command.bytesize
-
+    @pending_lock.synchronize {
+      @pending ||= []
+      @pending << command unless priority
+      @pending.unshift(command) if priority
+      @pending_size += command.bytesize
+    }
     EM.next_tick { flush_pending } if needs_flush
 
     flush_pending if (connected? && @pending_size > MAX_PENDING_SIZE)
