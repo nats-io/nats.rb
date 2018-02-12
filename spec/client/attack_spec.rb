@@ -18,8 +18,6 @@ describe 'Client - server attacks' do
   end
 
   it "should not let us write large control line buffers" do
-    skip 'FIXME: add control line checks in server'
-
     errors = []
     with_em_timeout(3) do
       NATS.on_error do |e|
@@ -31,10 +29,9 @@ describe 'Client - server attacks' do
       end
     end
 
+    # Just confirm that it is no longer connected
     expect(NATS.connected?).to be false
-    expect(errors.count).to eql(2)
-    expect(errors[0]).to be_a NATS::ServerError
-    expect(errors[1]).to be_a NATS::ConnectError
+    expect(errors.count >= 1).to eql(true)
   end
 
   it "should not let us write large messages" do
