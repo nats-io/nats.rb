@@ -4,11 +4,11 @@ gemspec
 
 group :test do
   gem 'rake'
-  gem 'rspec', '>= 3.5.0'
+  gem 'rspec'
 end
 
 group :server do
-  gem 'daemons', '>= 1.2.2'
-  gem 'json_pure', '>= 1.8.1', :require => 'json'
-  gem 'thin', '>= 1.6.0'
+  gem 'daemons'
+  gem 'json_pure'
+  gem 'thin'
 end

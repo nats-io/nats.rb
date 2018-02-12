@@ -1,5 +1,6 @@
 require 'uri'
 require 'securerandom'
+require 'openssl' unless defined?(OpenSSL)
 
 ep = File.expand_path(File.dirname(__FILE__))
 
