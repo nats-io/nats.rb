@@ -20,7 +20,7 @@ spec = Gem::Specification.new do |s|
 
   s.require_paths = ['lib']
   s.bindir = 'bin'
-  s.executables = ['nats-pub', 'nats-sub', 'nats-queue', 'nats-top', 'nats-request']
+  s.executables = ['nats-pub', 'nats-sub', 'nats-queue', 'nats-request']
 
   s.files = %w[
     COPYING
