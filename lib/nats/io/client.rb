@@ -148,6 +148,10 @@ module NATS
 
         # Secure TLS options
         @tls = nil
+
+        # Hostname of current server; used for when TLS host
+        # verification is enabled.
+        @hostname = nil
       end
 
       # Establishes connection to NATS
@@ -175,7 +179,16 @@ module NATS
         uris = opts[:servers] || [DEFAULT_URI]
         uris.shuffle! unless @options[:dont_randomize_servers]
         uris.each do |u|
-          @server_pool << { :uri => u.is_a?(URI) ? u.dup : URI.parse(u) }
+          nats_uri = case u
+                     when URI
+                       u.dup
+                     else
+                       URI.parse(u)
+                     end
+          @server_pool << {
+            :uri => nats_uri,
+            :hostname => nats_uri.host
+          }
         end
 
         # Check for TLS usage
@@ -195,6 +208,9 @@ module NATS
 
           # Connection established and now in process of sending CONNECT to NATS
           @status = CONNECTING
+
+          # Use the hostname from the server for TLS hostname verification.
+          @hostname = srv[:hostname]
 
           # Established TCP connection successfully so can start connect
           process_connect_init
@@ -507,7 +523,8 @@ module NATS
                   u.password ||= @uri.password if @uri.password
                 end
 
-                srv = { :uri => u, :reconnect_attempts => 0, :discovered => true }
+                # NOTE: Auto discovery won't work here when TLS host verification is enabled.
+                srv = { :uri => u, :reconnect_attempts => 0, :discovered => true, :hostname => u.host }
                 srvs << srv
               end
             end
@@ -803,6 +820,10 @@ module NATS
 
           # Setup TLS connection by rewrapping the socket
           tls_socket = OpenSSL::SSL::SSLSocket.new(@io.socket, tls_context)
+
+          # TLS changes to improve support hostname verify support
+          tls_socket.hostname = @hostname if tls_context.verify_hostname
+
           tls_socket.connect
           @io.socket = tls_socket
         when (server_using_secure_connection? and !client_using_secure_connection?)
@@ -856,6 +877,9 @@ module NATS
           @io = create_socket
           @io.connect
           @stats[:reconnects] += 1
+
+          # Set hostname to use for TLS hostname verification
+          @hostname = srv[:hostname]          
 
           # Established TCP connection successfully so can start connect
           process_connect_init
