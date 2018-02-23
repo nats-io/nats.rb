@@ -1,5 +1,6 @@
-
 $:.unshift('./lib')
+
+require 'net/http'
 require 'nats/client'
 require 'tempfile'
 
@@ -123,7 +124,7 @@ class NatsServerControl
     rss = (parts[1].to_i)/1024
   end
 
-  def start_server(wait_for_server=true)
+  def start_server(wait_for_server=true, monitoring: false)
     if NATS.server_running? @uri
       @was_running = true
       return 0
@@ -131,6 +132,7 @@ class NatsServerControl
     @pid = nil
 
     args = "-p #{@uri.port} -P #{@pid_file}"
+    args += " -m 8222" if monitoring
     args += " --user #{@uri.user}" if @uri.user
     args += " --pass #{@uri.password}" if @uri.password
     args += " #{@flags}" if @flags
