@@ -1,5 +1,6 @@
-
 $:.unshift('./lib')
+
+require 'net/http'
 require 'nats/client'
 require 'tempfile'
 
@@ -131,6 +132,7 @@ class NatsServerControl
     @pid = nil
 
     args = "-p #{@uri.port} -P #{@pid_file}"
+    args += " -m 8222"
     args += " --user #{@uri.user}" if @uri.user
     args += " --pass #{@uri.password}" if @uri.password
     args += " #{@flags}" if @flags

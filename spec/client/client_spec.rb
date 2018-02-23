@@ -30,6 +30,13 @@ describe 'Client - specification' do
     expect(NATS.connected?).to eql(false)
   end
 
+  it 'should report supplied connection name' do
+    NATS.start(uri: 'nats://127.0.0.1:4222', name: 'test-connection') do
+      expect(JSON.parse(Net::HTTP.get(URI('http://localhost:8222/connz')))['connections'][0]['name']).to eq 'test-connection'
+      NATS.stop
+    end
+  end
+
   it 'should perform basic block start and stop' do
     NATS.start { NATS.stop }
   end
