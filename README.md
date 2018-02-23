@@ -3,14 +3,14 @@
 A [Ruby](http://ruby-lang.org) client for the [NATS messaging system](https://nats.io).
 
 [![License MIT](https://img.shields.io/npm/l/express.svg)](http://opensource.org/licenses/MIT)
-[![Build Status](https://travis-ci.org/nats-io/ruby-nats.svg)](http://travis-ci.org/nats-io/ruby-nats) [![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.8.2)](https://rubygems.org/gems/nats/versions/0.8.2) [![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](http://www.rubydoc.info/github/nats-io/ruby-nats)
+[![Build Status](https://travis-ci.org/nats-io/ruby-nats.svg)](http://travis-ci.org/nats-io/ruby-nats) [![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.8.4)](https://rubygems.org/gems/nats/versions/0.8.4) [![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](http://www.rubydoc.info/github/nats-io/ruby-nats)
 
 ## Supported Platforms
 
 This gem and the client are known to work on the following Ruby platforms:
 
-- MRI 1.9, 2.0, 2.1, 2.2, 2.3.0, 2.4.0
-- JRuby 9.1.2.0
+- MRI 2.2, 2.3.0, 2.4.0, 2.5.0
+- JRuby 9.1.2.0, 9.1.15.0
 
 If you're looking for a non-EventMachine alternative, check out the [nats-pure](https://github.com/nats-io/pure-ruby-nats) gem.
 
@@ -108,10 +108,11 @@ end
 
 ### Auto discovery
 
-Starting from release `0.8.0` of the gem, the client also auto discovers
-new nodes announced by the server as they attach to the cluster.
-Reconnection logic parameters such as time to back-off on failure and max attempts
-apply the same to both discovered nodes and those defined explicitly on connect:
+Starting from release `0.8.0` of the gem, the client also auto
+discovers new nodes announced by the server as they attach to the
+cluster.  Reconnection logic parameters such as time to back-off on
+failure and max attempts apply the same to both discovered nodes and
+those defined explicitly on connect:
 
 ```ruby
 opts = {
@@ -157,7 +158,8 @@ NATS.connect { NATS.publish('test', 'Hello World!') }
 
 ### TLS
 
-Advanced customizations options for setting up a secure connection can be done by including them on connect:
+Advanced customizations options for setting up a secure connection can
+be done by including them on connect:
 
 ```ruby
 options = {
@@ -214,7 +216,7 @@ See examples and benchmarks for more information..
 
 (The MIT License)
 
-Copyright (c) 2010-2016 Derek Collison
+Copyright (c) 2010-2018 Derek Collison
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to
