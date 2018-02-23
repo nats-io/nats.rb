@@ -31,6 +31,8 @@ describe 'Client - specification' do
   end
 
   it 'should report supplied connection name' do
+    @s.kill_server
+    @s.start_server(true, monitoring: true)
     NATS.start(uri: 'nats://127.0.0.1:4222', name: 'test-connection') do
       expect(JSON.parse(Net::HTTP.get(URI('http://localhost:8222/connz')))['connections'][0]['name']).to eq 'test-connection'
       NATS.stop
