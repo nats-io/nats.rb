@@ -821,9 +821,11 @@ module NATS
           # Setup TLS connection by rewrapping the socket
           tls_socket = OpenSSL::SSL::SSLSocket.new(@io.socket, tls_context)
 
-          # TLS changes to improve support hostname verify support
+          # Close TCP socket after closing TLS socket as well.
           tls_socket.sync_close = true
-          tls_socket.hostname = @hostname if tls_context.verify_hostname
+
+          # Required to enable hostname verification (if Ruby runtime supports it).
+          tls_socket.hostname = @hostname
 
           tls_socket.connect
           @io.socket = tls_socket
@@ -880,7 +882,7 @@ module NATS
           @stats[:reconnects] += 1
 
           # Set hostname to use for TLS hostname verification
-          @hostname = srv[:hostname]          
+          @hostname = srv[:hostname]
 
           # Established TCP connection successfully so can start connect
           process_connect_init
@@ -898,7 +900,7 @@ module NATS
           # to see whether need to take it out from rotation
           srv[:auth_required] ||= true if @server_info[:auth_required]
           server_pool << srv if can_reuse_server?(srv)
-          
+
           @last_err = e
 
           # Trigger async error handler

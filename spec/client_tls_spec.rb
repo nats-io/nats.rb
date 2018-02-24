@@ -227,7 +227,7 @@ describe 'Client - TLS spec' do
     end
   end
 
-  context 'when server requires TLS and client enables host verification' do
+  context 'when server requires TLS and client enables host verification', :tls_verify_hostname do
     let(:tls_context) {
       ctx = OpenSSL::SSL::SSLContext.new
       ctx.ca_file = "./spec/configs/certs/nats-service.localhost/ca.pem"
@@ -313,7 +313,7 @@ describe 'Client - TLS spec' do
     end
   end
 
-  context 'when bad server requires TLS' do
+  context 'when bad server requires TLS', :tls_verify_hostname do
     before(:each) do
       @tls_verify_host_bad_server_uri = URI.parse("nats://127.0.0.1:4557")
       opts = {
