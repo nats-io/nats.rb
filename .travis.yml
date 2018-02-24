@@ -17,6 +17,7 @@ before_script:
 
 sudo: required
 dist: trusty
+bundler_args: --with test
 
 matrix:
   include:
