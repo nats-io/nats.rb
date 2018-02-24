@@ -25,9 +25,6 @@ matrix:
       jdk: openjdk7
     - rvm: jruby
       env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
-      jdk: oraclejdk7
-    - rvm: jruby
-      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
       jdk: openjdk8
     - rvm: jruby
       env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
@@ -36,9 +33,6 @@ matrix:
     - rvm: jruby
       env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
       jdk: openjdk7
-    - rvm: jruby
-      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
-      jdk: oraclejdk7
     - rvm: jruby
       env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
       jdk: openjdk8
