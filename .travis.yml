@@ -46,3 +46,10 @@ matrix:
       env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
       jdk: oraclejdk8
     - rvm: ruby-head
+
+addons:
+  hosts:
+    - server-A.clients.nats-service.localhost
+    - server-A.clients.fake-nats-service.localhost
+    - server-A.routes.nats-service.localhost
+    - server-A.routes.fake-nats-service.localhost
