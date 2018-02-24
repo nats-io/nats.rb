@@ -122,3 +122,17 @@ end
 class Stream < Queue
   include MonitorMixin
 end
+
+DEFAULT_JRUBY_CIPHER_SUITE = %q(
+    # JRuby is sensible to the ciphers being used
+    # so we specify the ones that are available on it here.
+    # See: https://github.com/jruby/jruby/issues/1738
+    cipher_suites: [
+      "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+      "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+      "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+      "TLS_RSA_WITH_AES_128_CBC_SHA",
+      "TLS_RSA_WITH_AES_256_CBC_SHA",
+      "TLS_RSA_WITH_3DES_EDE_CBC_SHA"
+    ]
+)
