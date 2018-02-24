@@ -822,6 +822,7 @@ module NATS
           tls_socket = OpenSSL::SSL::SSLSocket.new(@io.socket, tls_context)
 
           # TLS changes to improve support hostname verify support
+          tls_socket.sync_close = true
           tls_socket.hostname = @hostname if tls_context.verify_hostname
 
           tls_socket.connect
