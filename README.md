@@ -125,7 +125,7 @@ nats.connect({
 
 (The MIT License)
 
-Copyright (c) 2016-2017 Apcera Inc.
+Copyright (c) 2016-2017 Apcera Inc. <br />
 Copyright (c) 2018 Synadia Communications Inc.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
