@@ -2,7 +2,7 @@
 
 A thread safe [Ruby](http://ruby-lang.org) client for the [NATS messaging system](https://nats.io) written in pure Ruby.
 
-[![License MIT](https://img.shields.io/npm/l/express.svg)](http://opensource.org/licenses/MIT)[![Build Status](https://travis-ci.org/wallyqs/pure-ruby-nats.svg)](http://travis-ci.org/nats-io/pure-ruby-nats)[![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.2.4)](https://rubygems.org/gems/nats-pure/versions/0.2.4)
+[![License MIT](https://img.shields.io/npm/l/express.svg)](http://opensource.org/licenses/MIT)[![Build Status](https://travis-ci.org/wallyqs/pure-ruby-nats.svg)](http://travis-ci.org/nats-io/pure-ruby-nats)[![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.3.0)](https://rubygems.org/gems/nats-pure/versions/0.3.0)
 
 ## Getting Started
 
@@ -125,7 +125,8 @@ nats.connect({
 
 (The MIT License)
 
-Copyright (c) 2016 Apcera Inc.
+Copyright (c) 2016-2017 Apcera Inc.
+Copyright (c) 2018 Synadia Communications Inc.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to
