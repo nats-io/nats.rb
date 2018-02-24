@@ -21,17 +21,7 @@ describe 'Client - TLS spec' do
           timeout:    10
 
           <% if RUBY_PLATFORM == "java" %>
-          # JRuby is sensible to the ciphers being used
-          # so we specify the ones that are available on it here.
-          # See: https://github.com/jruby/jruby/issues/1738
-          cipher_suites: [
-            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-            "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
-            "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
-            "TLS_RSA_WITH_AES_128_CBC_SHA",
-            "TLS_RSA_WITH_AES_256_CBC_SHA",
-            "TLS_RSA_WITH_3DES_EDE_CBC_SHA"
-          ]
+          <%= DEFAULT_JRUBY_CIPHER_SUITE %>
           <% end %>
       }))
       @tls_no_auth = NatsServerControl.init_with_config_from_string(config.result(binding), opts)
@@ -87,7 +77,16 @@ describe 'Client - TLS spec' do
       end
 
       expect do
-        nats.connect(:servers => ['tls://127.0.0.1:4444'], :reconnect => false)
+        tls_context = OpenSSL::SSL::SSLContext.new
+        tls_context.set_params
+        tls_context.ca_file = "./spec/configs/certs/ca.pem"
+        nats.connect({
+          servers: ['tls://127.0.0.1:4444'],
+          reconnect: false,
+          tls: {
+            context: tls_context
+          }
+        })
       end.to_not raise_error
 
       # Confirm basic secure publishing works
@@ -165,19 +164,8 @@ describe 'Client - TLS spec' do
           # Require a client certificate
           verify:    true
 
-
           <% if RUBY_PLATFORM == "java" %>
-          # JRuby is sensible to the ciphers being used
-          # so we specify the ones that are available on it here.
-          # See: https://github.com/jruby/jruby/issues/1738
-          cipher_suites: [
-            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-            "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
-            "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
-            "TLS_RSA_WITH_AES_128_CBC_SHA",
-            "TLS_RSA_WITH_AES_256_CBC_SHA",
-            "TLS_RSA_WITH_3DES_EDE_CBC_SHA"
-          ]
+          <%= DEFAULT_JRUBY_CIPHER_SUITE %>
           <% end %>
       }))
       @tlsverify = NatsServerControl.init_with_config_from_string(config.result(binding), opts)

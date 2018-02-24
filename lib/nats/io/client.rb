@@ -815,7 +815,14 @@ module NATS
           else
             # Defaults
             tls_context = OpenSSL::SSL::SSLContext.new
-            tls_context.ssl_version = :TLSv1_2
+
+            # Use the default verification options from Ruby:
+            # https://github.com/ruby/ruby/blob/96db72ce38b27799dd8e80ca00696e41234db6ba/ext/openssl/lib/openssl/ssl.rb#L19-L29
+            #
+            # Insecure TLS versions not supported already:
+            # https://github.com/ruby/openssl/commit/3e5a009966bd7f806f7180d82cf830a04be28986
+            #
+            tls_context.set_params
           end
 
           # Setup TLS connection by rewrapping the socket
@@ -824,7 +831,8 @@ module NATS
           # Close TCP socket after closing TLS socket as well.
           tls_socket.sync_close = true
 
-          # Required to enable hostname verification (if Ruby runtime supports it).
+          # Required to enable hostname verification if Ruby runtime supports it (>= 2.4):
+          # https://github.com/ruby/openssl/commit/028e495734e9e6aa5dba1a2e130b08f66cf31a21
           tls_socket.hostname = @hostname
 
           tls_socket.connect
