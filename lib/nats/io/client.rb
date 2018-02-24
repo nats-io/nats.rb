@@ -148,6 +148,10 @@ module NATS
 
         # Secure TLS options
         @tls = nil
+
+        # Hostname of current server; used for when TLS host
+        # verification is enabled.
+        @hostname = nil
       end
 
       # Establishes connection to NATS
@@ -175,7 +179,16 @@ module NATS
         uris = opts[:servers] || [DEFAULT_URI]
         uris.shuffle! unless @options[:dont_randomize_servers]
         uris.each do |u|
-          @server_pool << { :uri => u.is_a?(URI) ? u.dup : URI.parse(u) }
+          nats_uri = case u
+                     when URI
+                       u.dup
+                     else
+                       URI.parse(u)
+                     end
+          @server_pool << {
+            :uri => nats_uri,
+            :hostname => nats_uri.host
+          }
         end
 
         # Check for TLS usage
@@ -195,6 +208,9 @@ module NATS
 
           # Connection established and now in process of sending CONNECT to NATS
           @status = CONNECTING
+
+          # Use the hostname from the server for TLS hostname verification.
+          @hostname = srv[:hostname]
 
           # Established TCP connection successfully so can start connect
           process_connect_init
@@ -507,7 +523,8 @@ module NATS
                   u.password ||= @uri.password if @uri.password
                 end
 
-                srv = { :uri => u, :reconnect_attempts => 0, :discovered => true }
+                # NOTE: Auto discovery won't work here when TLS host verification is enabled.
+                srv = { :uri => u, :reconnect_attempts => 0, :discovered => true, :hostname => u.host }
                 srvs << srv
               end
             end
@@ -798,11 +815,26 @@ module NATS
           else
             # Defaults
             tls_context = OpenSSL::SSL::SSLContext.new
-            tls_context.ssl_version = :TLSv1_2
+
+            # Use the default verification options from Ruby:
+            # https://github.com/ruby/ruby/blob/96db72ce38b27799dd8e80ca00696e41234db6ba/ext/openssl/lib/openssl/ssl.rb#L19-L29
+            #
+            # Insecure TLS versions not supported already:
+            # https://github.com/ruby/openssl/commit/3e5a009966bd7f806f7180d82cf830a04be28986
+            #
+            tls_context.set_params
           end
 
           # Setup TLS connection by rewrapping the socket
           tls_socket = OpenSSL::SSL::SSLSocket.new(@io.socket, tls_context)
+
+          # Close TCP socket after closing TLS socket as well.
+          tls_socket.sync_close = true
+
+          # Required to enable hostname verification if Ruby runtime supports it (>= 2.4):
+          # https://github.com/ruby/openssl/commit/028e495734e9e6aa5dba1a2e130b08f66cf31a21
+          tls_socket.hostname = @hostname
+
           tls_socket.connect
           @io.socket = tls_socket
         when (server_using_secure_connection? and !client_using_secure_connection?)
@@ -857,6 +889,9 @@ module NATS
           @io.connect
           @stats[:reconnects] += 1
 
+          # Set hostname to use for TLS hostname verification
+          @hostname = srv[:hostname]
+
           # Established TCP connection successfully so can start connect
           process_connect_init
 
@@ -873,7 +908,7 @@ module NATS
           # to see whether need to take it out from rotation
           srv[:auth_required] ||= true if @server_info[:auth_required]
           server_pool << srv if can_reuse_server?(srv)
-          
+
           @last_err = e
 
           # Trigger async error handler

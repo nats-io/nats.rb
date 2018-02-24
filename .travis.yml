@@ -17,15 +17,13 @@ before_script:
 
 sudo: required
 dist: trusty
+bundler_args: --with test
 
 matrix:
   include:
     - rvm: jruby
       env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
       jdk: openjdk7
-    - rvm: jruby
-      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
-      jdk: oraclejdk7
     - rvm: jruby
       env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
       jdk: openjdk8
@@ -38,11 +36,15 @@ matrix:
       jdk: openjdk7
     - rvm: jruby
       env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
-      jdk: oraclejdk7
-    - rvm: jruby
-      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
       jdk: openjdk8
     - rvm: jruby
       env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
       jdk: oraclejdk8
     - rvm: ruby-head
+
+addons:
+  hosts:
+    - server-A.clients.nats-service.localhost
+    - server-A.clients.fake-nats-service.localhost
+    - server-A.routes.nats-service.localhost
+    - server-A.routes.fake-nats-service.localhost

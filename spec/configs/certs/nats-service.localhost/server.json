@@ -1,0 +1,18 @@
+{
+    "CN": "nats server",
+    "hosts": [
+        "*.clients.nats-service.localhost",
+        "clients.nats-service.localhost"
+    ],
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "US",
+            "L": "CA",
+            "ST": "San Francisco"
+        }
+    ]
+}
