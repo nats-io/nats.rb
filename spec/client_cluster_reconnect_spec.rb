@@ -139,9 +139,9 @@ describe 'Client - Cluster reconnect' do
 
       nats = NATS::IO::Client.new
       nats.connect({
-                     servers: [@s1.uri, @s2.uri],
-                     dont_randomize_servers: true
-                   })
+        servers: [@s1.uri, @s2.uri],
+        dont_randomize_servers: true
+      })
 
       disconnects = 0
       nats.on_disconnect do |e|
@@ -179,6 +179,9 @@ describe 'Client - Cluster reconnect' do
         case
         when n == 100
           nats.flush
+
+          # Wait a bit for all messages
+          sleep 0.5
           expect(msgs.count).to eql(100)
           @s1.kill_server
         when (n % 100 == 0)

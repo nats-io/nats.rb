@@ -117,6 +117,8 @@ describe 'Client - Specification' do
     2.times { nc.publish("foo", "bar") }
     nc.flush
 
+    # Wait for a bit to receive the messages.
+    sleep 0.5
     nc.unsubscribe(sid)
     nc.flush
 
@@ -128,11 +130,13 @@ describe 'Client - Specification' do
   end
 
   it 'should be able to create many subscriptions' do
+    # NOTE: After v0.4.0 this means a lot of threads.
     nc = NATS::IO::Client.new
     nc.connect(:servers => [@s.uri])
+    max_subs = 50
 
     msgs = { }
-    1.upto(100).each do |n|
+    1.upto(max_subs).each do |n|
       sid = nc.subscribe("quux.#{n}") do |msg, reply, subject|
         msgs[subject] << msg
       end
@@ -142,13 +146,15 @@ describe 'Client - Specification' do
     end
     nc.flush(1)
 
-    expect(msgs.keys.count).to eql(100)
-    1.upto(100).each do |n|
+    expect(msgs.keys.count).to eql(max_subs)
+    1.upto(max_subs).each do |n|
       nc.publish("quux.#{n}")
     end
     nc.flush(1)
 
-    1.upto(100).each do |n|
+    # Wait a bit for each sub to receive the message.
+    sleep 0.5
+    1.upto(max_subs).each do |n|
       expect(msgs["quux.#{n}"].count).to eql(1)
     end
 
@@ -209,6 +215,7 @@ describe 'Client - Specification' do
     end
 
     nc.close
+    another_thread.exit
   end
 
   it 'should close connection gracefully' do
@@ -300,6 +307,7 @@ describe 'Client - Specification' do
     conns.each_pair do |i, conn|
       total += conn[:msgs].count
       expect(conn[:msgs].count > 1).to eql(true)
+      conn[:nats].close
     end
     expect(total).to eql(1000)
   end
