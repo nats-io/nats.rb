@@ -92,6 +92,62 @@ describe 'Client - Specification' do
     expect(nats.closed?).to eql(true)
   end
 
+  it 'should handle as async errors uncaught exceptions from callbacks' do
+    nats = NATS::IO::Client.new
+    nats.connect(reconnect: false)
+
+    mon = Monitor.new
+    done = mon.new_cond
+
+    errors = []
+    nats.on_error do |e|
+      errors << e
+    end
+
+    disconnects = []
+    nats.on_disconnect do |e|
+      disconnects << e
+    end
+
+    closes = 0
+    nats.on_close do
+      closes += 1
+      mon.synchronize { done.signal }
+    end
+
+    # Trigger invalid subject server error which the client
+    # detects so that it will disconnect
+    class CustomError < StandardError; end
+
+    n = 0
+    msgs = []
+    nats.subscribe("hello") do |payload|
+      n += 1
+
+      if n == 2
+        raise CustomError.new("NG!")
+      end
+
+      msgs << payload      
+    end
+
+    5.times do
+      nats.publish("hello")
+    end
+    nats.flush(1) rescue nil
+
+    nats.close
+    mon.synchronize { done.wait(3) }
+
+    expect(msgs.count).to eql(4)
+    expect(errors.count).to eql(1)
+    expect(errors.first).to be_a(CustomError)
+    expect(disconnects.count).to eql(1)
+    expect(disconnects.first).to be_nil
+    expect(closes).to eql(1)
+    expect(nats.closed?).to eql(true)
+  end  
+
   context 'against a server which is idle' do
     before(:all) do
       # Start a fake tcp server

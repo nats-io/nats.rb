@@ -323,11 +323,17 @@ module NATS
               cb = sub.callback
             end
 
-            case cb.arity
-            when 0 then cb.call
-            when 1 then cb.call(msg.data)
-            when 2 then cb.call(msg.data, msg.reply)
-            else cb.call(msg.data, msg.reply, msg.subject)
+            begin
+              case cb.arity
+              when 0 then cb.call
+              when 1 then cb.call(msg.data)
+              when 2 then cb.call(msg.data, msg.reply)
+              else cb.call(msg.data, msg.reply, msg.subject)
+              end
+            rescue => e
+              synchronize do
+                @err_cb.call(e) if @err_cb
+              end
             end
           end
         end
