@@ -88,6 +88,9 @@ module NATS
     # When we use an invalid subject.
     class BadSubject < Error; end
 
+    # When a subscription hits the pending messages limit.
+    class SlowConsumer < Error; end
+
     class Client
       include MonitorMixin
 
@@ -492,6 +495,7 @@ module NATS
         synchronize { sub = @subs[sid] }
         return unless sub
 
+        sc = nil
         sub.synchronize do
           sub.received += 1
 
@@ -519,10 +523,22 @@ module NATS
           elsif sub.callback
             # Async subscribers use a sized queue for processing
             # and should be able to consume messages in parallel.
-            sub.pending_queue << Msg.new(subject, reply, data)
-            sub.pending_size += data.size
+            if sub.pending_queue.size >= sub.pending_msgs_limit \
+              or sub.pending_size >= sub.pending_bytes_limit then
+              sc = SlowConsumer.new("nats: slow consumer, messages dropped")
+            else
+              # Only dispatch message when sure that it would not block
+              # the main read loop from the parser.
+              sub.pending_queue << Msg.new(subject, reply, data)
+              sub.pending_size += data.size
+            end
           end
         end
+
+        synchronize do
+          @last_err = sc
+          @err_cb.call(sc) if @err_cb
+        end if sc
       end
 
       def process_info(line)
