@@ -1,5 +1,9 @@
 # HISTORY
 
+## v0.8.4 (Feb 23, 2018)
+  - Support to include connection `name` as part of CONNECT options (#145)
+  - Fixed support for Ruby 2.5 due to missing OpenSSL `require` (#144)
+
 ## v0.8.2 (March 14, 2017)
   - Allow setting name from client on connect (#129)
   - Add discovered servers helper for servers announced via async INFO (#136)
