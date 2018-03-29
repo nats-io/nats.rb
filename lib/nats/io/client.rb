@@ -194,6 +194,9 @@ module NATS
         opts[:ping_interval] = ENV['NATS_PING_INTERVAL'].to_i unless ENV['NATS_PING_INTERVAL'].nil?
         opts[:max_outstanding_pings] = ENV['NATS_MAX_OUTSTANDING_PINGS'].to_i unless ENV['NATS_MAX_OUTSTANDING_PINGS'].nil?
         opts[:connect_timeout] ||= DEFAULT_CONNECT_TIMEOUT
+
+        # TODO: Make new style default instead.
+        opts[:old_style_request] = true if opts[:old_style_request].nil?
         @options = opts
 
         # Process servers in the NATS cluster and pick one to connect
@@ -210,6 +213,12 @@ module NATS
             :uri => nats_uri,
             :hostname => nats_uri.host
           }
+        end
+
+        if @options[:old_style_request]
+          # Replace for this instance the implementation
+          # of request to use the old_request style.
+          class << self; alias_method :request, :old_request; end
         end
 
         # Check for TLS usage
@@ -358,10 +367,21 @@ module NATS
         sid
       end
 
-      # Sends a request expecting a single response or raises a timeout
-      # in case the request is not retrieved within the specified deadline.
+      # Sends a request using expecting a single response using a
+      # single subscription per connection for receiving the responses.
+      # It times out in case the request is not retrieved within the
+      # specified deadline.
       # If given a callback, then the request happens asynchronously.
       def request(subject, payload, opts={}, &blk)
+        return unless subject
+        old_request(subject, payload, opts, &blk)
+      end
+
+      # Sends a request creating an ephemeral subscription for the request,
+      # expecting a single response or raising a timeout in case the request
+      # is not retrieved within the specified deadline.
+      # If given a callback, then the request happens asynchronously.
+      def old_request(subject, payload, opts={}, &blk)
         return unless subject
         inbox = new_inbox
 
