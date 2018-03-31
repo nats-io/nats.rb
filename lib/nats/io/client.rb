@@ -173,13 +173,19 @@ module NATS
         # Hostname of current server; used for when TLS host
         # verification is enabled.
         @hostname = nil
+
+        # New style request/response implementation.
+        @resp_sub = nil
+        @resp_map = nil
+        @resp_sub_prefix = nil
       end
 
-      # Establishes connection to NATS
+      # Establishes connection to NATS.
       def connect(opts={})
         opts[:verbose] = false if opts[:verbose].nil?
         opts[:pedantic] = false if opts[:pedantic].nil?
         opts[:reconnect] = true if opts[:reconnect].nil?
+        opts[:old_style_request] = false if opts[:old_style_request].nil?
         opts[:reconnect_time_wait] = RECONNECT_TIME_WAIT if opts[:reconnect_time_wait].nil?
         opts[:max_reconnect_attempts] = MAX_RECONNECT_ATTEMPTS if opts[:max_reconnect_attempts].nil?
         opts[:ping_interval] = DEFAULT_PING_INTERVAL if opts[:ping_interval].nil?
@@ -210,6 +216,12 @@ module NATS
             :uri => nats_uri,
             :hostname => nats_uri.host
           }
+        end
+
+        if @options[:old_style_request]
+          # Replace for this instance the implementation
+          # of request to use the old_request style.
+          class << self; alias_method :request, :old_request; end
         end
 
         # Check for TLS usage
@@ -358,10 +370,57 @@ module NATS
         sid
       end
 
-      # Sends a request expecting a single response or raises a timeout
-      # in case the request is not retrieved within the specified deadline.
+      # Sends a request using expecting a single response using a
+      # single subscription per connection for receiving the responses.
+      # It times out in case the request is not retrieved within the
+      # specified deadline.
       # If given a callback, then the request happens asynchronously.
       def request(subject, payload, opts={}, &blk)
+        return unless subject
+
+        # If a block was given then fallback to method using auto unsubscribe.
+        return old_request(subject, payload, opts, &blk) if blk
+
+        token = nil
+        inbox = nil
+        future = nil
+        response = nil
+        timeout = opts[:timeout] ||= 0.5
+        synchronize do
+          start_resp_mux_sub! unless @resp_sub_prefix
+
+          # Create token for this request.
+          token = SecureRandom.hex(11)
+          inbox = "#{@resp_sub_prefix}.#{token}"
+
+          # Create the a future for the request that will
+          # get signaled when it receives the request.
+          future = @resp_sub.new_cond
+          @resp_map[token][:future] = future
+        end
+
+        # Publish request and wait for reply.
+        publish(subject, payload, inbox)
+        with_nats_timeout(timeout) do
+          @resp_sub.synchronize do
+            future.wait(timeout)
+          end
+        end
+
+        # Check if there is a response already
+        synchronize do
+          result = @resp_map[token]
+          response = result[:response]
+        end
+
+        response
+      end
+
+      # Sends a request creating an ephemeral subscription for the request,
+      # expecting a single response or raising a timeout in case the request
+      # is not retrieved within the specified deadline.
+      # If given a callback, then the request happens asynchronously.
+      def old_request(subject, payload, opts={}, &blk)
         return unless subject
         inbox = new_inbox
 
@@ -534,7 +593,7 @@ module NATS
             future.signal
 
             return
-          elsif sub.callback
+          elsif sub.pending_queue
             # Async subscribers use a sized queue for processing
             # and should be able to consume messages in parallel.
             if sub.pending_queue.size >= sub.pending_msgs_limit \
@@ -1105,6 +1164,47 @@ module NATS
         # Ping interval handling for keeping alive the connection
         @ping_interval_thread = Thread.new { ping_interval_loop }
         @ping_interval_thread.abort_on_exception = true
+      end
+
+      # Prepares requests subscription that handles the responses
+      # for the new style request response.
+      def start_resp_mux_sub!
+        @resp_sub_prefix = "_INBOX.#{SecureRandom.hex(11)}"
+        @resp_map = Hash.new { |h,k| h[k] = { }}
+
+        @resp_sub = Subscription.new
+        @resp_sub.subject = "#{@resp_sub_prefix}.*"
+        @resp_sub.received = 0
+
+        # FIXME: Allow setting pending limits for responses mux subscription.
+        @resp_sub.pending_msgs_limit = DEFAULT_SUB_PENDING_MSGS_LIMIT
+        @resp_sub.pending_bytes_limit = DEFAULT_SUB_PENDING_BYTES_LIMIT
+        @resp_sub.pending_queue = SizedQueue.new(@resp_sub.pending_msgs_limit)
+        @resp_sub.wait_for_msgs_t = Thread.new do
+          loop do
+            msg = @resp_sub.pending_queue.pop
+            @resp_sub.pending_size -= msg.data.size
+
+            # Pick the token and signal the request under the mutex
+            # from the subscription itself.
+            token = msg.subject.split('.').last
+            future = nil
+            synchronize do
+              future = @resp_map[token][:future]
+              @resp_map[token][:response] = msg
+            end
+
+            # Signal back that the response has arrived.
+            @resp_sub.synchronize do
+              future.signal
+            end
+          end
+        end
+
+        sid = (@ssid += 1)
+        @subs[sid] = @resp_sub
+        send_command("SUB #{@resp_sub.subject} #{sid}#{CR_LF}")
+        @flush_queue << :sub
       end
 
       def can_reuse_server?(server)

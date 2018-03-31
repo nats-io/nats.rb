@@ -186,52 +186,6 @@ describe 'Client - Specification' do
     nc.close
   end
 
-  it 'should be able to receive response to requests' do
-    mon = Monitor.new
-    subscribed_done = mon.new_cond
-    test_done = mon.new_cond
-
-    another_thread = Thread.new do
-      nats = NATS::IO::Client.new
-      nats.connect(:servers => [@s.uri], :reconnect => false)
-      nats.subscribe("help") do |msg, reply|
-        nats.publish(reply, "I can help")
-      end
-      nats.flush
-      mon.synchronize do
-        subscribed_done.signal
-      end
-      mon.synchronize do
-        test_done.wait(1)
-        nats.close
-      end
-    end
-
-    nc = NATS::IO::Client.new
-    nc.connect(:servers => [@s.uri])
-    mon.synchronize do
-      subscribed_done.wait(1)
-    end
-
-    responses = []
-    expect do
-      3.times do
-        responses << nc.request("help", "please", timeout: 1)
-      end
-    end.to_not raise_error
-    expect(responses.count).to eql(3)
-
-    # A new subscription would have the next sid for this client
-    sid = nc.subscribe("hello"){}
-    expect(sid).to eql(4)
-    mon.synchronize do
-      test_done.signal
-    end
-
-    nc.close
-    another_thread.exit
-  end
-
   it 'should close connection gracefully' do
     mon = Monitor.new
     test_is_done = mon.new_cond
@@ -324,5 +278,138 @@ describe 'Client - Specification' do
       conn[:nats].close
     end
     expect(total).to eql(1000)
+  end
+
+  context 'using new style request response' do
+    it 'should be able to receive requests synchronously with a timeout' do
+      nc = NATS::IO::Client.new
+      nc.connect(:servers => [@s.uri], :old_style_request => false)
+
+      received = []
+      nc.subscribe("help") do |msg, reply, subject|
+        received << msg
+        nc.publish(reply, "reply.#{received.count}")
+      end
+      nc.flush
+
+      responses = []
+      responses << nc.request("help", 'please', timeout: 1)
+      responses << nc.request("help", 'again', timeout: 1)
+      expect(responses.count).to eql(2)
+      expect(responses.first[:data]).to eql('reply.1')
+      expect(responses.last[:data]).to eql('reply.2')
+
+      nc.close
+    end
+
+    it 'should be able to receive requests synchronously in parallel' do
+      nc = NATS::IO::Client.new
+      nc.connect(:servers => [@s.uri], :old_style_request => false)
+
+      received = []
+      nc.subscribe("help") do |payload, reply, subject|
+        # Echoes the same data back.
+        nc.publish(reply, payload)
+      end
+      nc.flush
+
+      total = 100
+      responses_a = []
+      t_a = Thread.new do
+        sleep 0.2
+        total.times do |n|
+          responses_a << nc.request("help", "please-A-#{n}", timeout: 0.5)
+        end
+      end
+
+      responses_b = []
+      t_b = Thread.new do
+        sleep 0.2
+        total.times do |n|
+          responses_b << nc.request("help", "please-B-#{n}", timeout: 0.5)
+        end
+      end
+
+      responses_c = []
+      t_c = Thread.new do
+        sleep 0.2
+        total.times do |n|
+          responses_c << nc.request("help", "please-C-#{n}", timeout: 0.5)
+        end
+      end
+
+      sleep 1
+      expect(responses_a.count).to eql(total)
+      expect(responses_b.count).to eql(total)
+      expect(responses_c.count).to eql(total)
+
+      n = 0
+      responses_a.each do |msg|
+        expect(msg.data).to eql("please-A-#{n}")
+        n += 1
+      end
+
+      n = 0
+      responses_b.each do |msg|
+        expect(msg.data).to eql("please-B-#{n}")
+        n += 1
+      end
+
+      n = 0
+      responses_c.each do |msg|
+        expect(msg.data).to eql("please-C-#{n}")
+        n += 1
+      end
+
+      nc.close
+    end
+  end
+
+  context "using old style request" do
+    it 'should be able to receive responses' do
+      mon = Monitor.new
+      subscribed_done = mon.new_cond
+      test_done = mon.new_cond
+
+      another_thread = Thread.new do
+        nats = NATS::IO::Client.new
+        nats.connect(:servers => [@s.uri], :reconnect => false)
+        nats.subscribe("help") do |msg, reply|
+          nats.publish(reply, "I can help")
+        end
+        nats.flush
+        mon.synchronize do
+          subscribed_done.signal
+        end
+        mon.synchronize do
+          test_done.wait(1)
+          nats.close
+        end
+      end
+
+      nc = NATS::IO::Client.new
+      nc.connect(:servers => [@s.uri], :old_style_request => true)
+      mon.synchronize do
+        subscribed_done.wait(1)
+      end
+
+      responses = []
+      expect do
+        3.times do
+          responses << nc.request("help", "please", timeout: 1)
+        end
+      end.to_not raise_error
+      expect(responses.count).to eql(3)
+
+      # A new subscription would have the next sid for this client.
+      sid = nc.subscribe("hello"){}
+      expect(sid).to eql(4)
+      mon.synchronize do
+        test_done.signal
+      end
+
+      nc.close
+      another_thread.exit
+    end
   end
 end
