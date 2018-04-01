@@ -14,6 +14,7 @@
 
 require 'nats/io/parser'
 require 'nats/io/version'
+require 'nats/nuid'
 require 'thread'
 require 'socket'
 require 'json'
@@ -178,6 +179,7 @@ module NATS
         @resp_sub = nil
         @resp_map = nil
         @resp_sub_prefix = nil
+        @nuid = NATS::NUID.new
       end
 
       # Establishes connection to NATS.
@@ -390,7 +392,7 @@ module NATS
           start_resp_mux_sub! unless @resp_sub_prefix
 
           # Create token for this request.
-          token = SecureRandom.hex(11)
+          token = @nuid.next
           inbox = "#{@resp_sub_prefix}.#{token}"
 
           # Create the a future for the request that will
@@ -1169,7 +1171,7 @@ module NATS
       # Prepares requests subscription that handles the responses
       # for the new style request response.
       def start_resp_mux_sub!
-        @resp_sub_prefix = "_INBOX.#{SecureRandom.hex(11)}"
+        @resp_sub_prefix = "_INBOX.#{@nuid.next}"
         @resp_map = Hash.new { |h,k| h[k] = { }}
 
         @resp_sub = Subscription.new
