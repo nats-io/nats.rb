@@ -48,12 +48,12 @@ module NATS
       l = @seq
       s = @prefix.dup
 
-      i = 0
-      while i < SEQ_LENGTH
+      i = TOTAL_LENGTH
+      while i > PREFIX_LENGTH
         s << DIGITS_MAP[l % BASE]
         l /= BASE
-        i += 1
-      end 
+        i -= 1
+      end
 
       s
     end
@@ -62,7 +62,7 @@ module NATS
       @prefix = \
       SecureRandom.random_bytes(PREFIX_LENGTH).each_byte
         .reduce('') do |prefix, n|
-        prefix << DIGITS[n % BASE]
+        prefix << DIGITS_MAP[n % BASE]
       end
     end
 
