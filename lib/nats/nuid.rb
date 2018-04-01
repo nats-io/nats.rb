@@ -14,7 +14,13 @@
 
 module NATS
   class NUID
-    DIGITS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+    DIGITS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.split('')
+    DIGITS_MAP = [('0'..'9').to_a, ('a'..'z').to_a,('A'..'Z').to_a]
+      .flatten.each_with_index.reduce({}) do |m, (c, i)|
+      m[i] = c
+      m
+    end
+
     BASE          = 62
     PREFIX_LENGTH = 12
     SEQ_LENGTH    = 10
@@ -40,13 +46,16 @@ module NATS
       end
 
       l = @seq
-      suffix = SEQ_LENGTH.times.reduce('') do |b|
-        b.prepend DIGITS[l % BASE]
-        l /= BASE
-        b
-      end
+      s = @prefix.dup
 
-      "#{@prefix}#{suffix}"
+      i = 0
+      while i < SEQ_LENGTH
+        s << DIGITS_MAP[l % BASE]
+        l /= BASE
+        i += 1
+      end 
+
+      s
     end
 
     def randomize_prefix!
