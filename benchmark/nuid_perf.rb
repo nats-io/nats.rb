@@ -3,9 +3,9 @@ require 'nats/nuid'
 require 'benchmark/ips'
 
 Benchmark.ips do |x|
-  # x.report "NUID based inboxes with locked instance" do |t|
-  #   t.times { "_INBOX.#{NATS::NUID.next}" }
-  # end
+  x.report "NUID based inboxes with locked instance" do |t|
+    t.times { "_INBOX.#{NATS::NUID.next}" }
+  end
 
   x.report "NUID based inboxes with owned instance" do |t|
     nuid = NATS::NUID.new
