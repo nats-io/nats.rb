@@ -16,12 +16,6 @@ require 'securerandom'
 module NATS
   class NUID
     DIGITS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.split('')
-    DIGITS_MAP = [('0'..'9').to_a, ('a'..'z').to_a,('A'..'Z').to_a]
-      .flatten.each_with_index.reduce({}) do |m, (c, i)|
-      m[i] = c
-      m
-    end
-
     BASE          = 62
     PREFIX_LENGTH = 12
     SEQ_LENGTH    = 10
@@ -64,7 +58,7 @@ module NATS
       @prefix = \
       SecureRandom.random_bytes(PREFIX_LENGTH).each_byte
         .reduce('') do |prefix, n|
-        prefix << DIGITS_MAP[n % BASE]
+        prefix << DIGITS[n % BASE]
       end
     end
 
