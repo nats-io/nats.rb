@@ -14,6 +14,7 @@
 
 $:.unshift('./lib')
 require 'nats/io/client'
+require 'nats/nuid'
 require 'tempfile'
 require 'monitor'
 
