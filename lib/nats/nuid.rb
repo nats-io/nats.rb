@@ -74,10 +74,10 @@ module NATS
     end
 
     class << self
+      @@nuid = NUID.new.extend(MonitorMixin)
       def next
-        @nuid ||= NUID.new.extend(MonitorMixin)
-        @nuid.synchronize do
-          @nuid.next
+        @@nuid.synchronize do
+          @@nuid.next
         end
       end
     end
