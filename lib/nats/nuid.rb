@@ -45,18 +45,19 @@ module NATS
         randomize_prefix!
         reset_sequential!
       end
-
       l = @seq
-      s = @prefix.dup
 
-      i = TOTAL_LENGTH
-      while i > PREFIX_LENGTH
-        s << DIGITS_MAP[l % BASE]
-        l /= BASE
-        i -= 1
-      end
+      # Do this inline 10 times to avoid even more extra allocs,
+      # then use string interpolation of everything which works
+      # faster for doing concat.
+      s_10 = DIGITS[l % BASE];
 
-      s
+      # Ugly, but parallel assignment is slightly faster here...
+      s_09, s_08, s_07, s_06, s_05, s_04, s_03, s_02, s_01 = \
+      (l /= BASE; DIGITS[l % BASE]), (l /= BASE; DIGITS[l % BASE]), (l /= BASE; DIGITS[l % BASE]),\
+      (l /= BASE; DIGITS[l % BASE]), (l /= BASE; DIGITS[l % BASE]), (l /= BASE; DIGITS[l % BASE]),\
+      (l /= BASE; DIGITS[l % BASE]), (l /= BASE; DIGITS[l % BASE]), (l /= BASE; DIGITS[l % BASE])
+      "#{@prefix}#{s_01}#{s_02}#{s_03}#{s_04}#{s_05}#{s_06}#{s_07}#{s_08}#{s_09}#{s_10}"
     end
 
     def randomize_prefix!
