@@ -65,7 +65,7 @@ module NATS
     private
 
     def reset_sequential!
-      @seq = prand.rand(MAX_SEQ)
+      @seq = @prand.rand(MAX_SEQ)
       @inc = MIN_INC + @prand.rand(INC)
     end
 
