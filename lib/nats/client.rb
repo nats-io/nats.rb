@@ -22,6 +22,7 @@ require "#{ep}/ext/em"
 require "#{ep}/ext/bytesize"
 require "#{ep}/ext/json"
 require "#{ep}/version"
+require "#{ep}/nuid"
 
 module NATS
 
@@ -374,6 +375,7 @@ module NATS
     @tls = nil
     @tls = options[:tls] if options[:tls]
     @ssl = options[:ssl] if options[:ssl] or @tls
+    @nuid = NATS::NUID.new
 
     send_connect_command
   end
@@ -460,7 +462,7 @@ module NATS
   # @return [Object] sid
   def request(subject, data=nil, opts={}, &cb)
     return unless subject
-    inbox = NATS.create_inbox
+    inbox = @nuid.next
     s = subscribe(inbox, opts) { |msg, reply|
       case cb.arity
         when 0 then cb.call
