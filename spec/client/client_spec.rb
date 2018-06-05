@@ -115,7 +115,7 @@ describe 'Client - specification' do
         errors << e
       end
       NATS.start do |nc|
-        sid = nc.request('foo')
+        sid = nc.request('foo') { }
       end
     end
     expect(sid).to_not eql(nil)

@@ -14,6 +14,7 @@
 
 require 'uri'
 require 'securerandom'
+require 'fiber'
 require 'openssl' unless defined?(OpenSSL)
 
 ep = File.expand_path(File.dirname(__FILE__))
@@ -462,16 +463,56 @@ module NATS
   # @return [Object] sid
   def request(subject, data=nil, opts={}, &cb)
     return unless subject
-    inbox = @nuid.next
-    s = subscribe(inbox, opts) { |msg, reply|
-      case cb.arity
+
+    # In case of using async request then fallback
+    # to auto unsubscribe based request/response.
+    if cb
+      inbox = "_INBOX.#{@nuid.next}"
+      s = subscribe(inbox, opts) { |msg, reply|
+        case cb.arity
         when 0 then cb.call
         when 1 then cb.call(msg)
         else cb.call(msg, reply)
-      end
-    }
-    publish(subject, data, inbox)
-    return s
+        end
+      }
+      publish(subject, data, inbox)
+      return s
+    end
+
+    # Synchronous request/response requires using a Fiber
+    # to be able to await the response.
+    f = Fiber.current
+
+    # If awaiting more than a single response then use array
+    # to include all that could be gathered before the deadline.
+    expected = opts[:max] ||= 1
+    msgs = [] if expected > 1
+
+    opts[:timeout] ||= 0.5
+    sid = request(subject, data, opts) do |msg|
+      if expected > 1
+        msgs << msg
+
+        f.resume if msgs.size == expected
+      else
+        f.resume(msg)
+      end      
+    end
+
+    timeout(sid, opts[:timeout], expected: expected) do
+      f.resume
+    end
+
+    if expected > 1
+      # Wait to receive all replies that can get before deadline.
+      Fiber.yield
+
+      # Slice and throwaway responses that are not needed.
+      return msgs.slice(0, expected)
+    else
+      # Only single response being awaited
+      return Fiber.yield
+    end
   end
 
   # Flushes all messages and subscriptions for the connection.
