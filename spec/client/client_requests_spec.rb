@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-describe 'Client - Requests using fibers' do
+describe 'Client - Requests' do
 
   before(:each) do
     @s = NatsServerControl.new
@@ -11,9 +11,37 @@ describe 'Client - Requests using fibers' do
     @s.kill_server
   end
 
+  it 'should receive a responses using single subscription for requests' do
+    msgs = []
+    received = false
+    nats = nil
+    NATS.start do |nc|
+      nats = nc
+      nc.subscribe('need_help') do |msg, reply|
+        nc.publish(reply, "help-#{msg}")
+      end
+
+      Fiber.new do
+        msgs << nc.request('need_help', 'yyy')
+        msgs << nc.request('need_help', 'zzz')
+        received = true
+        NATS.stop
+      end.resume
+
+      timeout_nats_on_failure
+    end
+    expect(received).to eql(true)
+    expect(msgs.first).to eql('help-yyy')
+    expect(msgs.last).to eql('help-zzz')
+    resp_map = nats.instance_variable_get('@resp_map')
+    expect(resp_map.keys.count).to eql(0)
+  end
+
   it 'should receive a response from a request' do
     received = false
+    nats = nil
     NATS.start do |nc|
+      nats = nc
       nc.subscribe('need_help') do |msg, reply|
         expect(msg).to eql('yyy')
         nc.publish(reply, 'help')
@@ -29,6 +57,8 @@ describe 'Client - Requests using fibers' do
       timeout_nats_on_failure
     end
     expect(received).to eql(true)
+    resp_map = nats.instance_variable_get('@resp_map')
+    expect(resp_map.keys.count).to eql(0)
   end
 
   it 'should perform similar using class mirror functions' do
@@ -53,8 +83,10 @@ describe 'Client - Requests using fibers' do
   end
 
   it 'should be possible to gather multiple responses before a timeout' do
+    nats = nil
     responses = []
     NATS.start do |nc|
+      nats = nc
       10.times do |n|
         nc.subscribe('need_help') do |msg, reply|
           expect(msg).to eql('yyy')
@@ -67,17 +99,48 @@ describe 'Client - Requests using fibers' do
         NATS.stop
       end.resume
 
-      timeout_nats_on_failure
+      timeout_nats_on_failure(2)
     end
     expect(responses.count).to eql(5)
     responses.each_with_index do |response, i|
       expect(response).to eql("help-#{i}")
     end
+    resp_map = nats.instance_variable_get('@resp_map')
+    expect(resp_map.keys.count).to eql(0)
+  end
+
+  it 'should be possible to gather single response from a queue group before a timeout' do
+    nats = nil
+    responses = []
+    NATS.start do |nc|
+      nats = nc
+      10.times do |n|
+        nc.subscribe('need_help', queue: 'worker') do |msg, reply|
+          expect(msg).to eql('yyy')
+          nc.publish(reply, "help")
+        end
+      end
+
+      Fiber.new do
+        responses = nc.request('need_help', 'yyy', max: 5, timeout: 1)
+        NATS.stop
+      end.resume
+
+      timeout_nats_on_failure(2)
+    end
+    expect(responses.count).to eql(1)
+    responses.each_with_index do |response, i|
+      expect(response).to eql("help")
+    end
+    resp_map = nats.instance_variable_get('@resp_map')
+    expect(resp_map.keys.count).to eql(0)
   end
 
   it 'should be possible to gather as many responses as possible before the timeout' do
+    nats = nil
     responses = []
     NATS.start do |nc|
+      nats = nc
       nc.subscribe('need_help') do |msg, reply|
         3.times do |n|
           nc.publish(reply, "help-#{n}")
@@ -103,11 +166,15 @@ describe 'Client - Requests using fibers' do
     responses.each_with_index do |response, i|
       expect(response).to eql("help-#{i}")
     end
+    resp_map = nats.instance_variable_get('@resp_map')
+    expect(resp_map.keys.count).to eql(0)
   end
 
   it 'should return empty array in case waited many responses but got none before timeout' do
+    nats = nil
     responses = []
     NATS.start do |nc|
+      nats = nc
       Fiber.new do
         responses = nc.request('need_help', 'yyy', max: 5, timeout: 0.5)
         NATS.stop
@@ -117,6 +184,8 @@ describe 'Client - Requests using fibers' do
     end
 
     expect(responses.count).to eql(0)
+    resp_map = nats.instance_variable_get('@resp_map')
+    expect(resp_map.keys.count).to eql(0)
   end
 
   it 'should return nil in case waited single response but got none before timeout' do
@@ -131,7 +200,7 @@ describe 'Client - Requests using fibers' do
     end
     expect(response).to eql(nil)
   end
-  
+
   it 'should fail if not wrapped in a fiber' do
     NATS.start do
       expect do
@@ -139,5 +208,5 @@ describe 'Client - Requests using fibers' do
       end.to raise_error(FiberError)
       NATS.stop
     end
-  end  
+  end
 end

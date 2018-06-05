@@ -376,6 +376,11 @@ module NATS
     @tls = nil
     @tls = options[:tls] if options[:tls]
     @ssl = options[:ssl] if options[:ssl] or @tls
+
+    # New style request/response implementation.
+    @resp_sub = nil
+    @resp_map = nil
+    @resp_sub_prefix = nil
     @nuid = NATS::NUID.new
 
     send_connect_command
@@ -464,8 +469,9 @@ module NATS
   def request(subject, data=nil, opts={}, &cb)
     return unless subject
 
-    # In case of using async request then fallback
-    # to auto unsubscribe based request/response.
+    # In case of using async request then fallback to auto unsubscribe
+    # based request/response and not break compatibility too much since
+    # new request/response style can only be used with fibers.
     if cb
       inbox = "_INBOX.#{@nuid.next}"
       s = subscribe(inbox, opts) { |msg, reply|
@@ -479,39 +485,90 @@ module NATS
       return s
     end
 
+    # If this is the first request being made, then need to start
+    # the responses mux handler that handles the responses.
+    start_resp_mux_sub! unless @resp_sub_prefix
+
+    # Generate unique token for the reply subject.
+    token = @nuid.next
+    inbox = "#{@resp_sub_prefix}.#{token}"
+
     # Synchronous request/response requires using a Fiber
     # to be able to await the response.
     f = Fiber.current
+    @resp_map[token][:fiber] = f
 
     # If awaiting more than a single response then use array
     # to include all that could be gathered before the deadline.
     expected = opts[:max] ||= 1
-    msgs = [] if expected > 1
+    @resp_map[token][:expected] = expected
+    @resp_map[token][:msgs] = [] if expected > 1
 
+    # Announce the request with the inbox using the token.
+    publish(subject, data, inbox)
+
+    # If deadline expires, then discard the token and resume fiber
     opts[:timeout] ||= 0.5
-    sid = request(subject, data, opts) do |msg|
+    t = EM.add_timer(opts[:timeout]) do
       if expected > 1
-        msgs << msg
-
-        f.resume if msgs.size == expected
+        f.resume @resp_map[token][:msgs]
       else
-        f.resume(msg)
-      end      
+        f.resume
+      end
+
+      @resp_map.delete(token)
     end
 
-    timeout(sid, opts[:timeout], expected: expected) do
-      f.resume
-    end
-
+    # Wait for the response and cancel timeout callback if received.
     if expected > 1
       # Wait to receive all replies that can get before deadline.
-      Fiber.yield
+      msgs = Fiber.yield
+      EM.cancel_timer(t)
 
       # Slice and throwaway responses that are not needed.
       return msgs.slice(0, expected)
     else
-      # Only single response being awaited
-      return Fiber.yield
+      msg = Fiber.yield
+      EM.cancel_timer(t)
+      return msg
+    end
+  end
+
+  def start_resp_mux_sub!
+    @resp_sub_prefix = "_INBOX.#{@nuid.next}"
+    @resp_map = Hash.new { |h,k| h[k] = { }}
+
+    # Single subscription that will be handling all the requests
+    # using fibers to yield the responses.
+    subscribe("#{@resp_sub_prefix}.*") do |msg, reply, subject|
+      token = subject.split('.').last
+
+      # Discard the response if requestor not interested already.
+      next unless @resp_map.key? token
+
+      # Take fiber that will be passed the response
+      f = @resp_map[token][:fiber]
+      expected = @resp_map[token][:expected]
+
+      if expected == 1
+        f.resume msg
+        @resp_map.delete(token)
+        next
+      end
+
+      if @resp_map[token][:msgs].size < expected
+        @resp_map[token][:msgs] << msg
+
+        msgs = @resp_map[token][:msgs]
+        if msgs.size >= expected
+          f.resume(msgs)
+        else
+          # Wait to gather more messages or timeout.
+          next
+        end
+      end
+
+      @resp_map.delete(token)
     end
   end
 
