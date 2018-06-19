@@ -207,8 +207,6 @@ describe 'Client - cluster reconnect' do
 
   context 'when max_reconnect_attempts == -1 (do not remove servers)' do
     it 'should never remove servers that fail' do
-      @s3.kill_server # Server is offline though it still is discovered
-
       options = {
         :dont_randomize_servers => true,
         :servers => [@s1.uri, @s2.uri],
@@ -217,17 +215,25 @@ describe 'Client - cluster reconnect' do
         :reconnect_time_wait => 1
       }
 
+      done = false
       @s1.kill_server
-      with_em_timeout do
+      with_em_timeout(2) do
         NATS.start(options) do |c|
           expect(c.connected_server).to eql(@s2.uri)
           expect(c.server_pool.size).to eq(3)
+          EM.add_timer(0.5) do
+            @s3.kill_server # Server goes away from the cluster
+            EM.add_timer(1) do
+              done = true
+              expect(c.server_pool.size).to eq(3)
+            end
+          end
         end
       end
+      expect(done).to eql(true)
     end
 
     it 'should never remove servers due to client triggered disconnect' do
-      @s3.kill_server # Server is offline though it still is discovered
 
       options = {
         :dont_randomize_servers => true,
@@ -237,7 +243,8 @@ describe 'Client - cluster reconnect' do
         :reconnect_time_wait => 2
       }
 
-      with_em_timeout do |future|
+      done = false
+      with_em_timeout(5) do |future|
         errors = []
         reconnects = 0
         NATS.start(options) do |nc|
@@ -260,16 +267,24 @@ describe 'Client - cluster reconnect' do
           nc.publish("hello", 'A' * payload)
 
           EM.add_timer(1) { @s1.kill_server }
-          EM.add_timer(2) do
+          EM.add_timer(2.5) do
             expect(nc.connected_server).to eql(@s2.uri)
-            expect(errors.count).to eql(1)
+
             expect(nc.server_pool.size).to eq(3)
             expect(messages.count).to eql(0)
-            nc.close
-            future.resume
+
+            EM.add_timer(0.5) do
+              @s3.kill_server
+              expect(errors.count).to eql(1)
+              expect(nc.server_pool.size).to eq(3)
+              done = true
+              nc.close
+              future.resume
+            end
           end
         end
       end
+      expect(done).to eql(true)
     end
   end
 end

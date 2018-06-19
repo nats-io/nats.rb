@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    nats (0.8.4)
+    nats (0.9.0)
       eventmachine (~> 1.2, >= 1.2)
 
 GEM
@@ -43,4 +43,4 @@ DEPENDENCIES
   thin
 
 BUNDLED WITH
-   1.16.1
+   1.16.2

@@ -24,7 +24,6 @@ spec = Gem::Specification.new do |s|
   s.homepage = 'https://nats.io'
   s.description = 'NATS is an open-source, high-performance, lightweight cloud messaging system.'
   s.licenses = ['MIT']
-  s.has_rdoc = true
 
   s.authors = ['Derek Collison']
   s.email = ['derek.collison@gmail.com']
@@ -47,6 +46,7 @@ spec = Gem::Specification.new do |s|
     bin/nats-top
     bin/nats-request
     lib/nats/client.rb
+    lib/nats/nuid.rb
     lib/nats/version.rb
     lib/nats/ext/bytesize.rb
     lib/nats/ext/em.rb
