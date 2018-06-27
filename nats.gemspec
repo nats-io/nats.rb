@@ -34,7 +34,6 @@ spec = Gem::Specification.new do |s|
   s.executables = ['nats-pub', 'nats-sub', 'nats-queue', 'nats-request']
 
   s.files = %w[
-    COPYING
     README.md
     HISTORY.md
     nats.gemspec
