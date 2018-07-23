@@ -826,16 +826,13 @@ module NATS
   end
 
   def ssl_verify_peer(cert)
-    ca_file = File.read(@options[:tls][:ca_file])
-    ca = OpenSSL::X509::Certificate.new(ca_file)
     incoming = OpenSSL::X509::Certificate.new(cert)
-
-    unless incoming.issuer.to_s == ca.subject.to_s && incoming.verify(ca.public_key)
-      err_cb.call(NATS::ConnectError.new("TLS Verification failed checking issuer based on CA %s" % @options[:ca_file]))
-      false
-    else
-      true
-    end
+    store = OpenSSL::X509::Store.new
+    store.set_default_paths
+    store.add_file @options[:tls][:ca_file]
+    result = store.verify(incoming)
+    err_cb.call(NATS::ConnectError.new('TLS Verification failed checking issuer based on CA %s' % @options[:tls][:ca_file])) unless result
+    result
   rescue NATS::ConnectError
     false
   end

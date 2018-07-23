@@ -918,6 +918,69 @@ describe 'Client - TLS spec', :jruby_excluded do
       expect(reconnects).to eql(0)
       expect(disconnects).to eql(0)
     end
+
+    it 'should connect securely with verify peer when multiple CAs are present in the CA file' do
+      errors      = []
+      messages    = []
+      connects    = 0
+      reconnects  = 0
+      disconnects = 0
+      closes      = 0
+
+      with_em_timeout(10) do |future|
+        NATS.on_error do |e|
+          errors << e
+        end
+
+        NATS.on_disconnect do |e|
+          disconnects += 1
+        end
+
+        NATS.on_reconnect do
+          reconnects += 1
+        end
+
+        NATS.on_close do
+          closes += 1
+        end
+
+        options = {
+          :servers => ['nats://secret:deadbeef@127.0.0.1:4445'],
+          :max_reconnect_attempts => 1,
+          :dont_randomize_servers => true,
+          :tls => {
+            :ssl_version => :TLSv1_2,
+            :protocols => [:tlsv1_2],
+            :private_key_file => './spec/configs/certs/key.pem',
+            :cert_chain_file  => './spec/configs/certs/server.pem',
+            :ca_file => './spec/configs/certs/multi-ca.pem', # First CA is invalid, second is valid
+            :verify_peer => true
+          }
+        }
+
+        nc = NATS.connect(options) do |conn|
+          expect(conn.connected_server).to eql(URI.parse('nats://secret:deadbeef@127.0.0.1:4445'))
+
+          connects += 1
+        end
+
+        sid = nc.subscribe("hello") do |msg|
+          messages << msg
+        end
+        nc.flush do
+          nc.publish("hello", "world") do
+            nc.unsubscribe(sid)
+            nc.close
+            future.resume(nc)
+          end
+        end
+      end
+      expect(messages.count).to eql(1)
+      expect(errors.count).to eql(0)
+      expect(closes).to eql(1)
+      expect(reconnects).to eql(0)
+      expect(disconnects).to eql(0)
+    end
   end
 
   context 'when servers require TLS' do
