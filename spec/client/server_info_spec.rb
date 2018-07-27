@@ -23,8 +23,8 @@ describe 'Client - server_info support' do
       expect(info).to be_a Hash
       expect(info).to have_key :server_id
       expect(info).to have_key :version
-      expect(info).to have_key :auth_required
-      expect(info).to have_key :tls_required
+      expect(info).to have_key :proto
+      expect(info).to have_key :client_id
       expect(info).to have_key :max_payload
       expect(info).to have_key :host
       expect(info).to have_key :port
@@ -39,8 +39,8 @@ describe 'Client - server_info support' do
       expect(info).to be_a Hash
       expect(info).to have_key :server_id
       expect(info).to have_key :version
-      expect(info).to have_key :auth_required
-      expect(info).to have_key :tls_required
+      expect(info).to have_key :proto
+      expect(info).to have_key :client_id
       expect(info).to have_key :max_payload
       expect(info).to have_key :host
       expect(info).to have_key :port
