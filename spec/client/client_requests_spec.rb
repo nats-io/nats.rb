@@ -102,9 +102,14 @@ describe 'Client - Requests' do
       timeout_nats_on_failure(2)
     end
     expect(responses.count).to eql(5)
-    responses.each_with_index do |response, i|
-      expect(response).to eql("help-#{i}")
-    end
+
+    # NOTE: Behavior change here in NATS v1.2.0, now responses
+    # are not in the same order as the subscriptions.
+    # responses.each_with_index do |response, i|
+    #   expect(response).to eql("help-#{i}")
+    # end
+    expect(responses.count).to eql(5)
+
     resp_map = nats.instance_variable_get('@resp_map')
     expect(resp_map.keys.count).to eql(0)
   end
