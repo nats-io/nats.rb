@@ -867,6 +867,8 @@ describe 'Client - TLS spec', :jruby_excluded do
       end
       expect(errors.count).to eql(2)
       expect(errors.first).to be_a(NATS::ConnectError)
+      expect(errors.first.to_s).to eql('TLS Verification failed checking issuer based on CA ./spec/configs/certs/bad-ca.pem')
+      
       expect(errors.last).to be_a(NATS::ConnectError)
       expect(messages.count).to eql(0)
       expect(disconnects).to eql(0)
