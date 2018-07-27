@@ -252,6 +252,19 @@ describe 'Client - TLS spec', :jruby_excluded do
         nc = NATS.connect(options) do |nc2|
           expect(nc2.connected_server).to eql(URI.parse('nats://secret:deadbeef@127.0.0.1:4443'))
           connects += 1
+
+          info = nc2.server_info
+          expect(info).to_not be(nil)
+          expect(info).to be_a Hash
+          expect(info).to have_key :server_id
+          expect(info).to have_key :version
+          expect(info).to have_key :proto
+          expect(info).to have_key :client_id
+          expect(info).to have_key :max_payload
+          expect(info).to have_key :host
+          expect(info).to have_key :port
+          expect(info).to have_key :auth_required
+          expect(info).to have_key :tls_required
         end
 
         sid = nc.subscribe("hello") do |msg|
@@ -854,6 +867,8 @@ describe 'Client - TLS spec', :jruby_excluded do
       end
       expect(errors.count).to eql(2)
       expect(errors.first).to be_a(NATS::ConnectError)
+      expect(errors.first.to_s).to eql('TLS Verification failed checking issuer based on CA ./spec/configs/certs/bad-ca.pem')
+      
       expect(errors.last).to be_a(NATS::ConnectError)
       expect(messages.count).to eql(0)
       expect(disconnects).to eql(0)
