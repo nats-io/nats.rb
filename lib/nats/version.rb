@@ -14,7 +14,7 @@
 
 module NATS
   # NOTE: These are all announced to the server on CONNECT
-  VERSION = "0.9.2".freeze
+  VERSION = "0.10.0".freeze
   LANG    = RUBY_ENGINE
   PROTOCOL_VERSION = 1
 end
