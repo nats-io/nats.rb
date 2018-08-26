@@ -129,7 +129,7 @@ module NATS
       opts[:max_reconnect_attempts] = ENV['NATS_MAX_RECONNECT_ATTEMPTS'].to_i unless ENV['NATS_MAX_RECONNECT_ATTEMPTS'].nil?
       opts[:reconnect_time_wait] = ENV['NATS_RECONNECT_TIME_WAIT'].to_i unless ENV['NATS_RECONNECT_TIME_WAIT'].nil?
       opts[:name] ||= ENV['NATS_CONNECTION_NAME']
-
+      opts[:no_echo] ||= ENV['NATS_NO_ECHO'] || false
 
       opts[:ping_interval] = ENV['NATS_PING_INTERVAL'].to_i unless ENV['NATS_PING_INTERVAL'].nil?
       opts[:max_outstanding_pings] = ENV['NATS_MAX_OUTSTANDING_PINGS'].to_i unless ENV['NATS_MAX_OUTSTANDING_PINGS'].nil?
@@ -637,7 +637,8 @@ module NATS
       :pedantic => @options[:pedantic],
       :lang => ::NATS::LANG,
       :version => ::NATS::VERSION,
-      :protocol => ::NATS::PROTOCOL_VERSION
+      :protocol => ::NATS::PROTOCOL_VERSION,
+      :echo => !@options[:no_echo]
     }
     if auth_connection?
       cs[:user] = @uri.user
@@ -773,6 +774,14 @@ module NATS
       close_connection_after_writing
     else
       # Otherwise, use a regular connection.
+    end
+
+    # Check whether there no echo is supported by the server.
+    if @options[:no_echo]
+      if @server_info[:proto].nil? || @server_info[:proto] < 1
+        err_cb.call(NATS::ServerError.new('No echo option not supported by this server'))
+        close_connection_after_writing
+      end
     end
 
     # Detect any announced server that we might not be aware of...
