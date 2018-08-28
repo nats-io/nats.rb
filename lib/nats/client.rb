@@ -93,6 +93,7 @@ module NATS
     # Create and return a connection to the server with the given options.
     # The optional block will be called when the connection has been completed.
     #
+    # @param [String] uri The URI or comma separated list of URIs of NATS servers to connect to.
     # @param [Hash] opts
     # @option opts [String|URI] :uri The URI to connect to, example nats://localhost:4222
     # @option opts [Boolean] :reconnect Boolean that can be used to suppress reconnect functionality.
@@ -107,7 +108,50 @@ module NATS
     # @option opts [Integer] :max_outstanding_pings Integer that can be used to set the max number of outstanding pings before declaring a connection closed.
     # @param [Block] &blk called when the connection is completed. Connection will be passed to the block.
     # @return [NATS] connection to the server.
-    def connect(opts={}, &blk)
+    #
+    # @example Connect to local NATS server.
+    #  NATS.connect do |nc|
+    #    # ...
+    #  end
+    #
+    # @example Setting custom server URI to connect.
+    #  NATS.connect("nats://localhost:4222") do |nc|
+    #    # ...
+    #  end
+    #
+    # @example Setting username and password to authenticate.
+    #  NATS.connect("nats://user:password@localhost:4222") do |nc|
+    #    # ...
+    #  end
+    #
+    # @example Specifying explicit list of servers via options.
+    #  NATS.connect(servers: ["nats://127.0.0.1:4222","nats://127.0.0.1:4223","nats://127.0.0.1:4224"]) do |nc|
+    #    # ...
+    #  end
+    #
+    # @example Using comma separated array to define list of servers.
+    #  NATS.connect("nats://localhost:4223,nats://localhost:4224") do |nc|
+    #    # ...
+    #  end
+    #
+    # @example Only specifying endpoint uses NATS default scheme and port.
+    #  NATS.connect("demo.nats.io") do |nc|
+    #    # ...
+    #  end
+    #
+    # @example Setting infinite reconnect retries with 2 seconds back off against custom URI.
+    #  NATS.connect("demo.nats.io:4222", max_reconnect_attempts: -1, reconnect_time_wait: 2) do |nc|
+    #    # ...
+    #  end
+    #
+    def connect(uri=nil, opts={}, &blk)
+      case uri
+      when String
+        opts[:uri] = process_uri(uri)
+      when Hash
+        opts = uri
+      end
+
       # Defaults
       opts[:verbose] = false if opts[:verbose].nil?
       opts[:pedantic] = false if opts[:pedantic].nil?
@@ -130,7 +174,6 @@ module NATS
       opts[:reconnect_time_wait] = ENV['NATS_RECONNECT_TIME_WAIT'].to_i unless ENV['NATS_RECONNECT_TIME_WAIT'].nil?
       opts[:name] ||= ENV['NATS_CONNECTION_NAME']
       opts[:no_echo] ||= ENV['NATS_NO_ECHO'] || false
-
       opts[:ping_interval] = ENV['NATS_PING_INTERVAL'].to_i unless ENV['NATS_PING_INTERVAL'].nil?
       opts[:max_outstanding_pings] = ENV['NATS_MAX_OUTSTANDING_PINGS'].to_i unless ENV['NATS_MAX_OUTSTANDING_PINGS'].nil?
 
@@ -343,6 +386,37 @@ module NATS
       uri.host != 'localhost' && uri.host != '127.0.0.1'
     end
 
+    def process_uri(uris)
+      connect_uris = []
+      uris.split(',').each do |uri|
+        opts = {}
+
+        # Scheme
+        if uri.include?("://")
+          scheme, uri = uri.split("://")
+          opts[:scheme] = scheme
+        else
+          opts[:scheme] = 'nats'
+        end
+
+        # UserInfo
+        if uri.include?("@")
+          userinfo, endpoint = uri.split("@")
+          host, port = endpoint.split(":")
+          opts[:userinfo] = userinfo
+        else
+          host, port = uri.split(":")
+        end
+
+        # Host and Port
+        opts[:host] = host || "localhost"
+        opts[:port] = port || DEFAULT_PORT
+
+        connect_uris << URI::Generic.build(opts)
+      end
+
+      connect_uris
+    end
   end
 
   attr_reader :connected, :connect_cb, :err_cb, :err_cb_overridden, :pongs_received #:nodoc:
