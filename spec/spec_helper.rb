@@ -229,3 +229,57 @@ module SilentServer
     end
   end
 end
+
+module OldInfoServer
+
+  HOST = "127.0.0.1".freeze
+  PORT = "9997".freeze
+  URI  = "nats://#{HOST}:#{PORT}".freeze
+
+  def post_init
+    send_data('INFO {"server_id":"WxE17fQB24XOvaWlhECrhg","version":"1.3.0","host":"0.0.0.0","port":4222,"max_payload":1048576,"client_id":1}'+"\r\n")
+  end
+  
+  def receive_data(data)
+  end
+
+  class << self
+    def start(&blk)
+      EM.run {
+        EventMachine::start_server(HOST, PORT, self)
+        blk.call
+      }
+    end
+
+    def stop
+      EM.stop_event_loop
+    end
+  end
+end
+
+module OldProtocolInfoServer
+
+  HOST = "127.0.0.1".freeze
+  PORT = "9996".freeze
+  URI  = "nats://#{HOST}:#{PORT}".freeze
+
+  def post_init
+    send_data('INFO {"server_id":"WxE17fQB24XOvaWlhECrhg","version":"1.3.0","host":"0.0.0.0","port":4222,"max_payload":1048576,"client_id":1,"proto": 0}'+"\r\n")
+  end
+  
+  def receive_data(data)
+  end
+
+  class << self
+    def start(&blk)
+      EM.run {
+        EventMachine::start_server(HOST, PORT, self)
+        blk.call
+      }
+    end
+
+    def stop
+      EM.stop_event_loop
+    end
+  end
+end
