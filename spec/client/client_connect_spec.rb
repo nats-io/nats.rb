@@ -18,7 +18,6 @@ describe 'Client - Connect' do
       msgs_b = []
       with_em_timeout do
         NATS.on_error do |e|
-          p e
           errors << e
         end
 

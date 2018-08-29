@@ -533,7 +533,7 @@ module NATS
   end
 
   # Drain gracefully closes the connection.
-  # @param [Block]
+  # @param [Block] blk called when drain is done and connection is closed.
   def drain(&blk)
     return if draining? or closing?
     @draining = true
@@ -551,6 +551,7 @@ module NATS
 
         # Report the timeout via the error callback and just close
         err_cb.call(NATS::ClientError.new("Drain Timeout"))
+        @draining = false
         close unless closing?
         blk.call if blk
       end
@@ -562,12 +563,13 @@ module NATS
         EM.cancel_timer(draining_timer)
 
         # We're done draining and can close now.
+        @draining = false
         close unless closing?
         blk.call if blk
       end
     end
   end
-  
+
   # Return the active subscription count.
   # @return [Number]
   def subscription_count
@@ -837,7 +839,6 @@ module NATS
   def receive_data(data) #:nodoc:
     @buf = @buf ? @buf << data : data
 
-    # puts "#{@buf.bytesize} || #{@buf[0..20]}" if draining?
     while (@buf)
       case @parse_state
       when AWAITING_CONTROL_LINE
@@ -885,9 +886,6 @@ module NATS
         @parse_state = AWAITING_CONTROL_LINE
         @buf = nil if (@buf && @buf.empty?)
       end
-      # if draining? and @buf
-      #   puts "#{@buf.bytesize} |> #{@buf[0..20]}"
-      # end
     end
   end
 
