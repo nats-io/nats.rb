@@ -121,4 +121,102 @@ describe 'Client - Connect' do
       end.to raise_error(NATS::ServerError)
     end
   end
+
+  context "Simple Connect" do
+    it "should connect using host:port" do
+      with_em_timeout do |future|
+        NATS.connect("127.0.0.1:4222") do |nc|
+          nc.subscribe("foo") do
+            future.resume
+          end
+          nc.publish("foo", "bar")
+        end
+      end
+    end
+
+    it "should connect with just host using default port" do
+      with_em_timeout do |future|
+        NATS.connect("127.0.0.1") do |nc|
+          nc.subscribe("foo") do
+            future.resume
+          end
+          nc.publish("foo", "bar")
+        end
+      end
+    end
+
+    it "should connect with just host: using default port" do
+      with_em_timeout do |future|
+        NATS.connect("127.0.0.1:") do |nc|
+          nc.subscribe("foo") do
+            future.resume
+          end
+          nc.publish("foo", "bar")
+        end
+      end
+    end
+
+    it "should fail to connect with empty string" do
+      expect do
+        with_em_timeout do |future|
+          NATS.connect("")
+        end
+      end.to raise_error(URI::InvalidURIError)
+    end
+
+    it "should support comma separated list of servers" do
+      options = {}
+      servers = []
+      with_em_timeout do |future|
+        NATS.connect("nats://127.0.0.1:4222,nats://127.0.0.1:4223,nats://127.0.0.1:4224", dont_randomize_servers: true) do |nc|
+          nc.subscribe("foo") do
+            options = nc.options
+            servers = nc.server_pool
+            future.resume
+          end
+          nc.publish("foo", "bar")
+        end
+      end
+      expect(options[:dont_randomize_servers]).to eql(true)
+      expect(servers.count).to eql(3)
+      servers.each do |server|        
+        expect(server[:uri].scheme).to eql('nats')
+        expect(server[:uri].host).to eql('127.0.0.1')
+      end
+      a, b, c = servers
+      expect(a[:uri].port).to eql(4223)
+      expect(b[:uri].port).to eql(4224)
+      expect(c[:uri].port).to eql(4222)
+    end
+
+    it "should support comma separated list of servers with own user info" do
+      servers = []
+      with_em_timeout do |future|
+        NATS.connect("nats://a:b@127.0.0.1:4222,nats://c:d@127.0.0.1:4223,nats://e:f@127.0.0.1:4224", dont_randomize_servers: true) do |nc|
+          nc.subscribe("foo") do
+            servers = nc.server_pool
+            future.resume
+          end
+          nc.publish("foo", "bar")
+        end
+      end
+      expect(servers.count).to eql(3)
+      servers.each do |server|        
+        expect(server[:uri].scheme).to eql('nats')
+        expect(server[:uri].host).to eql('127.0.0.1')
+      end
+      a, b, c = servers
+      expect(c[:uri].port).to eql(4222)
+      expect(a[:uri].port).to eql(4223)
+      expect(b[:uri].port).to eql(4224)
+
+      expect(c[:uri].user).to eql('a')
+      expect(a[:uri].user).to eql('c')
+      expect(b[:uri].user).to eql('e')
+
+      expect(c[:uri].password).to eql('b')
+      expect(a[:uri].password).to eql('d')
+      expect(b[:uri].password).to eql('f')
+    end
+  end
 end
