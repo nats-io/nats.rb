@@ -481,6 +481,7 @@ module NATS
 
     # Drain mode
     @draining = false
+    @drained_subs = false
     send_connect_command
   end
 
@@ -490,7 +491,7 @@ module NATS
   # @param [String] opt_reply
   # @param [Block] blk, closure called when publish has been processed by the server.
   def publish(subject, msg=EMPTY_MSG, opt_reply=nil, &blk)
-    return unless subject or draining?
+    return unless subject and not @drained_subs
     msg = msg.to_s
 
     # Accounting
@@ -510,7 +511,7 @@ module NATS
   # @param [Block] callback, called when a message is delivered.
   # @return [Object] sid, Subject Identifier
   def subscribe(subject, opts={}, &callback)
-    return unless subject
+    return unless subject and not draining?
     sid = (@ssid += 1)
     sub = @subs[sid] = { :subject => subject, :callback => callback, :received => 0 }
     sub[:queue] = opts[:queue] if opts[:queue]
@@ -525,6 +526,7 @@ module NATS
   # @param [Object] sid
   # @param [Number] opt_max, optional number of responses to receive before auto-unsubscribing
   def unsubscribe(sid, opt_max=nil)
+    return if draining?
     opt_max_str = " #{opt_max}" unless opt_max.nil?
     send_command("UNSUB #{sid}#{opt_max_str}#{CR_LF}")
     return unless sub = @subs[sid]
@@ -559,8 +561,12 @@ module NATS
       # Periodically check for the pending data to be empty.
       draining_timer = EM.add_periodic_timer(0.1) do
         next unless closing? or @buf.nil? or @buf.empty?
-        EM.cancel_timer(drain_timeout_timer)
+
+        # Subscriptions have been drained already so disallow publishing.
+        @drained_subs = true
+        next unless pending_data_size == 0
         EM.cancel_timer(draining_timer)
+        EM.cancel_timer(drain_timeout_timer)
 
         # We're done draining and can close now.
         @draining = false
