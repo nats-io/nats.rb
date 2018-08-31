@@ -11,7 +11,7 @@ describe 'Client - Requests' do
     @s.kill_server
   end
 
-  it 'should receive a responses using single subscription for requests' do
+  it 'should receive responses using single subscription for requests' do
     msgs = []
     received = false
     nats = nil

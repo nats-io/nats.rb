@@ -42,6 +42,9 @@ module NATS
   DEFAULT_PING_INTERVAL = 120
   DEFAULT_PING_MAX = 2
 
+  # Drain mode support
+  DEFAULT_DRAIN_TIMEOUT = 30
+
   # Protocol
   # @private
   MSG      = /\AMSG\s+([^\s]+)\s+([^\s]+)\s+(([^\s]+)[^\S\r\n]+)?(\d+)\r\n/i #:nodoc:
@@ -161,6 +164,7 @@ module NATS
       opts[:reconnect_time_wait] = RECONNECT_TIME_WAIT if opts[:reconnect_time_wait].nil?
       opts[:ping_interval] = DEFAULT_PING_INTERVAL if opts[:ping_interval].nil?
       opts[:max_outstanding_pings] = DEFAULT_PING_MAX if opts[:max_outstanding_pings].nil?
+      opts[:drain_timeout] = DEFAULT_DRAIN_TIMEOUT if opts[:drain_timeout].nil?
 
       # Override with ENV
       opts[:uri] ||= ENV['NATS_URI'] || DEFAULT_URI
@@ -176,6 +180,7 @@ module NATS
       opts[:no_echo] ||= ENV['NATS_NO_ECHO'] || false
       opts[:ping_interval] = ENV['NATS_PING_INTERVAL'].to_i unless ENV['NATS_PING_INTERVAL'].nil?
       opts[:max_outstanding_pings] = ENV['NATS_MAX_OUTSTANDING_PINGS'].to_i unless ENV['NATS_MAX_OUTSTANDING_PINGS'].nil?
+      opts[:drain_timeout] ||= ENV['NATS_DRAIN_TIMEOUT'].to_i unless ENV['NATS_DRAIN_TIMEOUT'].nil?
 
       uri = opts[:uris] || opts[:servers] || opts[:uri]
 
@@ -254,6 +259,16 @@ module NATS
       @disconnect_cb = nil
     end
 
+    # Drain gracefully disconnects from the server, letting
+    # subscribers process pending messages already sent by server and
+    # optionally calls the associated block.
+    # @param [Block] &blk called when drain is done and connection is closed.
+    def drain(&blk)
+      if (client and !client.draining? and (client.connected? || client.reconnecting?))
+        client.drain { blk.call if blk }
+      end
+    end
+
     # @return [URI] Connected server
     def connected_server
       return nil unless client
@@ -270,6 +285,12 @@ module NATS
     def reconnecting?
       return false unless client
       client.reconnecting?
+    end
+
+    # @return [Boolean] Draining state
+    def draining?
+      return false unless client
+      client.draining?
     end
 
     # @return [Hash] Options
@@ -420,13 +441,14 @@ module NATS
   end
 
   attr_reader :connected, :connect_cb, :err_cb, :err_cb_overridden, :pongs_received #:nodoc:
-  attr_reader :closing, :reconnecting, :server_pool, :options, :server_info #:nodoc
+  attr_reader :closing, :reconnecting, :draining, :server_pool, :options, :server_info #:nodoc
   attr_reader :msgs_received, :msgs_sent, :bytes_received, :bytes_sent, :pings
   attr_reader :disconnect_cb, :close_cb
 
   alias :connected? :connected
   alias :closing? :closing
   alias :reconnecting? :reconnecting
+  alias :draining? :draining
 
   def initialize(options)
     @options = options
@@ -457,6 +479,9 @@ module NATS
     @resp_sub_prefix = nil
     @nuid = NATS::NUID.new
 
+    # Drain mode
+    @draining = false
+    @drained_subs = false
     send_connect_command
   end
 
@@ -466,7 +491,7 @@ module NATS
   # @param [String] opt_reply
   # @param [Block] blk, closure called when publish has been processed by the server.
   def publish(subject, msg=EMPTY_MSG, opt_reply=nil, &blk)
-    return unless subject
+    return unless subject and not @drained_subs
     msg = msg.to_s
 
     # Accounting
@@ -486,7 +511,7 @@ module NATS
   # @param [Block] callback, called when a message is delivered.
   # @return [Object] sid, Subject Identifier
   def subscribe(subject, opts={}, &callback)
-    return unless subject
+    return unless subject and not draining?
     sid = (@ssid += 1)
     sub = @subs[sid] = { :subject => subject, :callback => callback, :received => 0 }
     sub[:queue] = opts[:queue] if opts[:queue]
@@ -501,11 +526,54 @@ module NATS
   # @param [Object] sid
   # @param [Number] opt_max, optional number of responses to receive before auto-unsubscribing
   def unsubscribe(sid, opt_max=nil)
+    return if draining?
     opt_max_str = " #{opt_max}" unless opt_max.nil?
     send_command("UNSUB #{sid}#{opt_max_str}#{CR_LF}")
     return unless sub = @subs[sid]
     sub[:max] = opt_max
     @subs.delete(sid) unless (sub[:max] && (sub[:received] < sub[:max]))
+  end
+
+  # Drain gracefully closes the connection.
+  # @param [Block] blk called when drain is done and connection is closed.
+  def drain(&blk)
+    return if draining? or closing?
+    @draining = true
+
+    # Remove interest in all subjects to stop receiving messages.
+    @subs.each do |sid, _|
+      send_command("UNSUB #{sid} #{CR_LF}")
+    end
+
+    # Roundtrip to ensure no more messages are received.
+    flush do
+      drain_timeout_timer, draining_timer = nil, nil
+      drain_timeout_timer = EM.add_timer(options[:drain_timeout]) do
+        EM.cancel_timer(draining_timer)
+
+        # Report the timeout via the error callback and just close
+        err_cb.call(NATS::ClientError.new("Drain Timeout"))
+        @draining = false
+        close unless closing?
+        blk.call if blk
+      end
+
+      # Periodically check for the pending data to be empty.
+      draining_timer = EM.add_periodic_timer(0.1) do
+        next unless closing? or @buf.nil? or @buf.empty?
+
+        # Subscriptions have been drained already so disallow publishing.
+        @drained_subs = true
+        next unless pending_data_size == 0
+        EM.cancel_timer(draining_timer)
+        EM.cancel_timer(drain_timeout_timer)
+
+        # We're done draining and can close now.
+        @draining = false
+        close unless closing?
+        blk.call if blk
+      end
+    end
   end
 
   # Return the active subscription count.
@@ -776,6 +844,7 @@ module NATS
 
   def receive_data(data) #:nodoc:
     @buf = @buf ? @buf << data : data
+
     while (@buf)
       case @parse_state
       when AWAITING_CONTROL_LINE
@@ -823,7 +892,6 @@ module NATS
         @parse_state = AWAITING_CONTROL_LINE
         @buf = nil if (@buf && @buf.empty?)
       end
-
     end
   end
 
