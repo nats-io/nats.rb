@@ -770,7 +770,7 @@ module NATS
   end
 
   def auth_connection?
-    !@uri.user.nil?
+    !@uri.user.nil? || @options[:token]
   end
 
   def connect_command #:nodoc:
@@ -782,10 +782,16 @@ module NATS
       :protocol => ::NATS::PROTOCOL_VERSION,
       :echo => !@options[:no_echo]
     }
-    if auth_connection?
+    case
+    when @options[:token]
+      cs[:auth_token] = @options[:token]
+    when @uri.password.nil?
+      cs[:auth_token] = @uri.user
+    else
       cs[:user] = @uri.user
       cs[:pass] = @uri.password
-    end
+    end if auth_connection?
+
     cs[:name] = @options[:name] if @options[:name]
     cs[:ssl_required] = @ssl if @ssl
     cs[:tls_required] = true if @tls
@@ -943,9 +949,9 @@ module NATS
           u.password = options[:pass] if options[:pass]
 
           # Use creds from the current server if not set explicitly.
-          if @uri
-            u.user ||= @uri.user if @uri.user
-            u.password ||= @uri.password if @uri.password
+          if @uri and !@uri.user.nil? and !@uri.user.empty?
+            u.user ||= @uri.user
+            u.password ||= @uri.password
           end
 
           srvs << { :uri => u, :reconnect_attempts => 0, :discovered => true }
