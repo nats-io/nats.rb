@@ -98,23 +98,38 @@ describe 'Client - auth token' do
   end
 
   it 'should raise auth error when using wrong token' do
-    expect do
-      with_em_timeout do
-        NATS.connect(:uri => @s1.uri, :token => 'wrong', :allow_reconnect => false)
+    errors = []
+    with_em_timeout(2) do |future|
+      NATS.on_error do |e|
+        errors << e
+        future.resume
       end
-    end.to raise_error(NATS::AuthError)
+      NATS.connect(:uri => @s1.uri, :token => 'wrong')
+    end
+    expect(errors.count).to eql(1)
+    expect(errors.first).to be_a(NATS::AuthError)
 
-    expect do
-      with_em_timeout do
-        NATS.connect(:uri => "nats://wrong@#{@s1.uri.host}:#{@s1.uri.port}")
+    errors = []
+    with_em_timeout(2) do |future|
+      NATS.on_error do |e|
+        errors << e
+        future.resume
       end
-    end.to raise_error(NATS::AuthError)
+      NATS.connect(:uri => "nats://wrong@#{@s1.uri.host}:#{@s1.uri.port}")
+    end
+    expect(errors.count).to eql(1)
+    expect(errors.first).to be_a(NATS::AuthError)
 
-    expect do
-      with_em_timeout do
-        NATS.connect("nats://wrong@#{@s1.uri.host}:#{@s1.uri.port}")
+    errors = []
+    with_em_timeout(2) do |future|
+      NATS.on_error do |e|
+        errors << e
+        future.resume
       end
-    end.to raise_error(NATS::AuthError)
+      NATS.connect("nats://wrong@#{@s1.uri.host}:#{@s1.uri.port}")
+    end
+    expect(errors.count).to eql(1)
+    expect(errors.first).to be_a(NATS::AuthError)
   end
 
   it 'should reuse token for reconnecting' do
