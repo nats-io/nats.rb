@@ -3,14 +3,14 @@
 A [Ruby](http://ruby-lang.org) client for the [NATS messaging system](https://nats.io).
 
 [![License Apache 2.0](https://img.shields.io/badge/License-Apache2-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Build Status](https://travis-ci.org/nats-io/ruby-nats.svg)](http://travis-ci.org/nats-io/ruby-nats) [![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.9.2)](https://rubygems.org/gems/nats/versions/0.9.2) [![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](https://www.rubydoc.info/gems/nats)
+[![Build Status](https://travis-ci.org/nats-io/ruby-nats.svg)](http://travis-ci.org/nats-io/ruby-nats) [![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.10.0)](https://rubygems.org/gems/nats/versions/0.10.0) [![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](https://www.rubydoc.info/gems/nats)
 
 ## Supported Platforms
 
 This gem and the client are known to work on the following Ruby platforms:
 
-- MRI 2.2, 2.3.0, 2.4.0, 2.5.0
-- JRuby 9.1.2.0, 9.1.15.0
+- MRI 2.3.0, 2.4.0, 2.5.0
+- JRuby 9.1.2.0, 9.1.15.0, 9.2.0.0
 
 If you're looking for a non-EventMachine alternative, check out the [nats-pure](https://github.com/nats-io/pure-ruby-nats) gem.
 
@@ -108,11 +108,10 @@ end
 
 ### Auto discovery
 
-Starting from release `0.8.0` of the gem, the client also auto
-discovers new nodes announced by the server as they attach to the
-cluster.  Reconnection logic parameters such as time to back-off on
-failure and max attempts apply the same to both discovered nodes and
-those defined explicitly on connect:
+The client also auto discovers new nodes announced by the server as
+they attach to the cluster.  Reconnection logic parameters such as
+time to back-off on failure and max attempts apply the same to both
+discovered nodes and those defined explicitly on connect:
 
 ```ruby
 opts = {
@@ -149,7 +148,10 @@ NATS.unsubscribe(sid, MAX_WANTED)
 # Multiple connections
 NATS.subscribe('test') do |msg|
   puts "received msg"
-  NATS.stop
+  
+  # Gracefully disconnect from NATS after handling
+  # messages that have already been delivered by server.
+  NATS.drain
 end
 
 # Form second connection to send message on
