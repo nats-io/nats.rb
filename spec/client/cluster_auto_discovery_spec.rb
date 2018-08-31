@@ -132,8 +132,10 @@ describe 'Client - cluster auto discovery' do
     expect(servers_upon_connect).to eql(3)
     srvs = randomize_calls.last
     expect(srvs.count).to eql(2)
-    expect(srvs[0][:uri]).to eql(@s2.uri)
-    expect(srvs[1][:uri]).to eql(@s3.uri)
+    srv_0 = srvs.select{ |srv| srv[:uri] == @s2.uri }.first
+    srv_1 = srvs.select{ |srv| srv[:uri] == @s3.uri }.first
+    expect(srv_0[:uri]).not_to be_nil
+    expect(srv_1[:uri]).not_to be_nil
   end
 
   it 'should properly discover nodes in cluster eventually after first connect' do
