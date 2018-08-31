@@ -157,8 +157,8 @@ describe 'Client - cluster' do
     expect(received).to eql(to_send*2) # queue subscriber + normal subscriber
     expect(c1_received < to_send).to eql(true) 
     expect(c2_received < to_send).to eql(true)
-    expect(c1_received).to be_within(15).of(to_send/2)
-    expect(c2_received).to be_within(15).of(to_send/2)
+    expect(c1_received).to be_within(20).of(to_send/2)
+    expect(c2_received).to be_within(20).of(to_send/2)
   end
 
   it 'should properly route messages for distributed queues with multiple groups on different servers' do
