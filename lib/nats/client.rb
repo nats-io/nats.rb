@@ -151,7 +151,9 @@ module NATS
     def connect(uri=nil, opts={}, &blk)
       case uri
       when String
-        opts[:uri] = process_uri(uri)
+        # Initialize TLS defaults in case any url is using it.
+        uris = opts[:uri] = process_uri(uri)
+        opts[:tls] ||= {} if uris.any? {|u| u.scheme == 'tls'}
       when Hash
         opts = uri
       end
