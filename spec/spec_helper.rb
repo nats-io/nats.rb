@@ -138,9 +138,9 @@ class NatsServerControl
     args += " #{@flags}" if @flags
 
     if ENV["DEBUG_NATS_TEST"] == "true"
-      system("gnatsd #{args} -DV &")
+      system("nats-server #{args} -DV &")
     else
-      system("gnatsd #{args} 2> /dev/null &")
+      system("nats-server #{args} 2> /dev/null &")
     end
     exitstatus = $?.exitstatus
     NATS.wait_for_server(@uri, 10) if wait_for_server # jruby can be slow on startup...
