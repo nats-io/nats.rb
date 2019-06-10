@@ -188,6 +188,10 @@ module EchoServer
   PORT = "9999".freeze
   URI  = "nats://#{HOST}:#{PORT}".freeze
 
+  def post_init
+    send_data('INFO {"server_id":"WxE17fQB24XOvaWlhECrhg","max_payload":1048576,"client_id":1}'+"\r\n")
+  end
+
   def receive_data(data)
     send_data(data)
   end
@@ -211,6 +215,10 @@ module SilentServer
   HOST = "127.0.0.1".freeze
   PORT = "9998".freeze
   URI  = "nats://#{HOST}:#{PORT}".freeze
+
+  def post_init
+    send_data('INFO {"server_id":"WxE17fQB24XOvaWlhECrhg","max_payload":1048576,"client_id":1}'+"\r\n")
+  end
 
   # Does not send anything back
   def receive_data(data)
