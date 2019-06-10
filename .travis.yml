@@ -1,7 +1,8 @@
+language: ruby
+
 rvm:
-  - 2.4
   - 2.5
-  - ruby-head  
+  - 2.6
 
 cache:
   directories:
@@ -14,66 +15,5 @@ before_script:
   - export PATH=$HOME/gnatsd:$PATH
 
 sudo: required
-dist: trusty
+dist: xenial
 bundler_args: --without server
-
-matrix:
-  include:
-    - rvm: jruby
-      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
-      script: "bundle exec rake spec:client:jruby"
-      jdk: openjdk8
-    - rvm: jruby
-      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
-      script: "bundle exec rake spec:client:jruby"
-      jdk: oraclejdk8
-    - rvm: jruby
-      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
-      script: "bundle exec rake spec:client:jruby"
-      jdk: oraclejdk9
-    - rvm: jruby
-      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
-      script: "bundle exec rake spec:client:jruby"
-      jdk: oraclejdk10
-    - rvm: jruby
-      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
-      script: "bundle exec rake spec:client:jruby"
-      jdk: oraclejdk11
-    - rvm: jruby
-      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
-      script: "bundle exec rake spec:client:jruby"
-      jdk: openjdk9
-    - rvm: jruby
-      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
-      script: "bundle exec rake spec:client:jruby"
-      jdk: openjdk10
-    - rvm: jruby
-      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
-      script: "bundle exec rake spec:client:jruby"
-      jdk: openjdk11
-  allow_failures:
-    - rvm: jruby
-      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
-      jdk: openjdk8
-    - rvm: jruby
-      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
-      jdk: oraclejdk8
-    - rvm: jruby
-      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
-      jdk: oraclejdk9
-    - rvm: jruby
-      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
-      jdk: oraclejdk10
-    - rvm: jruby
-      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
-      jdk: oraclejdk11
-    - rvm: ruby-head
-    - rvm: jruby
-      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
-      jdk: openjdk9
-    - rvm: jruby
-      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
-      jdk: openjdk10
-    - rvm: jruby
-      env: JRUBY_OPTS='--server -Xcompile.invokedynamic=false' JAVA_OPTS='-Djava.security.egd=file:///dev/urandom'
-      jdk: openjdk11
