@@ -72,6 +72,7 @@ module NATS
   # Parser
   AWAITING_CONTROL_LINE = 1 #:nodoc:
   AWAITING_MSG_PAYLOAD  = 2 #:nodoc:
+  AWAITING_INFO_LINE = 3 # :nodoc:
 
   class Error < StandardError; end #:nodoc:
 
@@ -150,7 +151,9 @@ module NATS
     def connect(uri=nil, opts={}, &blk)
       case uri
       when String
-        opts[:uri] = process_uri(uri)
+        # Initialize TLS defaults in case any url is using it.
+        uris = opts[:uri] = process_uri(uri)
+        opts[:tls] ||= {} if uris.any? {|u| u.scheme == 'tls'}
       when Hash
         opts = uri
       end
@@ -482,7 +485,16 @@ module NATS
     # Drain mode
     @draining = false
     @drained_subs = false
-    send_connect_command
+
+    # NKEYS
+    @user_credentials = options[:user_credentials] if options[:user_credentials]
+    @nkeys_seed = options[:nkeys_seed] if options[:nkeys_seed]
+    @user_nkey_cb = nil
+    @user_jwt_cb = nil
+    @signature_cb = nil
+
+    # NKEYS
+    setup_nkeys_connect if @user_credentials or @nkeys_seed
   end
 
   # Publish a message to a given subject, with optional reply subject and completion block
@@ -770,7 +782,7 @@ module NATS
   end
 
   def auth_connection?
-    !@uri.user.nil? || @options[:token]
+    !@uri.user.nil? || @options[:token] || @server_info[:auth_required]
   end
 
   def connect_command #:nodoc:
@@ -782,7 +794,16 @@ module NATS
       :protocol => ::NATS::PROTOCOL_VERSION,
       :echo => !@options[:no_echo]
     }
+
     case
+    when @options[:user_credentials]
+      nonce = @server_info[:nonce]
+      cs[:jwt] = @user_jwt_cb.call
+      cs[:sig] = @signature_cb.call(nonce)
+    when @options[:nkeys_seed]
+      nonce = @server_info[:nonce]
+      cs[:nkey] = @user_nkey_cb.call
+      cs[:sig] = @signature_cb.call(nonce)
     when @options[:token]
       cs[:auth_token] = @options[:token]
     when @uri.password.nil?
@@ -853,6 +874,15 @@ module NATS
 
     while (@buf)
       case @parse_state
+      when AWAITING_INFO_LINE
+        case @buf
+        when INFO
+          @buf = $'
+          process_connect_init($1)
+        else
+          # If we are here we do not have a complete line yet that we understand.
+          return
+        end
       when AWAITING_CONTROL_LINE
         case @buf
         when MSG
@@ -901,7 +931,7 @@ module NATS
     end
   end
 
-  def process_info(info) #:nodoc:
+  def process_connect_init(info) # :nodoc:
     # Each JSON parser uses a different key/value pair to use symbol keys
     # instead of strings when parsing. Passing all three pairs assures each
     # parser gets what it needs. For the json gem :symbolize_name, for yajl
@@ -931,9 +961,29 @@ module NATS
         close_connection_after_writing
       end
     end
+    send_connect_command
+
+    # Only initial INFO command is treated specially for auth reasons,
+    # the rest are processed asynchronously to discover servers.
+    @parse_state = AWAITING_CONTROL_LINE
+    process_info(info)
+    process_connect
+
+    if @server_info[:auth_required]
+      current = server_pool.first
+      current[:auth_required] = true
+
+      # Send pending connect followed by ping/pong to ensure we're authorized.
+      queue_server_rt { current[:auth_ok] = true }
+    end
+    flush_pending
+  end
+
+  def process_info(info_line) #:nodoc:
+    info = JSON.parse(info_line, :symbolize_keys => true, :symbolize_names => true, :symbol_keys => true)
 
     # Detect any announced server that we might not be aware of...
-    connect_urls = @server_info[:connect_urls]
+    connect_urls = info[:connect_urls]
     if connect_urls
       srvs = []
 
@@ -963,15 +1013,7 @@ module NATS
       server_pool.push(*srvs)
     end
 
-    if @server_info[:auth_required]
-      current = server_pool.first
-      current[:auth_required] = true
-      # Send pending connect followed by ping/pong to ensure we're authorized.
-      queue_server_rt { current[:auth_ok] = true }
-      flush_pending
-    end
-
-    @server_info
+    info
   end
 
   def client_using_secure_connection?
@@ -1002,22 +1044,19 @@ module NATS
   end
 
   def connection_completed #:nodoc:
-    @parse_state = AWAITING_CONTROL_LINE
+    @parse_state = AWAITING_INFO_LINE
 
     # Delay sending CONNECT or any other command here until we are sure
     # that we have a valid established secure connection.
     return if (@ssl or @tls)
 
-    # Mark that we established already TCP connection to the server. In case of TLS,
-    # prepare commands which will be dispatched to server and delay flushing until
-    # we have processed the INFO line sent by the server and done the handshake.
+    # Mark that we established already TCP connection to the server,
+    # when using TLS we only do so after handshake has been completed.
     @connected = true
-    process_connect
   end
 
   def ssl_handshake_completed
     @connected = true
-    process_connect
   end
 
   def process_connect #:nodoc:
@@ -1174,7 +1213,6 @@ module NATS
     current[:reconnect_attempts] ||= 0
     current[:reconnect_attempts] += 1
 
-    send_connect_command
     begin
       EM.reconnect(@uri.host, @uri.port, self)
     rescue
@@ -1199,6 +1237,84 @@ module NATS
       err_cb.call(NATS::ClientError.new("Fast Producer: #{pending_data_size} bytes outstanding"))
     end
     true
+  end
+
+  def setup_nkeys_connect
+    begin
+      require 'nkeys'
+      require 'base64'
+    rescue LoadError
+      raise(Error, "nkeys is not installed")
+    end
+
+    case
+    when @nkeys_seed
+      @user_nkey_cb = proc {
+        seed = File.read(@nkeys_seed).chomp
+        kp = NKEYS::from_seed(seed)
+
+        # Take a copy since original will be gone with the wipe.
+        pub_key = kp.public_key.dup
+        kp.wipe!
+
+        pub_key
+      }
+
+      @signature_cb = proc { |nonce|
+        seed = File.read(@nkeys_seed).chomp
+        kp = NKEYS::from_seed(seed)
+        raw_signed = kp.sign(nonce)
+        kp.wipe!
+        encoded = Base64.urlsafe_encode64(raw_signed)
+        encoded.gsub('=', '')
+      }
+    when @user_credentials
+      # When the credentials are within a single decorated file.
+      @user_jwt_cb = proc {
+        jwt_start = "BEGIN NATS USER JWT".freeze
+        found = false
+        jwt = nil
+        File.readlines(@user_credentials).each do |line|
+          case
+          when found
+            jwt = line.chomp
+            break
+          when line.include?(jwt_start)
+            found = true
+          end
+        end
+        raise(Error, "No JWT found in #{@user_credentials}") if not found
+
+        jwt
+      }
+
+      @signature_cb = proc { |nonce|
+        seed_start = "BEGIN USER NKEY SEED".freeze
+        found = false
+        seed = nil
+        File.readlines(@user_credentials).each do |line|
+          case
+          when found
+            seed = line.chomp
+            break
+          when line.include?(seed_start)
+            found = true
+          end
+        end
+        raise(Error, "No nkey user seed found in #{@user_credentials}") if not found
+
+        kp = NKEYS::from_seed(seed)
+        raw_signed = kp.sign(nonce)
+
+        # seed is a reference so also cleared when doing wipe,
+        # which can be done since Ruby strings are mutable.
+        kp.wipe
+        encoded = Base64.urlsafe_encode64(raw_signed)
+
+        # Remove padding
+        encoded.gsub('=', '')
+      }
+    end
   end
 
   # Parse out URIs which can now be an array of server choices

@@ -284,6 +284,8 @@ describe 'Client - specification' do
   end
 
   it 'should not complain if NATS.start called without a block when EM is running already', :jruby_excluded do
+    skip 'flapping in newer Rubies'
+
     EM.run do
       expect do
         NATS.start

@@ -138,9 +138,9 @@ class NatsServerControl
     args += " #{@flags}" if @flags
 
     if ENV["DEBUG_NATS_TEST"] == "true"
-      system("gnatsd #{args} -DV &")
+      system("nats-server #{args} -DV &")
     else
-      system("gnatsd #{args} 2> /dev/null &")
+      system("nats-server #{args} 2> /dev/null &")
     end
     exitstatus = $?.exitstatus
     NATS.wait_for_server(@uri, 10) if wait_for_server # jruby can be slow on startup...
@@ -188,6 +188,10 @@ module EchoServer
   PORT = "9999".freeze
   URI  = "nats://#{HOST}:#{PORT}".freeze
 
+  def post_init
+    send_data('INFO {"server_id":"WxE17fQB24XOvaWlhECrhg","max_payload":1048576,"client_id":1}'+"\r\n")
+  end
+
   def receive_data(data)
     send_data(data)
   end
@@ -211,6 +215,10 @@ module SilentServer
   HOST = "127.0.0.1".freeze
   PORT = "9998".freeze
   URI  = "nats://#{HOST}:#{PORT}".freeze
+
+  def post_init
+    send_data('INFO {"server_id":"WxE17fQB24XOvaWlhECrhg","max_payload":1048576,"client_id":1}'+"\r\n")
+  end
 
   # Does not send anything back
   def receive_data(data)

@@ -241,16 +241,16 @@ describe 'Client - TLS spec', :jruby_excluded do
           closes += 1
         end
 
-        # Empty dict also enables TLS handling with defaults.
         options = {
-          :servers => ['nats://secret:deadbeef@127.0.0.1:4443'],
           :max_reconnect_attempts => 1,
           :dont_randomize_servers => true,
-          :tls => { }
         }
-
-        nc = NATS.connect(options) do |nc2|
-          expect(nc2.connected_server).to eql(URI.parse('nats://secret:deadbeef@127.0.0.1:4443'))
+        nc = NATS.connect("tls://secret:deadbeef@127.0.0.1:4443", options) do |nc2|
+          server = nc2.connected_server
+          expect(server.scheme).to eql("tls")
+          expect(server.host).to eql("127.0.0.1")
+          expect(server.port).to eql(4443)
+          expect(server.userinfo).to eql("secret:deadbeef")
           connects += 1
 
           info = nc2.server_info

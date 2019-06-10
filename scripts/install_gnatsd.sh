@@ -1,15 +1,20 @@
-#!/bin/sh
+#!/bin/bash
 
 set -e
 
-# check to see if gnatsd folder is empty
+export DEFAULT_NATS_SERVER_VERSION=v2.0.0
 
-if [ ! "$(ls -A $HOME/gnatsd)" ]; then
-  mkdir -p $HOME/gnatsd
-  cd $HOME/gnatsd
-  wget https://github.com/nats-io/gnatsd/releases/download/v1.2.0/gnatsd-v1.2.0-linux-amd64.zip -O gnatsd.zip
-  unzip gnatsd.zip
-  mv gnatsd-v1.2.0-linux-amd64/gnatsd .
+export NATS_SERVER_VERSION="${NATS_SERVER_VERSION:=$DEFAULT_NATS_SERVER_VERSION}"
+
+# check to see if nats-server folder is empty
+if [ ! "$(ls -A $HOME/nats-server)" ]; then
+    (
+	mkdir -p $HOME/nats-server
+	cd $HOME/nats-server
+	wget https://github.com/nats-io/nats-server/releases/download/$NATS_SERVER_VERSION/nats-server-$NATS_SERVER_VERSION-linux-amd64.zip -O nats-server.zip
+	unzip nats-server.zip
+	cp nats-server-$NATS_SERVER_VERSION-linux-amd64/nats-server $HOME/nats-server/nats-server
+    )
 else
   echo 'Using cached directory.';
 fi
