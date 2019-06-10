@@ -13,3 +13,7 @@ group :server do
   gem 'thin'
   gem 'rack', ">= 2.0.6"
 end
+
+group :v2 do
+  gem 'nkeys'
+end
