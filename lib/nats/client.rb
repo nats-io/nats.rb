@@ -965,6 +965,7 @@ module NATS
     # the rest are processed asynchronously to discover servers.
     @parse_state = AWAITING_CONTROL_LINE
     process_info(info)
+    process_connect
 
     if @server_info[:auth_required]
       current = server_pool.first
@@ -972,10 +973,8 @@ module NATS
 
       # Send pending connect followed by ping/pong to ensure we're authorized.
       queue_server_rt { current[:auth_ok] = true }
-      flush_pending
     end
-
-    process_connect
+    flush_pending
   end
 
   def process_info(info_line) #:nodoc:

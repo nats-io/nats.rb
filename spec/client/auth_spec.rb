@@ -3,7 +3,6 @@ require 'spec_helper'
 require 'fileutils'
 
 describe 'Client - authorization' do
-
   USER = 'derek'
   PASS = 'mypassword'
 
