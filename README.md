@@ -3,16 +3,7 @@
 A [Ruby](http://ruby-lang.org) client for the [NATS messaging system](https://nats.io).
 
 [![License Apache 2.0](https://img.shields.io/badge/License-Apache2-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Build Status](https://travis-ci.org/nats-io/ruby-nats.svg)](http://travis-ci.org/nats-io/ruby-nats) [![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.10.0)](https://rubygems.org/gems/nats/versions/0.10.0) [![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](https://www.rubydoc.info/gems/nats)
-
-## Supported Platforms
-
-This gem and the client are known to work on the following Ruby platforms:
-
-- MRI 2.3.0, 2.4.0, 2.5.0
-- JRuby 9.1.2.0, 9.1.15.0, 9.2.0.0
-
-If you're looking for a non-EventMachine alternative, check out the [nats-pure](https://github.com/nats-io/pure-ruby-nats) gem.
+[![Build Status](https://travis-ci.org/nats-io/nats.rb.svg)](http://travis-ci.org/nats-io/nats.rb) [![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.11.0)](https://rubygems.org/gems/nats/versions/0.11.0) [![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](https://www.rubydoc.info/gems/nats)
 
 ## Getting Started
 
@@ -22,6 +13,16 @@ gem install nats
 nats-sub foo &
 nats-pub foo 'Hello World!'
 ```
+
+Starting from [v0.11.0](https://github.com/nats-io/nats.py/releases/tag/v0.11.0) release,
+you can also optionally install [NKEYS](https://github.com/nats-io/nkeys.rb) in order to use
+the new NATS v2.0 auth features:
+
+```bash
+gem install nkeys
+```
+
+If you're looking for a non-EventMachine alternative, check out the [nats-pure](https://github.com/nats-io/nats-pure.rb) gem.
 
 ## Basic Usage
 
@@ -283,6 +284,47 @@ NATS.start {
     end
   end.resume
 }
+```
+
+### New Authentication (Nkeys and User Credentials)
+
+This requires server with version >= 2.0.0
+
+NATS servers have a new security and authentication mechanism to authenticate with user credentials and NKEYS. A single file containing the JWT and NKEYS to authenticate against a NATS v2 server can be set with the `user_credentials` option:
+
+```ruby
+require 'nats/client'
+
+NATS.start("tls://connect.ngs.global", user_credentials: "/path/to/creds") do |nc|
+  nc.subscribe("hello") do |msg|
+    puts "[Received] #{msg}"
+  end
+  nc.publish('hello', 'world')
+end
+```
+
+This will create two callback handlers to present the user JWT and sign the nonce challenge from the server. The core client library never has direct access to your private key and simply performs the callback for signing the server challenge. The library will load and wipe and clear the objects it uses for each connect or reconnect.
+
+Bare NKEYS are also supported. The nkey seed should be in a read only file, e.g. `seed.txt`.
+
+```bash
+> cat seed.txt
+# This is my seed nkey!
+SUAGMJH5XLGZKQQWAWKRZJIGMOU4HPFUYLXJMXOO5NLFEO2OOQJ5LPRDPM
+```
+
+Then in the client specify the path to the seed using the `nkeys_seed` option:
+
+```ruby
+require 'nats/client'
+
+NATS.start("tls://connect.ngs.global", nkeys_seed: "path/to/seed.txt") do |nc|
+  nc.subscribe("hello") do |msg|
+    puts "[Received] #{msg}"
+  end
+  nc.publish('hello', 'world')
+end
+
 ```
 
 ## License
