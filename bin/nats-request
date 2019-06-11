@@ -29,6 +29,7 @@ opts_parser = OptionParser.new do |opts|
   opts.on('-t','--time') { $show_time = true }
   opts.on('-r','--raw') { $show_raw = true }
   opts.on('-n RESPONSES') { |responses| $responses = Integer(responses) if Integer(responses) > 0 }
+  opts.on('--creds CREDS') { |creds| $creds = creds }
 end
 args = opts_parser.parse!(args)
 
@@ -55,7 +56,7 @@ end
 
 NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
-NATS.start(:uri => $nats_server) do
+NATS.start($nats_server, user_credentials: $creds) do
   NATS.request(subject, msg) { |(msg, reply)|
     puts decorate(msg)
     exit! if $responses && ($responses-=1) < 1

@@ -28,6 +28,7 @@ opts_parser = OptionParser.new do |opts|
   opts.on('-s SERVER') { |server| $nats_server = server }
   opts.on('-t','--time') { $show_time = true }
   opts.on('-r','--raw') { $show_raw = true }
+  opts.on('--creds CREDS') { |creds| $creds = creds }
 end
 args = opts_parser.parse!(args)
 
@@ -54,7 +55,7 @@ end
 
 NATS.on_error { |err| puts "Server Error: #{err}"; exit! }
 
-NATS.start(:uri => $nats_server) do
+NATS.start($nats_server, user_credentials: $creds) do
   puts "Listening on [#{subject}], queue group [#{queue_group}]" unless $show_raw
   NATS.subscribe(subject, :queue => queue_group) { |msg, _, sub|
     puts decorate(sub, msg)
