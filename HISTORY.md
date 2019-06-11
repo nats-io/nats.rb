@@ -1,5 +1,8 @@
 # HISTORY
 
+## v0.11.0 (June 10, 2019)
+  - NATS v2.0 support! (#162)
+
 ## v0.8.4 (Feb 23, 2018)
   - Support to include connection `name` as part of CONNECT options (#145)
   - Fixed support for Ruby 2.5 due to missing OpenSSL `require` (#144)
