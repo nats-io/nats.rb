@@ -174,6 +174,7 @@ module NATS
         # Hostname of current server; used for when TLS host
         # verification is enabled.
         @hostname = nil
+        @single_url_connect_used = false
 
         # New style request/response implementation.
         @resp_sub = nil
@@ -190,7 +191,23 @@ module NATS
       end
 
       # Establishes connection to NATS.
-      def connect(opts={})
+      def connect(uri=nil, opts={})
+        case uri
+        when String
+          # Initialize TLS defaults in case any url is using it.
+          srvs = opts[:servers] = process_uri(uri)
+          if srvs.any? {|u| u.scheme == 'tls'} and !opts[:tls]
+            tls_context = OpenSSL::SSL::SSLContext.new
+            tls_context.set_params
+            opts[:tls] = {
+              context: tls_context
+            }
+          end
+          @single_url_connect_used = true if srvs.size == 1
+        when Hash
+          opts = uri
+        end
+
         opts[:verbose] = false if opts[:verbose].nil?
         opts[:pedantic] = false if opts[:pedantic].nil?
         opts[:reconnect] = true if opts[:reconnect].nil?
@@ -237,7 +254,7 @@ module NATS
         @user_credentials ||= opts[:user_credentials]
         @nkeys_seed ||= opts[:nkeys_seed]
         setup_nkeys_connect if @user_credentials or @nkeys_seed
-        
+
         # Check for TLS usage
         @tls = @options[:tls]
 
@@ -257,7 +274,12 @@ module NATS
           @status = CONNECTING
 
           # Use the hostname from the server for TLS hostname verification.
-          @hostname = srv[:hostname]
+          if client_using_secure_connection? and single_url_connect_used?
+            # Always reuse the original hostname used to connect.
+            @hostname ||= srv[:hostname]
+          else
+            @hostname = srv[:hostname]
+          end
 
           # Established TCP connection successfully so can start connect
           process_connect_init
@@ -646,7 +668,8 @@ module NATS
           if connect_urls
             srvs = []
             connect_urls.each do |url|
-              u = URI.parse("nats://#{url}")
+              scheme = client_using_secure_connection? ? "tls" : "nats"
+              u = URI.parse("#{scheme}://#{url}")
 
               # Skip in case it is the current server which we already know
               next if @uri.host == u.host && @uri.port == u.port
@@ -763,6 +786,10 @@ module NATS
 
       def client_using_secure_connection?
         @uri.scheme == "tls" || @tls
+      end
+
+      def single_url_connect_used?
+        @single_url_connect_used
       end
 
       def send_command(command)
@@ -1042,7 +1069,12 @@ module NATS
           @stats[:reconnects] += 1
 
           # Set hostname to use for TLS hostname verification
-          @hostname = srv[:hostname]
+          if client_using_secure_connection? and single_url_connect_used?
+            # Reuse original hostname name in case of using TLS.
+            @hostname ||= srv[:hostname]
+          else
+            @hostname = srv[:hostname]
+          end
 
           # Established TCP connection successfully so can start connect
           process_connect_init
@@ -1339,6 +1371,37 @@ module NATS
             encoded.gsub('=', '')
           }
         end
+      end
+
+      def process_uri(uris)
+        connect_uris = []
+        uris.split(',').each do |uri|
+          opts = {}
+
+          # Scheme
+          if uri.include?("://")
+            scheme, uri = uri.split("://")
+            opts[:scheme] = scheme
+          else
+            opts[:scheme] = 'nats'
+          end
+
+          # UserInfo
+          if uri.include?("@")
+            userinfo, endpoint = uri.split("@")
+            host, port = endpoint.split(":")
+            opts[:userinfo] = userinfo
+          else
+            host, port = uri.split(":")
+          end
+
+          # Host and Port
+          opts[:host] = host || "localhost"
+          opts[:port] = port || DEFAULT_PORT
+
+          connect_uris << URI::Generic.build(opts)
+        end
+        connect_uris
       end
     end
 

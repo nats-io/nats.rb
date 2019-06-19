@@ -126,6 +126,15 @@ describe 'Client - TLS spec' do
       expect(disconnects).to eql(1)
     end
 
+
+    it 'should allow to client to try to connect securely using tls scheme' do
+      nats = NATS::IO::Client.new
+
+      # Discard error since only want to confirm that TLS is setup due to scheme option.
+      nats.connect('tls://127.0.0.1:4444', reconnect:false) rescue nil
+      expect(nats.options[:tls]).to_not be_nil
+    end
+    
     it 'should allow custom secure connection contexts' do
       errors = []
       closes = 0
@@ -376,7 +385,7 @@ describe 'Client - TLS spec' do
       end.to_not raise_error
     end
 
-    it 'should not be able to connect if client enableds hostname verification' do
+    it 'should not be able to connect if client enabled hostname verification' do
       ctx = OpenSSL::SSL::SSLContext.new
       ctx.ca_file = "./spec/configs/certs/nats-service.localhost/ca.pem"
       ctx.verify_mode = OpenSSL::SSL::VERIFY_PEER
@@ -399,6 +408,24 @@ describe 'Client - TLS spec' do
 
         response = nats.request("hello", "world")
         expect(response.data).to eql("ok")
+      end.to raise_error(OpenSSL::SSL::SSLError)
+    end
+
+    it 'should not be able to connect if client enabled hostname verification using tls as the scheme' do
+      ctx = OpenSSL::SSL::SSLContext.new
+      ctx.ca_file = "./spec/configs/certs/nats-service.localhost/ca.pem"
+      ctx.verify_mode = OpenSSL::SSL::VERIFY_PEER
+      ctx.verify_hostname = true
+
+      expect do
+        nats = NATS::IO::Client.new
+
+        nats.connect("tls://server-A.clients.nats-service.localhost:#{@tls_verify_host_bad_server_uri.port}", {
+          reconnect: false,
+          tls: {
+            context: ctx
+          }
+        })
       end.to raise_error(OpenSSL::SSL::SSLError)
     end
   end
