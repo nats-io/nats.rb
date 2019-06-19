@@ -16,7 +16,6 @@ before_script:
 
 sudo: required
 dist: xenial
-bundler_args: --with v2
 
 addons:
   hosts:
