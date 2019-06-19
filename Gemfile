@@ -7,3 +7,7 @@ group :test do
   gem 'rspec'
   gem 'benchmark-ips'
 end
+
+group :v2 do
+  gem 'nkeys'
+end
