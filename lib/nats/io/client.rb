@@ -190,7 +190,16 @@ module NATS
       end
 
       # Establishes connection to NATS.
-      def connect(opts={})
+      def connect(uri=nil, opts={})
+        case uri
+        when String
+          # Initialize TLS defaults in case any url is using it.
+          opts[:servers] = process_uri(uri)
+          opts[:tls] ||= {} if servers.any? {|u| u.scheme == 'tls'}
+        when Hash
+          opts = uri
+        end
+
         opts[:verbose] = false if opts[:verbose].nil?
         opts[:pedantic] = false if opts[:pedantic].nil?
         opts[:reconnect] = true if opts[:reconnect].nil?
@@ -237,7 +246,7 @@ module NATS
         @user_credentials ||= opts[:user_credentials]
         @nkeys_seed ||= opts[:nkeys_seed]
         setup_nkeys_connect if @user_credentials or @nkeys_seed
-        
+
         # Check for TLS usage
         @tls = @options[:tls]
 
@@ -1339,6 +1348,37 @@ module NATS
             encoded.gsub('=', '')
           }
         end
+      end
+
+      def process_uri(uris)
+        connect_uris = []
+        uris.split(',').each do |uri|
+          opts = {}
+
+          # Scheme
+          if uri.include?("://")
+            scheme, uri = uri.split("://")
+            opts[:scheme] = scheme
+          else
+            opts[:scheme] = 'nats'
+          end
+
+          # UserInfo
+          if uri.include?("@")
+            userinfo, endpoint = uri.split("@")
+            host, port = endpoint.split(":")
+            opts[:userinfo] = userinfo
+          else
+            host, port = uri.split(":")
+          end
+
+          # Host and Port
+          opts[:host] = host || "localhost"
+          opts[:port] = port || DEFAULT_PORT
+
+          connect_uris << URI::Generic.build(opts)
+        end
+        connect_uris
       end
     end
 

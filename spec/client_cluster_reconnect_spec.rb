@@ -145,6 +145,58 @@ describe 'Client - Cluster reconnect' do
       expect(closes).to eql(1)
     end
 
+    it 'should connect to another server if possible before reconnect using multiple uris' do
+      @s3.kill_server
+
+      mon = Monitor.new
+      reconnected = mon.new_cond
+
+      nats = NATS::IO::Client.new
+      nats.connect("nats://secret:password@127.0.0.1:4242,nats://secret:password@127.0.0.1:4243", :dont_randomize_servers => true)
+
+      disconnects = 0
+      nats.on_disconnect do
+        disconnects += 1
+      end
+
+      closes = 0
+      nats.on_close do
+        closes += 1
+      end
+
+      reconnects = 0
+      nats.on_reconnect do
+        reconnects += 1
+        mon.synchronize do
+          reconnected.signal
+        end
+      end
+
+      msgs = []
+      nats.subscribe("hello") do |msg|
+        msgs << msg
+      end
+      nats.flush
+      expect(nats.connected_server.to_s).to eql(@s1.uri.to_s)
+
+      10.times do |n|
+        nats.flush if n == 4
+        @s1.kill_server if n == 5
+        nats.publish("hello", "world.#{n}")
+        sleep 0.1
+      end
+
+      mon.synchronize do
+        reconnected.wait(1)
+      end
+      expect(nats.connected_server.to_s).to eql(@s2.uri.to_s)
+      nats.close
+
+      expect(reconnects).to eql(1)
+      expect(disconnects).to eql(2)
+      expect(closes).to eql(1)
+    end
+
     it 'should gracefully reconnect to another available server while publishing' do
       @s3.kill_server
 
@@ -185,7 +237,7 @@ describe 'Client - Cluster reconnect' do
         msgs << msg
       end
       nats.flush
-      expect(nats.connected_server).to eql(@s1.uri)
+      expect(nats.connected_server.to_s).to eql(@s1.uri.to_s)
 
       msg_payload = "A" * 10_000
       1000.times do |n|
@@ -271,6 +323,69 @@ describe 'Client - Cluster reconnect' do
         # Connect to first server only and trigger reconnect
         nats.connect(:servers => [@s1.uri], :dont_randomize_servers => true, :reconnect => true)
         expect(nats.connected_server).to eql(@s1.uri)
+        @s1.kill_server
+        sleep 0.1
+        mon.synchronize do
+          reconnected.wait(3)
+        end
+
+        # Reconnected...
+        expect(nats.connected_server).to eql(@s2.uri)
+        expect(reconnects).to eql(1)
+        expect(disconnects).to eql(1)
+        expect(closes).to eql(0)
+        expect(errors.count).to eql(1)
+        expect(errors.first).to be_a(Errno::ECONNRESET)
+
+        # There should be no error since we reconnected now
+        expect(nats.last_error).to eql(nil)
+
+        nats.close
+      ensure
+        # Wrap up test
+        [@s2, @s3].each do |s|
+          s.kill_server
+        end
+      end
+    end
+
+    it 'should reconnect to nodes discovered from seed server with single uri' do
+      # Nodes join to cluster before we try to connect
+      [@s2, @s3].each do |s|
+        s.start_server(true)
+      end
+
+      begin
+        mon = Monitor.new
+        reconnected = mon.new_cond
+
+        nats = NATS::IO::Client.new
+        disconnects = 0
+        nats.on_disconnect do
+          disconnects += 1
+        end
+
+        closes = 0
+        nats.on_close do
+          closes += 1
+        end
+
+        reconnects = 0
+        nats.on_reconnect do
+          reconnects += 1
+          mon.synchronize do
+            reconnected.signal
+          end
+        end
+
+        errors = []
+        nats.on_error do |e|
+          errors << e
+        end
+
+        # Connect to first server only and trigger reconnect
+        nats.connect("nats://secret:password@127.0.0.1:4242", :dont_randomize_servers => true, :reconnect => true)
+        expect(nats.connected_server.to_s).to eql(@s1.uri.to_s)
         @s1.kill_server
         sleep 0.1
         mon.synchronize do

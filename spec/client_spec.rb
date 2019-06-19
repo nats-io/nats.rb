@@ -35,6 +35,14 @@ describe 'Client - Specification' do
     nc.close
   end
 
+  it 'should connect to using a single uri' do
+    nc = NATS::IO::Client.new
+    expect do
+      nc.connect("nats://127.0.0.1:4522")
+    end.to_not raise_error
+    nc.close
+  end
+
   it 'should received a message when subscribed to a topic' do
     nc = NATS::IO::Client.new
     nc.connect(:servers => [@s.uri])
