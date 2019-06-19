@@ -130,11 +130,9 @@ describe 'Client - TLS spec' do
     it 'should allow to client to try to connect securely using tls scheme' do
       nats = NATS::IO::Client.new
 
-      expect do
-        nats.connect('tls://127.0.0.1:4444', {
-          reconnect: false
-        })
-      end.to raise_error(OpenSSL::SSL::SSLError)
+      # Discard error since only want to confirm that TLS is setup due to scheme option.
+      nats.connect('tls://127.0.0.1:4444', reconnect:false) rescue nil
+      expect(nats.options[:tls]).to_not be_nil
     end
     
     it 'should allow custom secure connection contexts' do
