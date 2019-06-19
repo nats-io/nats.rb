@@ -14,7 +14,7 @@ nats-sub foo &
 nats-pub foo 'Hello World!'
 ```
 
-Starting from [v0.11.0](https://github.com/nats-io/nats.py/releases/tag/v0.11.0) release,
+Starting from [v0.11.0](https://github.com/nats-io/nats.rb/releases/tag/v0.11.0) release,
 you can also optionally install [NKEYS](https://github.com/nats-io/nkeys.rb) in order to use
 the new NATS v2.0 auth features:
 
