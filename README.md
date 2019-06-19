@@ -2,12 +2,20 @@
 
 A thread safe [Ruby](http://ruby-lang.org) client for the [NATS messaging system](https://nats.io) written in pure Ruby.
 
-[![License Apache 2.0](https://img.shields.io/badge/License-Apache2-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)[![Build Status](https://travis-ci.org/nats-io/nats-pure.rb.svg)](http://travis-ci.org/nats-io/nats-pure.rb)[![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.5.0)](https://rubygems.org/gems/nats-pure/versions/0.5.0)
+[![License Apache 2.0](https://img.shields.io/badge/License-Apache2-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)[![Build Status](https://travis-ci.org/nats-io/nats-pure.rb.svg)](http://travis-ci.org/nats-io/nats-pure.rb)[![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.6.0)](https://rubygems.org/gems/nats-pure/versions/0.6.0)
 
 ## Getting Started
 
 ```bash
 gem install nats-pure
+```
+
+Starting from [v0.6.0](https://github.com/nats-io/nats-pure.rb/releases/tag/v0.6.0) release,
+you can also optionally install [NKEYS](https://github.com/nats-io/nkeys.rb) in order to use
+the new NATS v2.0 auth features:
+
+```bash
+gem install nkeys
 ```
 
 ## Basic Usage
@@ -17,7 +25,7 @@ require 'nats/io/client'
 
 nats = NATS::IO::Client.new
 
-nats.connect(:servers => ["nats://127.0.0.1:4222"])
+nats.connect("demo.nats.io")
 puts "Connected to #{nats.connected_server}"
 
 # Simple subscriber
@@ -119,6 +127,32 @@ nats.connect({
      context: tls_context
    }
  })
+```
+
+### New Authentication (Nkeys and User Credentials)
+
+This requires server with version >= 2.0.0
+
+NATS servers have a new security and authentication mechanism to authenticate with user credentials and NKEYS. A single file containing the JWT and NKEYS to authenticate against a NATS v2 server can be set with the `user_credentials` option:
+
+```ruby
+nats.connect("tls://connect.ngs.global", user_credentials: "/path/to/creds")
+```
+
+This will create two callback handlers to present the user JWT and sign the nonce challenge from the server. The core client library never has direct access to your private key and simply performs the callback for signing the server challenge. The library will load and wipe and clear the objects it uses for each connect or reconnect.
+
+Bare NKEYS are also supported. The nkey seed should be in a read only file, e.g. `seed.txt`.
+
+```bash
+> cat seed.txt
+# This is my seed nkey!
+SUAGMJH5XLGZKQQWAWKRZJIGMOU4HPFUYLXJMXOO5NLFEO2OOQJ5LPRDPM
+```
+
+Then in the client specify the path to the seed using the `nkeys_seed` option:
+
+```ruby
+nats.connect("tls://connect.ngs.global", nkeys_seed: "path/to/seed.txt")
 ```
 
 ## License
