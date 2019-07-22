@@ -344,4 +344,114 @@ describe 'Client - Specification' do
       expect(nats.status).to eql(NATS::IO::DISCONNECTED)
     end
   end
+
+  context 'against a server with a custom INFO line' do
+    before(:all) do
+      # Start a fake tcp server
+      @fake_nats_server = TCPServer.new 4556
+      @fake_nats_server_th = Thread.new do
+
+        loop do
+          # Wait for a client to connect and linger
+          client = @fake_nats_server.accept
+          client.puts %Q(INFO {"version":"1.3.0 foo bar","max_payload": 1048576}\r\n)
+          client.puts "PONG\r\n"
+        end
+      end
+    end
+
+    after(:all) do
+      @fake_nats_server_th.exit
+      @fake_nats_server.close
+    end
+
+    it 'should be able to connect' do
+      msgs = []
+      errors = []
+      closes = 0
+      reconnects = 0
+      disconnects = []
+
+      nc = NATS::IO::Client.new
+      mon = Monitor.new
+      done = mon.new_cond
+
+      nc.on_error do |e|
+        errors << e
+      end
+
+      nc.on_close do
+        mon.synchronize { done.signal }
+      end
+
+      expect do
+      nc.connect({
+        :servers => ["nats://127.0.0.1:4556"],
+        :reconnect => false,
+        :connect_timeout => 1
+      })
+      end.to_not raise_error
+
+      nc.close
+      mon.synchronize { done.wait(3) }
+      puts errors
+    end
+  end
+
+  context 'against a server with a custom malformed INFO line' do
+    before(:all) do
+      # Start a fake tcp server
+      @fake_nats_server = TCPServer.new 4556
+      @fake_nats_server_th = Thread.new do
+
+        loop do
+          # Wait for a client to connect and linger
+          client = @fake_nats_server.accept
+          begin
+            client.puts %Q(INFO {foo)
+          ensure
+            client.close
+          end
+        end
+      end
+    end
+
+    after(:all) do
+      @fake_nats_server_th.exit
+      @fake_nats_server.close
+    end
+
+    it 'should fail to connect' do
+      msgs = []
+      errors = []
+      closes = 0
+      reconnects = 0
+      disconnects = []
+
+      nc = NATS::IO::Client.new
+      mon = Monitor.new
+      done = mon.new_cond
+
+      nc.on_error do |e|
+        errors << e
+      end
+
+      nc.on_close do
+        mon.synchronize { done.signal }
+      end
+
+      expect do
+      nc.connect({
+        :servers => ["nats://127.0.0.1:4556"],
+        :reconnect => false,
+        :connect_timeout => 1
+      })
+      end.to raise_error (NATS::IO::ConnectError)
+
+      nc.close
+      mon.synchronize { done.wait(3) }
+      expect(errors.count).to eql(1)
+      expect(errors.first).to be_a(NATS::IO::ConnectError)
+    end
+  end
 end

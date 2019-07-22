@@ -21,4 +21,4 @@
 - [ ] increase test coverage
 - [ ] max payload err handling
 - [ ] read dynamic socket buffer
-- [ ] nuid
+- [X] nuid
