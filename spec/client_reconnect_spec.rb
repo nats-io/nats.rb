@@ -372,10 +372,10 @@ describe 'Client - Reconnect' do
           # Wait for a client to connect
           client = @fake_nats_server.accept
           begin
-            client.puts "INFO {}"
+            client.puts "INFO {}\r\n"
 
             # Read and ignore CONNECT command send by the client
-            connect_op = client.gets.chomp
+            connect_op = client.gets
 
             # Reply to any pending pings client may have sent
             sleep 0.1
@@ -455,10 +455,10 @@ describe 'Client - Reconnect' do
           # Wait for a client to connect
           client = @fake_nats_server.accept
           begin
-            client.puts "INFO {}"
+            client.puts "INFO {}\r\n"
 
             # Read and ignore CONNECT command send by the client
-            connect_op = client.gets.chomp
+            connect_op = client.gets
 
             # Reply to any pending pings client may have sent
             sleep 0.1
@@ -542,10 +542,10 @@ describe 'Client - Reconnect' do
           # Wait for a client to connect
           client = @fake_nats_server.accept
           begin
-            client.puts "INFO {}"
+            client.puts "INFO {}\r\n"
 
             # Read and ignore CONNECT command send by the client
-            connect_op = client.gets.chomp
+            connect_op = client.gets
 
             # Reply to any pending pings client may have sent
             sleep 0.5

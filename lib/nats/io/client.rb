@@ -981,8 +981,13 @@ module NATS
         if !line or line.empty?
           raise ConnectError.new("nats: protocol exception, INFO not received")
         end
-        _, info_json = line.split(' ')
-        process_info(info_json)
+
+        if match = line.match(NATS::Protocol::INFO)
+          info_json = match.captures.first
+          process_info(info_json)
+        else
+          raise ConnectError.new("nats: protocol exception, INFO not valid")
+        end
 
         case
         when (server_using_secure_connection? and client_using_secure_connection?)

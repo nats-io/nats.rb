@@ -15,7 +15,7 @@
 module NATS
   module IO
     # NOTE: These are all announced to the server on CONNECT
-    VERSION  = "0.6.0"
+    VERSION  = "0.6.2"
     LANG     = "#{RUBY_ENGINE}2".freeze
     PROTOCOL = 1
   end
