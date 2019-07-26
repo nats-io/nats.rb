@@ -361,6 +361,24 @@ describe 'Client - specification' do
     end
   end
 
+  it "should allow getting snapshot of inbound and outbound stats" do
+    stats = nil
+    with_em_timeout do
+      NATS.start do |nats|
+        # Snapshot the stats from either of the callbacks
+        nats.subscribe(">") { stats = nats.stats }
+        nats.subscribe("foo") { stats = nats.stats }
+        nats.flush do
+          nats.publish("foo", "world")
+        end
+      end
+    end
+    expect(stats[:in_msgs]).to eql(2)
+    expect(stats[:in_bytes]).to eql(10)
+    expect(stats[:out_msgs]).to eql(1)
+    expect(stats[:out_bytes]).to eql(5)
+  end
+
   it 'should receive a pong from a server after ping_interval' do
     NATS.start(:ping_interval => 0.75) do
       expect(NATS.client.pongs_received).to eql(0)
