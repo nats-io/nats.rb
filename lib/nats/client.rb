@@ -777,6 +777,16 @@ module NATS
     get_outbound_data_size + @pending_size
   end
 
+  # Return snapshot of current traffic flow stats in the client.
+  def stats
+    {
+      in_msgs: @msgs_received,
+      out_msgs: @msgs_sent,
+      in_bytes: @bytes_received,
+      out_bytes: @bytes_sent
+    }.freeze
+  end
+
   def user_err_cb? # :nodoc:
     err_cb_overridden || NATS.err_cb_overridden
   end
