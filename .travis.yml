@@ -4,13 +4,14 @@ rvm:
   - 2.5
   - 2.6
   - 2.7
+  - 3.0.2
 
 cache:
   directories:
   - $HOME/nats-server
 
 before_install:
-  - bash ./scripts/install_gnatsd.sh
+  - bash ./scripts/install_nats.sh
 
 before_script:
   - export PATH=$HOME/nats-server:$PATH
