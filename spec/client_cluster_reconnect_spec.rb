@@ -61,6 +61,7 @@ describe 'Client - Cluster reconnect' do
           timeout: #{auth_options["timeout"]}
         }
         cluster {
+          name: "TEST"
           host: '#{config_opts['host']}'
           port: #{config_opts['cluster_port']}
 

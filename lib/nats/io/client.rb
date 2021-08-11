@@ -425,7 +425,7 @@ module NATS
               when 0 then cb.call
               when 1 then cb.call(msg.data)
               when 2 then cb.call(msg.data, msg.reply)
-              when 3 then cb.call(msg.data, msg.reply, msg.header)
+              when 3 then cb.call(msg.data, msg.reply, msg.subject)
               else cb.call(msg.data, msg.reply, msg.subject, msg.header)
               end
             rescue => e
