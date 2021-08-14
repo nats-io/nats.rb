@@ -187,6 +187,9 @@ describe 'Client - Specification' do
     nc = NATS::IO::Client.new
     nc.connect(:servers => [@s.uri])
 
+    # Have interest but do not respond
+    nc.subscribe("hi") { }
+
     expect do
       nc.request("hi", "timeout", timeout: 1)
     end.to raise_error(NATS::IO::Timeout)

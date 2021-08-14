@@ -63,8 +63,11 @@ module NATS
 
     PING_REQUEST  = ("PING#{CR_LF}".freeze)
     PONG_RESPONSE = ("PONG#{CR_LF}".freeze)
-    NATS_HDR_LINE = ("NATS/1.0#{CR_LF}".freeze)
-    NATS_HDR_LINE_SIZE = (NATS_HDR_LINE.bytesize)
+
+    NATS_HDR_LINE  = ("NATS/1.0#{CR_LF}".freeze)
+    STATUS_MSG_LEN = 3
+    STATUS_HDR     = ("Status".freeze)
+    DESC_HDR       = ("Description".freeze)
 
     SUB_OP = ('SUB'.freeze)
     EMPTY_MSG = (''.freeze)
@@ -92,6 +95,9 @@ module NATS
 
     # When we cannot connect since there are no servers available.
     class NoServersError < ConnectError; end
+
+    # When there are no subscribers available to respond.
+    class NoRespondersError < ConnectError; end
 
     # When the connection exhausts max number of pending pings replies.
     class StaleConnectionError < Error; end
@@ -445,7 +451,7 @@ module NATS
       # specified deadline.
       # If given a callback, then the request happens asynchronously.
       def request(subject, payload, opts={}, &blk)
-        return unless subject
+        raise BadSubject if !subject or subject.empty?
 
         # If a block was given then fallback to method using auto unsubscribe.
         return old_request(subject, payload, opts, &blk) if blk
@@ -483,6 +489,11 @@ module NATS
           @resp_map.delete(token)
         end
 
+        if response and response.header
+          status = response.header[STATUS_HDR]
+          raise NoRespondersError if status == "503"
+        end
+
         response
       end
 
@@ -514,7 +525,6 @@ module NATS
 
         # Publish request and wait for reply.
         publish_msg(msg)
-
         with_nats_timeout(timeout) do
           @resp_sub.synchronize do
             future.wait(timeout)
@@ -526,6 +536,11 @@ module NATS
           result = @resp_map[token]
           response = result[:response]
           @resp_map.delete(token)
+        end
+
+        if response and response.header
+          status = response.header[STATUS_HDR]
+          raise NoRespondersError if status == "503"
         end
 
         response
@@ -718,8 +733,20 @@ module NATS
               hdr = nil
               if header
                 hdr = {}
+                lines = header.lines
+
+                # Check if it is an inline status and description.
+                if lines.count <= 2
+                  status_hdr = lines.first.rstrip
+                  hdr[STATUS_HDR] = status_hdr.slice(NATS_HDR_LINE.bytesize-1, NATS_HDR_LINE.bytesize+1)
+
+                  if NATS_HDR_LINE.bytesize+2 < status_hdr.bytesize
+                    desc = status.slice(NATS_HDR_LINE.bytesize+2, status_hdr.bytesize)
+                    hdr[DESC_HDR] = desc unless desc.empty?
+                  end
+                end
                 begin
-                  header.lines.slice(1, header.size).each do |line|
+                  lines.slice(1, header.size).each do |line|
                     line.rstrip!
                     next if line.empty?
                     key, value = line.strip.split(/\s*:\s*/, 2)
@@ -928,7 +955,11 @@ module NATS
 
         if @server_info[:headers]
           cs[:headers] = @server_info[:headers]
-          cs[:no_responders] = @server_info[:headers]
+          cs[:no_responders] = if @options[:no_responders] == false
+                                 @options[:no_responders]
+                               else
+                                 @server_info[:headers]
+                               end
         end
 
         "CONNECT #{cs.to_json}#{CR_LF}"

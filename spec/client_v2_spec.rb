@@ -15,7 +15,7 @@
 require 'spec_helper'
 require 'monitor'
 
-describe 'Client - Headers' do
+describe 'Client - v2.2 features' do
 
   before(:each) do
     @s = NatsServerControl.new("nats://127.0.0.1:4523")
@@ -105,6 +105,50 @@ describe 'Client - Headers' do
       nc.flush
     end
     expect(msgs.count).to eql(5)
+
+    nc.close
+  end
+
+  it 'should raise no responders error by default' do
+    nc = NATS::IO::Client.new
+    nc.connect(:servers => [@s.uri])
+
+    resp = nil
+    expect do
+      resp = nc.request("hi", "timeout", timeout: 1)
+    end.to raise_error(NATS::IO::NoRespondersError)
+
+    expect(resp).to be_nil
+
+    resp = nil
+    expect do
+      msg = NATS::Msg.new(subject: "hi")
+      resp = nc.request_msg(msg, timeout: 1)
+    end.to raise_error(NATS::IO::NoRespondersError)
+
+    expect(resp).to be_nil
+
+    nc.close
+  end
+
+  it 'should not raise no responders error if no responders disabled' do
+    nc = NATS::IO::Client.new
+    nc.connect(servers: [@s.uri], no_responders: false)
+
+    resp = nil
+    expect do
+      resp = nc.request("hi", "timeout")
+    end.to raise_error(NATS::IO::Timeout)
+
+    expect(resp).to be_nil
+
+    resp = nil
+    expect do
+      msg = NATS::Msg.new(subject: "hi")
+      resp = nc.request_msg(msg)
+    end.to raise_error(NATS::IO::Timeout)
+
+    expect(resp).to be_nil
 
     nc.close
   end
