@@ -68,6 +68,7 @@ module NATS
     STATUS_MSG_LEN = 3
     STATUS_HDR     = ("Status".freeze)
     DESC_HDR       = ("Description".freeze)
+    NATS_HDR_LINE_SIZE = (NATS_HDR_LINE.bytesize)
 
     SUB_OP = ('SUB'.freeze)
     EMPTY_MSG = (''.freeze)
@@ -450,11 +451,12 @@ module NATS
       # It times out in case the request is not retrieved within the
       # specified deadline.
       # If given a callback, then the request happens asynchronously.
-      def request(subject, payload, opts={}, &blk)
+      def request(subject, payload="", opts={}, &blk)
         raise BadSubject if !subject or subject.empty?
 
         # If a block was given then fallback to method using auto unsubscribe.
         return old_request(subject, payload, opts, &blk) if blk
+        return old_request(subject, payload, opts) if opts[:old_style]
 
         token = nil
         inbox = nil
@@ -558,11 +560,13 @@ module NATS
         # the messages asynchronously and return the sid.
         if blk
           opts[:max] ||= 1
-          s = subscribe(inbox, opts) do |msg, reply|
+          s = subscribe(inbox, opts) do |msg, reply, subject, header|
             case blk.arity
             when 0 then blk.call
             when 1 then blk.call(msg)
-            else blk.call(msg, reply)
+            when 2 then blk.call(msg, reply)
+            when 3 then blk.call(msg, reply, subject)
+            else blk.call(msg, reply, subject, header)
             end
           end
           publish(subject, payload, inbox)
@@ -718,7 +722,8 @@ module NATS
           # do so here already while holding the lock and return
           if sub.future
             future = sub.future
-            sub.response = Msg.new(subject: subject, reply: reply, data: data)
+            hdr = process_hdr(header)
+            sub.response = Msg.new(subject: subject, reply: reply, data: data, header: hdr)
             future.signal
 
             return
@@ -729,33 +734,7 @@ module NATS
               or sub.pending_size >= sub.pending_bytes_limit then
               err = SlowConsumer.new("nats: slow consumer, messages dropped")
             else
-              # Check for headers.
-              hdr = nil
-              if header
-                hdr = {}
-                lines = header.lines
-
-                # Check if it is an inline status and description.
-                if lines.count <= 2
-                  status_hdr = lines.first.rstrip
-                  hdr[STATUS_HDR] = status_hdr.slice(NATS_HDR_LINE.bytesize-1, NATS_HDR_LINE.bytesize+1)
-
-                  if NATS_HDR_LINE.bytesize+2 < status_hdr.bytesize
-                    desc = status.slice(NATS_HDR_LINE.bytesize+2, status_hdr.bytesize)
-                    hdr[DESC_HDR] = desc unless desc.empty?
-                  end
-                end
-                begin
-                  lines.slice(1, header.size).each do |line|
-                    line.rstrip!
-                    next if line.empty?
-                    key, value = line.strip.split(/\s*:\s*/, 2)
-                    hdr[key] = value
-                  end
-                rescue => e
-                  err = e
-                end
-              end
+              hdr = process_hdr(header)
 
               # Only dispatch message when sure that it would not block
               # the main read loop from the parser.
@@ -770,6 +749,37 @@ module NATS
           @last_err = err
           @err_cb.call(err) if @err_cb
         end if err
+      end
+
+      def process_hdr(header)
+        hdr = nil
+        if header
+          hdr = {}
+          lines = header.lines
+
+          # Check if it is an inline status and description.
+          if lines.count <= 2
+            status_hdr = lines.first.rstrip
+            hdr[STATUS_HDR] = status_hdr.slice(NATS_HDR_LINE_SIZE-1, STATUS_MSG_LEN)
+
+            if NATS_HDR_LINE_SIZE+2 < status_hdr.bytesize
+              desc = status_hdr.slice(NATS_HDR_LINE_SIZE+STATUS_MSG_LEN, status_hdr.bytesize)
+              hdr[DESC_HDR] = desc unless desc.empty?
+            end
+          end
+          begin
+            lines.slice(1, header.size).each do |line|
+              line.rstrip!
+              next if line.empty?
+              key, value = line.strip.split(/\s*:\s*/, 2)
+              hdr[key] = value
+            end
+          rescue => e
+            err = e
+          end
+        end
+
+        hdr
       end
 
       def process_info(line)

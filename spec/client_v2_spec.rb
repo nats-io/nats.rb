@@ -18,7 +18,7 @@ require 'monitor'
 describe 'Client - v2.2 features' do
 
   before(:each) do
-    @s = NatsServerControl.new("nats://127.0.0.1:4523")
+    @s = NatsServerControl.new("nats://127.0.0.1:4523", "/tmp/test-nats.pid", "-js")
     @s.start_server(true)
   end
 
@@ -150,6 +150,77 @@ describe 'Client - v2.2 features' do
 
     expect(resp).to be_nil
 
+    nc.close
+  end
+
+  it 'should not raise no responders error if no responders disabled' do
+    nc = NATS::IO::Client.new
+    nc.connect(servers: [@s.uri], no_responders: false)
+
+    resp = nil
+    expect do
+      resp = nc.request("hi", "timeout")
+    end.to raise_error(NATS::IO::Timeout)
+
+    expect(resp).to be_nil
+
+    resp = nil
+    expect do
+      msg = NATS::Msg.new(subject: "hi")
+      resp = nc.request_msg(msg)
+    end.to raise_error(NATS::IO::Timeout)
+
+    expect(resp).to be_nil
+
+    nc.close
+  end
+
+  it 'should handle responses with status and description headers' do
+    nc = NATS::IO::Client.new
+    nc.connect(servers: [@s.uri], no_responders: true)
+
+    # Create sample Stream and pull based consumer from JetStream
+    # from which it will be attempted to fetch messages using no_wait.
+    stream_req = {
+      name: "foojs",
+      subjects: ["foo.js"]
+    }
+
+    # Create the stream.
+    resp = nc.request("$JS.API.STREAM.CREATE.foojs", stream_req.to_json)
+    expect(resp).to_not be_nil 
+
+    # Publish with ack.
+    resp = nc.request("foo.js", "hello world")
+    expect(resp).to_not be_nil
+    expect(resp.header).to be_nil
+
+    # Create the consumer.
+    consumer_req = {
+      stream_name: "foojs",
+      config: {
+        durable_name: "sample",
+        deliver_policy: "all",
+        ack_policy: "explicit",
+        max_deliver: -1,
+        replay_policy: "instant"
+      }
+    }
+    resp = nc.request("$JS.API.CONSUMER.DURABLE.CREATE.foojs.sample", consumer_req.to_json)
+    expect(resp).to_not be_nil
+
+    # Get single message.
+    pull_req = { no_wait: true, batch: 1}
+    resp = nc.request("$JS.API.CONSUMER.MSG.NEXT.foojs.sample", pull_req.to_json, old_style: true)
+    expect(resp).to_not be_nil
+    expect(resp.data).to eql("hello world")
+
+    # Fail to get next message.
+    resp = nc.request("$JS.API.CONSUMER.MSG.NEXT.foojs.sample", pull_req.to_json, old_style: true)
+    expect(resp).to_not be_nil
+    expect(resp.header).to_not be_nil
+    expect(resp.header).to eql({"Status"=>"404", "Description"=>"No Messages"})
+    
     nc.close
   end
 end
