@@ -16,6 +16,7 @@ module NATS
   module Protocol
 
     MSG      = /\AMSG\s+([^\s]+)\s+([^\s]+)\s+(([^\s]+)[^\S\r\n]+)?(\d+)\r\n/i
+    HMSG     = /\AHMSG\s+([^\s]+)\s+([^\s]+)\s+(([^\s]+)[^\S\r\n]+)?([\d]+)\s+(\d+)\r\n/i
     OK       = /\A\+OK\s*\r\n/i
     ERR      = /\A-ERR\s+('.+')?\r\n/i
     PING     = /\APING\s*\r\n/i
@@ -49,6 +50,7 @@ module NATS
         @sid = nil
         @reply = nil
         @needed = nil
+        @header_needed = nil
       end
 
       def parse(data)
@@ -60,6 +62,10 @@ module NATS
             when MSG
               @buf = $'
               @sub, @sid, @reply, @needed = $1, $2.to_i, $4, $5.to_i
+              @parse_state = AWAITING_MSG_PAYLOAD
+            when HMSG
+              @buf = $'
+              @sub, @sid, @reply, @header_needed, @needed = $1, $2.to_i, $4, $5.to_i, $6.to_i
               @parse_state = AWAITING_MSG_PAYLOAD
             when OK # No-op right now
               @buf = $'
@@ -89,9 +95,17 @@ module NATS
 
           when AWAITING_MSG_PAYLOAD
             return unless (@needed && @buf.bytesize >= (@needed + CR_LF_SIZE))
-            @nc.process_msg(@sub, @sid, @reply, @buf.slice(0, @needed))
-            @buf = @buf.slice((@needed + CR_LF_SIZE), @buf.bytesize)
-            @sub = @sid = @reply = @needed = nil
+            if @header_needed
+              hbuf = @buf.slice(0, @header_needed)
+              payload = @buf.slice(@header_needed, (@needed-@header_needed))
+              @nc.process_msg(@sub, @sid, @reply, payload, hbuf)
+              @buf = @buf.slice((@needed + CR_LF_SIZE), @buf.bytesize)
+            else
+              @nc.process_msg(@sub, @sid, @reply, @buf.slice(0, @needed), nil)
+              @buf = @buf.slice((@needed + CR_LF_SIZE), @buf.bytesize)
+            end
+
+            @sub = @sid = @reply = @needed = @header_needed = nil
             @parse_state = AWAITING_CONTROL_LINE
             @buf = nil if (@buf && @buf.empty?)
           end

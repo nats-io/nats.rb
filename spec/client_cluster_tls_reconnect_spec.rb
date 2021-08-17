@@ -54,6 +54,7 @@ describe 'Client - Cluster TLS reconnect' do
         }
 
         cluster {
+          name: "TEST"
           host: '#{config_opts['host']}'
           port: #{config_opts['cluster_port']}
 
