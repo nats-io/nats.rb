@@ -2,7 +2,7 @@
 
 A thread safe [Ruby](http://ruby-lang.org) client for the [NATS messaging system](https://nats.io) written in pure Ruby.
 
-[![License Apache 2.0](https://img.shields.io/badge/License-Apache2-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)[![Build Status](https://travis-ci.org/nats-io/nats-pure.rb.svg)](http://travis-ci.org/nats-io/nats-pure.rb)[![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.6.2)](https://rubygems.org/gems/nats-pure/versions/0.6.2)
+[![License Apache 2.0](https://img.shields.io/badge/License-Apache2-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)[![Build Status](https://travis-ci.org/nats-io/nats-pure.rb.svg)](http://travis-ci.org/nats-io/nats-pure.rb)[![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.7.0)](https://rubygems.org/gems/nats-pure/versions/0.7.0)
 
 ## Getting Started
 
@@ -42,8 +42,8 @@ nats.unsubscribe(sid)
 nats.request('help', 'please', max: 5) { |response| puts "Got a response: '#{response}'" }
 
 # Replies
-nats.subscribe('help') do |msg, reply, subject|
-  puts "Received on '#{subject}': '#{msg}'"
+nats.subscribe('help') do |msg, reply, subject, headers|
+  puts "Received on '#{subject}': '#{msg}' with headers: #{headers}"
   nats.publish(reply, "I'll help!")
 end
 
@@ -53,6 +53,15 @@ begin
   puts "Received on '#{msg.subject}': #{msg.data}"
 rescue NATS::IO::Timeout
   puts "nats: request timed out"
+end
+
+# Request using a message with headers
+begin
+  msg = NATS::Msg.new(subject: "help", headers: {foo: 'bar'})
+  resp = nats.request_msg(msg)
+  puts "Received on '#{resp.subject}': #{resp.data}"
+rescue NATS::IO::Timeout => e
+  puts "nats: request timed out: #{e}"
 end
 
 # Server roundtrip which fails if it does not happen within 500ms
