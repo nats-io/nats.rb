@@ -126,6 +126,9 @@ describe 'Client - v2.2 features' do
       resp = nc.request_msg(msg, timeout: 1)
     end.to raise_error(NATS::IO::NoRespondersError)
 
+    result = nc.instance_variable_get(:@resp_map)
+    expect(result.keys.count).to eql(0)
+
     expect(resp).to be_nil
 
     nc.close
@@ -141,6 +144,19 @@ describe 'Client - v2.2 features' do
     end.to raise_error(NATS::IO::Timeout)
 
     expect(resp).to be_nil
+
+    # Timed out requests should be cleaned up.
+    50.times do
+      nc.request("hi", "timeout", timeout: 0.001) rescue nil
+    end
+
+    msg = NATS::Msg.new(subject: "hi")
+    50.times do
+      nc.request_msg(msg, timeout: 0.001) rescue nil
+    end
+
+    result = nc.instance_variable_get(:@resp_map)
+    expect(result.keys.count).to eql(0)
 
     resp = nil
     expect do

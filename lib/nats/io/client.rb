@@ -478,13 +478,18 @@ module NATS
 
         # Publish request and wait for reply.
         publish(subject, payload, inbox)
-        with_nats_timeout(timeout) do
-          @resp_sub.synchronize do
-            future.wait(timeout)
+        begin
+          with_nats_timeout(timeout) do
+            @resp_sub.synchronize do
+              future.wait(timeout)
+            end
           end
+        rescue NATS::IO::Timeout => e
+          synchronize { @resp_map.delete(token) }
+          raise e
         end
 
-        # Check if there is a response already
+        # Check if there is a response already.
         synchronize do
           result = @resp_map[token]
           response = result[:response]
@@ -527,10 +532,15 @@ module NATS
 
         # Publish request and wait for reply.
         publish_msg(msg)
-        with_nats_timeout(timeout) do
-          @resp_sub.synchronize do
-            future.wait(timeout)
+        begin
+          with_nats_timeout(timeout) do
+            @resp_sub.synchronize do
+              future.wait(timeout)
+            end
           end
+        rescue NATS::IO::Timeout => e
+          synchronize { @resp_map.delete(token) }
+          raise e
         end
 
         # Check if there is a response already.
