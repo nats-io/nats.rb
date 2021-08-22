@@ -234,7 +234,7 @@ describe 'Client - v2.2 features' do
 
     # Create the stream.
     resp = nc.request("$JS.API.STREAM.CREATE.foojs", stream_req.to_json)
-    expect(resp).to_not be_nil 
+    expect(resp).to_not be_nil
 
     # Publish with ack.
     resp = nc.request("foo.js", "hello world")
@@ -266,7 +266,43 @@ describe 'Client - v2.2 features' do
     expect(resp).to_not be_nil
     expect(resp.header).to_not be_nil
     expect(resp.header).to eql({"Status"=>"404", "Description"=>"No Messages"})
-    
+
+    nc.close
+  end
+
+  it 'should get a message with Subscription#next_msg' do
+    nc = NATS::IO::Client.new
+    nc.connect(:servers => [@s.uri])
+
+    sub = nc.subscribe("hello")
+    msgs = []
+    expect do
+      sub.next_msg
+    end.to raise_error(NATS::IO::Timeout)
+
+    1.upto(5) do |n|
+      data = "hello world-#{'A' * n}"
+      msg = NATS::Msg.new(subject: 'hello',
+                          data: data,
+                          header: {
+                            'foo': 'bar',
+                            'hello': "hello-#{n}"
+                          })
+      nc.publish_msg(msg)
+      nc.flush
+    end
+    1.upto(5) { msgs << sub.next_msg }
+
+    msgs.each_with_index do |msg, i|
+      n = i + 1
+      expect(msg.data).to eql("hello world-#{'A' * n}")
+      expect(msg.header).to eql({"foo"=>"bar", "hello"=>"hello-#{n}"})
+    end
+
+    expect do
+      sub.next_msg
+    end.to raise_error(NATS::IO::Timeout)
+
     nc.close
   end
 end

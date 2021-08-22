@@ -415,6 +415,7 @@ module NATS
           sid = (@ssid += 1)
           sub = @subs[sid] = Subscription.new
           sub.nc = self
+          sub.sid = sid
         end
         opts[:pending_msgs_limit]  ||= DEFAULT_SUB_PENDING_MSGS_LIMIT
         opts[:pending_bytes_limit] ||= DEFAULT_SUB_PENDING_BYTES_LIMIT
@@ -427,13 +428,17 @@ module NATS
         sub.pending_msgs_limit  = opts[:pending_msgs_limit]
         sub.pending_bytes_limit = opts[:pending_bytes_limit]
         sub.pending_queue = SizedQueue.new(sub.pending_msgs_limit)
-        sub.sid = sid
 
         send_command("SUB #{subject} #{opts[:queue]} #{sid}#{CR_LF}")
         @flush_queue << :sub
 
         # Setup server support for auto-unsubscribe when receiving enough messages
         sub.unsubscribe(opts[:max]) if opts[:max]
+
+        if not callback
+          cond = sub.new_cond
+          sub.wait_for_msgs_cond = cond
+        end
 
         # Async subscriptions each own a single thread for the
         # delivery of messages.
@@ -445,6 +450,7 @@ module NATS
 
             cb = nil
             sub.synchronize do
+
               # Decrease pending size since consumed already
               sub.pending_size -= msg.data.size
               cb = sub.callback
@@ -464,7 +470,7 @@ module NATS
               end
             end
           end
-        end
+        end if callback
 
         sub
       end
@@ -502,7 +508,7 @@ module NATS
         # Publish request and wait for reply.
         publish(subject, payload, inbox)
         begin
-          with_nats_timeout(timeout) do
+          MonotonicTime::with_nats_timeout(timeout) do
             @resp_sub.synchronize do
               future.wait(timeout)
             end
@@ -556,7 +562,7 @@ module NATS
         # Publish request and wait for reply.
         publish_msg(msg)
         begin
-          with_nats_timeout(timeout) do
+          MonotonicTime::with_nats_timeout(timeout) do
             @resp_sub.synchronize do
               future.wait(timeout)
             end
@@ -634,7 +640,7 @@ module NATS
           # Publish the request and then wait for the response...
           publish(subject, payload, inbox)
 
-          with_nats_timeout(timeout) do
+          MonotonicTime::with_nats_timeout(timeout) do
             future.wait(timeout)
           end
         end
@@ -681,7 +687,7 @@ module NATS
           # Flush once pong future has been prepared
           @pending_queue << PING_REQUEST
           @flush_queue << :ping
-          with_nats_timeout(timeout) do
+          MonotonicTime::with_nats_timeout(timeout) do
             pong.wait(timeout)
           end
         end
@@ -782,6 +788,10 @@ module NATS
               # the main read loop from the parser.
               msg = Msg.new(subject: subject, reply: reply, data: data, header: hdr)
               sub.pending_queue << msg
+
+              # For sync subscribers, signal that there is a new message.
+              sub.wait_for_msgs_cond.signal if sub.wait_for_msgs_cond
+
               sub.pending_size += data.size
             end
           end
@@ -1056,14 +1066,6 @@ module NATS
         end
 
         "CONNECT #{cs.to_json}#{CR_LF}"
-      end
-
-      def with_nats_timeout(timeout)
-        start_time = MonotonicTime.now
-        yield
-        end_time = MonotonicTime.now
-        duration = end_time - start_time
-        raise NATS::IO::Timeout.new("nats: timeout") if duration > timeout
       end
 
       # Handles errors from reading, parsing the protocol or stale connection.
@@ -1768,7 +1770,7 @@ module NATS
     include MonitorMixin
 
     attr_accessor :subject, :queue, :future, :callback, :response, :received, :max, :pending, :sid
-    attr_accessor :pending_queue, :pending_size, :wait_for_msgs_t, :is_slow_consumer
+    attr_accessor :pending_queue, :pending_size, :wait_for_msgs_t, :wait_for_msgs_cond, :is_slow_consumer
     attr_accessor :pending_msgs_limit, :pending_bytes_limit
     attr_accessor :nc
 
@@ -1792,12 +1794,28 @@ module NATS
       @pending_bytes_limit = nil
       @wait_for_msgs_t     = nil
       @is_slow_consumer    = false
+
+      # Sync subscriber
+      @wait_for_msgs_cond = nil
     end
 
     # Auto unsubscribes the server by sending UNSUB command and throws away
     # subscription in case already present and has received enough messages.
     def unsubscribe(opt_max=nil)
       @nc.send(:unsubscribe, self, opt_max)
+    end
+
+    # next_msg blocks and waiting for the next message to be received.
+    def next_msg(opts={})
+      timeout = opts[:timeout] ||= 0.5
+      synchronize do 
+        return @pending_queue.pop if not @pending_queue.empty?
+
+        # Wait for a bit until getting a signal.
+        MonotonicTime::with_nats_timeout(timeout) do
+          wait_for_msgs_cond.wait(timeout)
+        end
+      end
     end
   end
 
@@ -1818,6 +1836,16 @@ module NATS
         def now
           # Fallback to regular time behavior
           ::Time.now.to_f
+        end
+      end
+
+      def with_nats_timeout(timeout)
+        start_time = now
+        yield
+        end_time = now
+        duration = end_time - start_time
+        if duration > timeout
+          raise NATS::IO::Timeout.new("nats: timeout")
         end
       end
     end

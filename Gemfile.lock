@@ -1,11 +1,7 @@
 PATH
   remote: .
   specs:
-<<<<<<< HEAD
-    nats-pure (0.7.2)
-=======
-    nats-pure (1.0.0.pre.alpha)
->>>>>>> Updated client APIs more similar to Go client
+    nats-pure (2.0.0.pre.alpha)
 
 GEM
   remote: https://rubygems.org/
