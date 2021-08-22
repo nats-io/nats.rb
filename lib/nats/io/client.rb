@@ -331,7 +331,7 @@ module NATS
             server_pool << srv if can_reuse_server?(srv)
           end
 
-          @err_cb.call(e) if @err_cb
+          err_cb_call(self, e, nil) if @err_cb
 
           if should_not_reconnect?
             @disconnect_cb.call(e) if @disconnect_cb
@@ -414,6 +414,7 @@ module NATS
         synchronize do
           sid = (@ssid += 1)
           sub = @subs[sid] = Subscription.new
+          sub.nc = self
         end
         opts[:pending_msgs_limit]  ||= DEFAULT_SUB_PENDING_MSGS_LIMIT
         opts[:pending_bytes_limit] ||= DEFAULT_SUB_PENDING_BYTES_LIMIT
@@ -426,12 +427,13 @@ module NATS
         sub.pending_msgs_limit  = opts[:pending_msgs_limit]
         sub.pending_bytes_limit = opts[:pending_bytes_limit]
         sub.pending_queue = SizedQueue.new(sub.pending_msgs_limit)
+        sub.sid = sid
 
         send_command("SUB #{subject} #{opts[:queue]} #{sid}#{CR_LF}")
         @flush_queue << :sub
 
         # Setup server support for auto-unsubscribe when receiving enough messages
-        unsubscribe(sid, opts[:max]) if opts[:max]
+        sub.unsubscribe(opts[:max]) if opts[:max]
 
         # Async subscriptions each own a single thread for the
         # delivery of messages.
@@ -451,20 +453,20 @@ module NATS
             begin
               case cb.arity
               when 0 then cb.call
-              when 1 then cb.call(msg.data)
+              when 1 then cb.call(msg)
               when 2 then cb.call(msg.data, msg.reply)
               when 3 then cb.call(msg.data, msg.reply, msg.subject)
               else cb.call(msg.data, msg.reply, msg.subject, msg.header)
               end
             rescue => e
               synchronize do
-                @err_cb.call(e) if @err_cb
+                err_cb_call(self, e, sub) if @err_cb
               end
             end
           end
         end
 
-        sid
+        sub
       end
 
       # Sends a request using expecting a single response using a
@@ -591,13 +593,13 @@ module NATS
         # the messages asynchronously and return the sid.
         if blk
           opts[:max] ||= 1
-          s = subscribe(inbox, opts) do |msg, reply, subject, header|
+          s = subscribe(inbox, opts) do |msg|
             case blk.arity
             when 0 then blk.call
             when 1 then blk.call(msg)
-            when 2 then blk.call(msg, reply)
-            when 3 then blk.call(msg, reply, subject)
-            else blk.call(msg, reply, subject, header)
+            when 2 then blk.call(msg.data, msg.reply)
+            when 3 then blk.call(msg.data, msg.reply, msg.subject)
+            else blk.call(msg.data, msg.reply, msg.subject, msg.header)
             end
           end
           publish(subject, payload, inbox)
@@ -615,16 +617,18 @@ module NATS
         sub.received = 0
         future = sub.new_cond
         sub.future = future
+        sub.nc = self
 
         sid = nil
         synchronize do
           sid = (@ssid += 1)
+          sub.sid = sid
           @subs[sid] = sub
         end
 
         send_command("SUB #{inbox} #{sid}#{CR_LF}")
         @flush_queue << :sub
-        unsubscribe(sid, 1)
+        unsubscribe(sub, 1)
 
         sub.synchronize do
           # Publish the request and then wait for the response...
@@ -662,6 +666,8 @@ module NATS
             sub.pending_queue.clear
           end
         end
+
+        response
       end
 
       # Send a ping and wait for a pong back within a timeout.
@@ -783,7 +789,7 @@ module NATS
 
         synchronize do
           @last_err = err
-          @err_cb.call(err) if @err_cb
+          err_cb_call(self, err, sub) if @err_cb
         end if err
       end
 
@@ -967,6 +973,47 @@ module NATS
         # TODO: kick flusher here in case pending_size growing large
       end
 
+      # Auto unsubscribes the server by sending UNSUB command and throws away
+      # subscription in case already present and has received enough messages.
+      def unsubscribe(sub, opt_max=nil)
+        sid = sub.sid
+        opt_max_str = " #{opt_max}" unless opt_max.nil?
+        send_command("UNSUB #{sid}#{opt_max_str}#{CR_LF}")
+        @flush_queue << :unsub
+
+        return unless sub = @subs[sid]
+        synchronize do
+          sub.max = opt_max
+          @subs.delete(sid) unless (sub.max && (sub.received < sub.max))
+
+          # Stop messages delivery thread for async subscribers
+          if sub.wait_for_msgs_t && sub.wait_for_msgs_t.alive?
+            sub.wait_for_msgs_t.exit
+            sub.pending_queue.clear
+          end
+        end
+      end
+
+      def send_flush_queue(s)
+        @flush_queue << s
+      end
+
+      def delete_sid(sid)
+        @subs.delete(sid)
+      end
+
+      def err_cb_call(nc, e, sub)
+        return unless @err_cb
+
+        cb = @err_cb
+        case cb.arity
+        when 0 then cb.call
+        when 1 then cb.call(e)
+        when 2 then cb.call(e, sub)
+        else cb.call(nc, e, sub)
+        end
+      end
+
       def auth_connection?
         !@uri.user.nil?
       end
@@ -1029,7 +1076,7 @@ module NATS
 
         synchronize do
           @last_err = e
-          @err_cb.call(e) if @err_cb
+          err_cb_call(self, e, nil) if @err_cb
 
           # If we were connected and configured to reconnect,
           # then trigger disconnect and start reconnection logic
@@ -1120,7 +1167,7 @@ module NATS
           rescue => e
             synchronize do
               @last_err = e
-              @err_cb.call(e) if @err_cb
+              err_cb_call(self, e, nil) if @err_cb
             end
 
             process_op_error(e)
@@ -1278,7 +1325,7 @@ module NATS
           @last_err = e
 
           # Trigger async error handler
-          @err_cb.call(e) if @err_cb
+          err_cb_call(self, e, nil) if @err_cb
 
           # Continue retrying until there are no options left in the server pool
           retry
@@ -1361,7 +1408,7 @@ module NATS
             @io.write(cmds.join) unless cmds.empty?
           rescue => e
             @last_err = e
-            @err_cb.call(e) if @err_cb
+            err_cb_call(self, e, nil) if @err_cb
           end if should_flush
 
           # Destroy any remaining subscriptions.
@@ -1412,6 +1459,7 @@ module NATS
         @resp_sub = Subscription.new
         @resp_sub.subject = "#{@resp_sub_prefix}.*"
         @resp_sub.received = 0
+        @resp_sub.nc = self
 
         # FIXME: Allow setting pending limits for responses mux subscription.
         @resp_sub.pending_msgs_limit = DEFAULT_SUB_PENDING_MSGS_LIMIT
@@ -1719,9 +1767,10 @@ module NATS
   class Subscription
     include MonitorMixin
 
-    attr_accessor :subject, :queue, :future, :callback, :response, :received, :max, :pending
+    attr_accessor :subject, :queue, :future, :callback, :response, :received, :max, :pending, :sid
     attr_accessor :pending_queue, :pending_size, :wait_for_msgs_t, :is_slow_consumer
     attr_accessor :pending_msgs_limit, :pending_bytes_limit
+    attr_accessor :nc
 
     def initialize
       super # required to initialize monitor
@@ -1733,6 +1782,8 @@ module NATS
       @received = 0
       @max      = nil
       @pending  = nil
+      @sid      = nil
+      @nc       = nil
 
       # State from async subscriber messages delivery
       @pending_queue       = nil
@@ -1741,6 +1792,12 @@ module NATS
       @pending_bytes_limit = nil
       @wait_for_msgs_t     = nil
       @is_slow_consumer    = false
+    end
+
+    # Auto unsubscribes the server by sending UNSUB command and throws away
+    # subscription in case already present and has received enough messages.
+    def unsubscribe(opt_max=nil)
+      @nc.send(:unsubscribe, self, opt_max)
     end
   end
 

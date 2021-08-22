@@ -27,17 +27,32 @@ describe 'Client - v2.2 features' do
     sleep 1
   end
 
-  it 'should received a message with headers' do
+  it 'should receive a message with headers' do
     mon = Monitor.new
     done = mon.new_cond
+    done2 = mon.new_cond
 
     nc = NATS::IO::Client.new
     nc.connect(:servers => [@s.uri])
 
     msgs = []
-    nc.subscribe("hello") do |data, _, _, header|
+
+    # Multiple arity is still backwards compatible with v0.7.0
+    sub1 = nc.subscribe("hello") do |data, _, _, header|
       msg = NATS::Msg.new(data: data, header: header)
       msgs << msg
+
+      if msgs.count >= 5
+        mon.synchronize do
+          done.signal
+        end
+      end
+    end
+
+    # Single arity is now a NATS::Msg type
+    msgs2 = []
+    sub2 = nc.subscribe("hello") do |msg|
+      msgs2 << msg
 
       if msgs.count >= 5
         mon.synchronize do
@@ -68,6 +83,14 @@ describe 'Client - v2.2 features' do
       expect(msg.data).to eql("hello world-#{'A' * n}")
       expect(msg.header).to eql({"foo"=>"bar", "hello"=>"hello-#{n}"})
     end
+
+    msgs2.each_with_index do |msg, i|
+      n = i + 1
+      expect(msg.data).to eql("hello world-#{'A' * n}")
+      expect(msg.header).to eql({"foo"=>"bar", "hello"=>"hello-#{n}"})
+    end
+    sub1.unsubscribe
+
     nc.close
   end
 

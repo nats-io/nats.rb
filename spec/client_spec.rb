@@ -80,8 +80,8 @@ describe 'Client - Specification' do
     sleep 0.5
 
     expect(msgs.count).to eql(5)
-    expect(msgs.first).to eql('world-1')
-    expect(msgs.last).to eql('world-5')
+    expect(msgs.first.data).to eql('world-1')
+    expect(msgs.last.data).to eql('world-5')
 
     nc.close
   end
@@ -142,8 +142,8 @@ describe 'Client - Specification' do
 
     expect(received.count).to eql(1)
     expect(responses.count).to eql(2)
-    expect(responses[0]).to eql("reply")
-    expect(responses[1]).to eql("back")
+    expect(responses[0].data).to eql("reply")
+    expect(responses[1].data).to eql("back")
   end
 
   it 'should be able to unsubscribe' do
@@ -151,10 +151,10 @@ describe 'Client - Specification' do
     nc.connect(:servers => [@s.uri], :reconnect => false)
 
     msgs = []
-    sid = nc.subscribe("foo") do |msg|
+    sub = nc.subscribe("foo") do |msg|
       msgs << msg
     end
-    expect(sid).to eql(1)
+    expect(sub.sid).to eql(1)
     nc.flush
 
     2.times { nc.publish("foo", "bar") }
@@ -162,7 +162,7 @@ describe 'Client - Specification' do
 
     # Wait for a bit to receive the messages.
     sleep 0.5
-    nc.unsubscribe(sid)
+    sub.unsubscribe
     nc.flush
 
     2.times { nc.publish("foo", "bar") }
@@ -180,12 +180,12 @@ describe 'Client - Specification' do
 
     msgs = { }
     1.upto(max_subs).each do |n|
-      sid = nc.subscribe("quux.#{n}") do |msg, reply, subject|
+      sub = nc.subscribe("quux.#{n}") do |msg, reply, subject|
         msgs[subject] << msg
       end
       nc.flush(1)
 
-      msgs["quux.#{sid}"] = []
+      msgs["quux.#{sub.sid}"] = []
     end
     nc.flush(1)
 
@@ -406,38 +406,50 @@ describe 'Client - Specification' do
       another_thread = Thread.new do
         nats = NATS::IO::Client.new
         nats.connect(:servers => [@s.uri], :reconnect => false)
-        nats.subscribe("help") do |msg, reply|
-          nats.publish(reply, "I can help")
+        nats.subscribe("help") do |msg|
+          nats.publish(msg.reply, "response to req:#{msg.data}")
         end
         nats.flush
+
         mon.synchronize do
           subscribed_done.signal
         end
+
         mon.synchronize do
           test_done.wait(1)
+          # sleep 5
           nats.close
         end
+
       end
 
       nc = NATS::IO::Client.new
-      nc.connect(:servers => [@s.uri], :old_style_request => true)
+      nc.connect(:servers => [@s.uri])
       mon.synchronize do
         subscribed_done.wait(1)
       end
 
       responses = []
       expect do
-        3.times do
-          responses << nc.request("help", "please", timeout: 1)
+        3.times do |n|
+          response = nil
+
+          response = nc.request("help", "#{n}", timeout: 1, old_style: true)
+          responses << response
         end
       end.to_not raise_error
       expect(responses.count).to eql(3)
 
       # A new subscription would have the next sid for this client.
-      sid = nc.subscribe("hello"){}
-      expect(sid).to eql(4)
+      sub = nc.subscribe("hello"){ }
+      expect(sub.sid).to eql(4)
+
       mon.synchronize do
         test_done.signal
+      end
+
+      responses.each_with_index do |msg, n|
+        expect(msg.data).to eql("response to req:#{n}")
       end
 
       nc.close

@@ -35,16 +35,16 @@ nats.subscribe("foo.>") { |msg, reply, subject| puts "Received on '#{subject}': 
 nats.publish('foo.bar.baz', 'Hello World!')
 
 # Unsubscribing
-sid = nats.subscribe('bar') { |msg| puts "Received : '#{msg}'" }
-nats.unsubscribe(sid)
+sub = nats.subscribe('bar') { |msg| puts "Received : '#{msg}'" }
+sub.unsubscribe()
 
 # Requests with a block handles replies asynchronously
 nats.request('help', 'please', max: 5) { |response| puts "Got a response: '#{response}'" }
 
 # Replies
-nats.subscribe('help') do |msg, reply, subject, headers|
-  puts "Received on '#{subject}': '#{msg}' with headers: #{headers}"
-  nats.publish(reply, "I'll help!")
+sub = nats.subscribe('help') do |msg|
+  puts "Received on '#{msg.subject}': '#{msg.data}' with headers: #{msg.header}"
+  msg.respond("I'll help!")
 end
 
 # Request without a block waits for response or timeout
@@ -108,8 +108,8 @@ cluster_opts = {
 nats.connect(cluster_opts)
 puts "Connected to #{nats.connected_server}"
 
-nats.subscribe("hello") do |data|
-  puts "#{Time.now} - Received: #{data}"
+nats.subscribe("hello") do |msg|
+  puts "#{Time.now} - Received: #{msg.data}"
 end
 
 n = 0
