@@ -305,4 +305,76 @@ describe 'Client - v2.2 features' do
 
     nc.close
   end
+
+  it 'should support NATS::Msg#respond' do
+    nc = NATS::IO::Client.new
+    nc.connect(:servers => [@s.uri])
+    nc.on_error do |e|
+      puts "Error: #{e}"
+      puts e.backtrace
+    end
+
+    msgs = []
+    seq = 0
+    nc.subscribe("hello") do |msg|
+      seq += 1
+      msgs << msg
+      msg.respond("hi!")
+    end
+    nc.flush
+
+    1.upto(5) do |n|
+      data = "hello world-#{'A' * n}"
+      msg = NATS::Msg.new(subject: 'hello',
+                          data: data,
+                          header: {
+                            'foo': 'bar',
+                            'hello': "hello-#{n}"
+                          })
+      resp = nc.request_msg(msg, timeout: 1)
+      expect(resp.data).to eql("hi!")
+      nc.flush
+    end
+    expect(msgs.count).to eql(5)
+
+    nc.close
+  end
+
+  it 'should make responses with headers NATS::Msg#respond_msg' do
+    nc = NATS::IO::Client.new
+    nc.connect(:servers => [@s.uri])
+    nc.on_error do |e|
+      puts "Error: #{e}"
+      puts e.backtrace
+    end
+
+    msgs = []
+    seq = 0
+    nc.subscribe("hello") do |msg|
+      seq += 1
+      m = NATS::Msg.new(data: msg.data, subject: msg.reply, header: msg.header)
+      m.header['response'] = seq
+      msgs << m
+
+      msg.respond_msg(m)
+    end
+    nc.flush
+
+    1.upto(5) do |n|
+      data = "hello world-#{'A' * n}"
+      msg = NATS::Msg.new(subject: 'hello',
+                          data: data,
+                          header: {
+                            'foo': 'bar',
+                            'hello': "hello-#{n}"
+                          })
+      resp = nc.request_msg(msg, timeout: 1)
+      expect(resp.data).to eql("hello world-#{'A' * n}")
+      expect(resp.header).to eql({"foo" => "bar", "hello" => "hello-#{n}", "response" => "#{n}"})
+      nc.flush
+    end
+    expect(msgs.count).to eql(5)
+
+    nc.close
+  end
 end

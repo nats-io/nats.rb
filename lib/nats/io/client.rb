@@ -786,7 +786,7 @@ module NATS
 
               # Only dispatch message when sure that it would not block
               # the main read loop from the parser.
-              msg = Msg.new(subject: subject, reply: reply, data: data, header: hdr)
+              msg = Msg.new(subject: subject, reply: reply, data: data, header: hdr, nc: self)
               sub.pending_queue << msg
 
               # For sync subscribers, signal that there is a new message.
@@ -1764,7 +1764,17 @@ module NATS
     end
   end
 
-  Msg = Struct.new(:subject, :reply, :data, :header, keyword_init: true)
+  Msg = Struct.new(:subject, :reply, :data, :header, :nc, keyword_init: true) do
+    def respond(data)
+      return unless self.nc
+      self.nc.publish(self.reply, data)
+    end
+
+    def respond_msg(msg)
+      return unless self.nc
+      self.nc.publish_msg(msg)
+    end
+  end
 
   class Subscription
     include MonitorMixin
