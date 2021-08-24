@@ -417,10 +417,8 @@ describe 'Client - Specification' do
 
         mon.synchronize do
           test_done.wait(1)
-          # sleep 5
           nats.close
         end
-
       end
 
       nc = NATS::IO::Client.new
