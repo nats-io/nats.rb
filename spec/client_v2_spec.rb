@@ -110,15 +110,22 @@ describe 'Client - v2.2 features' do
   end
 
   it 'should raise no responders error by default' do
-    nc = NATS::IO::Client.new
-    nc.connect(:servers => [@s.uri])
+    nc = NATS.connect(servers: [@s.uri])
 
-    resp = nil
     expect do
       resp = nc.request("hi", "timeout", timeout: 1)
+      expect(resp).to be_nil
     end.to raise_error(NATS::IO::NoRespondersError)
 
-    expect(resp).to be_nil
+    expect do
+      resp = nc.request("hi", "timeout", timeout: 1, old_style: true)
+      expect(resp).to be_nil
+    end.to raise_error(NATS::IO::NoRespondersError)
+
+    expect do
+      resp = nc.old_request("hi", "timeout", timeout: 1)
+      expect(resp).to be_nil
+    end.to raise_error(NATS::IO::NoRespondersError)
 
     resp = nil
     expect do

@@ -636,6 +636,11 @@ module NATS
         end
         response = sub.response
 
+        if response and response.header
+          status = response.header[STATUS_HDR]
+          raise NoRespondersError if status == "503"
+        end
+
         response
       end
 
