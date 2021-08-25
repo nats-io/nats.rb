@@ -28,6 +28,15 @@ rescue LoadError
 end
 
 module NATS
+  class << self
+    def connect(uri=nil, opts={})
+      nc = NATS::IO::Client.new
+      nc.connect(uri, opts)
+
+      nc
+    end
+  end
+
   module IO
 
     DEFAULT_PORT = 4222
@@ -185,6 +194,9 @@ module NATS
         @hostname = nil
         @single_url_connect_used = false
 
+        # Track whether connect has been already been called.
+        @connect_called = false
+
         # New style request/response implementation.
         @resp_sub = nil
         @resp_map = nil
@@ -201,6 +213,15 @@ module NATS
 
       # Establishes connection to NATS.
       def connect(uri=nil, opts={})
+        synchronize do
+          # In case it has been connected already, then do not need to call this again.
+          return if @connect_called
+          @connect_called = true
+        end
+
+        # Convert URI to string if needed.
+        uri = uri.to_s if uri.is_a?(URI)
+
         case uri
         when String
           # Initialize TLS defaults in case any url is using it.

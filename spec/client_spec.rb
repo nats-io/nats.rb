@@ -27,20 +27,41 @@ describe 'Client - Specification' do
     sleep 1
   end
 
-  it 'should connect to locally available server by default' do
-    nc = NATS::IO::Client.new
+  it 'should connect' do
     expect do
-      nc.connect(:servers => [@s.uri])
+      nc = NATS::IO::Client.new
+      nc.connect(servers: [@s.uri])
+      nc.close
     end.to_not raise_error
-    nc.close
-  end
 
-  it 'should connect to using a single uri' do
-    nc = NATS::IO::Client.new
+    # Using module method
     expect do
-      nc.connect("nats://127.0.0.1:4522")
+      nc = NATS.connect(servers: [@s.uri])
+      nc.close
     end.to_not raise_error
-    nc.close
+
+    # Single URI
+    expect do
+      nc = NATS.connect("nats://127.0.0.1:4522")
+      nc.close
+    end.to_not raise_error
+
+    expect do
+      nc = NATS.connect(@s.uri)
+      nc.close
+    end.to_not raise_error
+
+    expect do
+      nc = NATS::IO::Client.new
+      nc.connect("nats://127.0.0.1:4522")
+      nc.close
+    end.to_not raise_error
+
+    expect do
+      nc = NATS::IO::Client.new
+      nc.connect("127.0.0.1:4522")
+      nc.close
+    end.to_not raise_error
   end
 
   it 'should received a message when subscribed to a topic' do
