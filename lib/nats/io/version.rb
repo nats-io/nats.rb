@@ -1,4 +1,4 @@
-# Copyright 2016-2018 The NATS Authors
+# Copyright 2016-2021 The NATS Authors
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -15,7 +15,7 @@
 module NATS
   module IO
     # NOTE: These are all announced to the server on CONNECT
-    VERSION  = "0.7.0"
+    VERSION  = "0.7.2"
     LANG     = "#{RUBY_ENGINE}#{RUBY_VERSION}".freeze
     PROTOCOL = 1
   end
