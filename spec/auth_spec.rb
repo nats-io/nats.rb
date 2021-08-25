@@ -53,6 +53,13 @@ describe 'Client - Authorization' do
       nats.connect(:servers => [TEST_TOKEN_AUTH_SERVER], :reconnect => false)
       nats.flush
     end.to_not raise_error
+
+
+    expect do
+      nc = NATS.connect(TEST_TOKEN_AUTH_SERVER, reconnect: false)
+      nc.flush
+    end.to_not raise_error
+
     nats.close
   end
 

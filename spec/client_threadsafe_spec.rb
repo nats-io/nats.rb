@@ -103,8 +103,7 @@ describe 'Client - Thread safety' do
   end
 
   it 'should allow async subscriptions to process messages in parallel' do
-    nc = NATS::IO::Client.new
-    nc.connect(servers: ['nats://0.0.0.0:4222'])
+    nc = NATS.connect(servers: ['nats://0.0.0.0:4222'])
 
     foo_msgs = []
     nc.subscribe('foo') do |payload|
@@ -128,7 +127,7 @@ describe 'Client - Thread safety' do
 
     # Publish many messages to quux which should be able to consume fast.
     1.upto(10).each do |n|
-      nc.publish('quux', "test-#{n}")      
+      nc.publish('quux', "test-#{n}")
     end
 
     # Awaiting for the response happens on the same
@@ -151,5 +150,53 @@ describe 'Client - Thread safety' do
       expect(quux_msgs[n-1]).to eql("test-#{n}")
     end
     nc.close
+  end
+
+  it 'should connect once across threads' do
+    nc = NATS.connect(@s.uri)
+    nc.subscribe(">") { }
+    nc.subscribe("help") do |msg, reply|
+      nc.publish(reply, "OK!")
+    end
+
+    nc2 = NATS::IO::Client.new
+    cids = []
+    ts = []
+    responses = []
+    ts << Thread.new do
+      nc2.connect(@s.uri)
+
+      loop do
+        begin
+          nc2.publish("foo", 'bar', 'quux')
+        rescue => e
+          break
+        end
+        sleep 0.01
+      end
+    end
+
+    5.times do
+      ts << Thread.new do
+        # connect should be idempotent across threads.
+        nc.connect(@s.uri)
+        si = nc.instance_variable_get("@server_info")
+        cids << si[:client_id]
+        responses << nc.request("help", "hi")
+        nc.flush
+      end
+    end
+    sleep 2
+
+    ts.each do |t|
+      t.exit
+    end
+    nc.close
+    nc2.close
+
+    results = cids.uniq
+    expect(results.count).to eql(1)
+
+    expect(responses.count).to eql(5)
   end
 end
