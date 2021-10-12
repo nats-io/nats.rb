@@ -435,7 +435,7 @@ module NATS
         # Setup server support for auto-unsubscribe when receiving enough messages
         sub.unsubscribe(opts[:max]) if opts[:max]
 
-        if not callback
+        unless callback
           cond = sub.new_cond
           sub.wait_for_msgs_cond = cond
         end
@@ -457,6 +457,9 @@ module NATS
             end
 
             begin
+              # Note: Keep some of the alternative arity versions to slightly
+              # improve backwards compatibility.  Eventually fine to deprecate
+              # since recommended version would be arity of 1 to get a NATS::Msg.
               case cb.arity
               when 0 then cb.call
               when 1 then cb.call(msg)
@@ -707,7 +710,7 @@ module NATS
       end
 
       def new_inbox
-        "_INBOX.#{SecureRandom.hex(13)}"
+        "_INBOX.#{@nuid.next}"
       end
 
       def connected_server
@@ -916,7 +919,7 @@ module NATS
           if sub.future
             future = sub.future
             hdr = process_hdr(header)
-            sub.response = Msg.new(subject: subject, reply: reply, data: data, header: hdr)
+            sub.response = Msg.new(subject: subject, reply: reply, data: data, header: hdr, nc: self, sub: sub)
             future.signal
 
             return
@@ -931,7 +934,7 @@ module NATS
 
               # Only dispatch message when sure that it would not block
               # the main read loop from the parser.
-              msg = Msg.new(subject: subject, reply: reply, data: data, header: hdr, nc: self)
+              msg = Msg.new(subject: subject, reply: reply, data: data, header: hdr, nc: self, sub: sub)
               sub.pending_queue << msg
 
               # For sync subscribers, signal that there is a new message.
@@ -1769,19 +1772,97 @@ module NATS
     end
   end
 
-  Msg = Struct.new(:subject, :reply, :data, :header, :nc, keyword_init: true) do
+  class Msg
+    attr_accessor :subject, :reply, :data, :header
+    attr_reader :ackd
+
+    def initialize(opts={})
+      @subject = opts[:subject]
+      @reply = opts[:reply]
+      @data = opts[:data]
+      @header = opts[:header]
+      @nc = opts[:nc]
+      @sub = opts[:sub]
+      @ackd = false
+    end
+
     def respond(data)
-      return unless self.nc
-      self.nc.publish(self.reply, data)
+      return unless @nc
+      @nc.publish(self.reply, data)
     end
 
     def respond_msg(msg)
-      return unless self.nc
-      self.nc.publish_msg(msg)
+      return unless @nc
+      @nc.publish_msg(msg)
     end
 
-    def to_s
-      "#<NATS::Msg(subject: #{self.subject}, reply: #{self.reply}, data: '#{self.data.slice(0, 10)}')>"
+    AckAck      = "+ACK"
+    AckNak      = "-NAK"
+    AckProgress = "+WPI"
+    AckTerm     = "+TERM"
+
+    def ack(params={})
+      ensure_is_acked_once!
+
+      resp = if params[:timeout]
+               @nc.request(@reply, AckAck, params)
+             else
+               @nc.publish(@reply, AckAck)
+             end
+      @sub.synchronize { @ackd = true }
+
+      resp
+    end
+
+    def ack_sync(params={})
+      ensure_is_acked_once!
+
+      params[:timeout] ||= 0.5
+      resp = @nc.request(@reply, AckAck)
+      @sub.synchronize { @ackd = true }
+
+      resp
+    end
+
+    def nak(params={})
+      ensure_is_acked_once!
+
+      resp = if params[:timeout]
+               @nc.request(@reply, AckNak, params)
+             else
+               @nc.publish(@reply, AckNak)
+             end
+      @sub.synchronize { @ackd = true }
+
+      resp
+    end
+
+    def term(params={})
+      ensure_is_acked_once!
+
+      resp = if params[:timeout]
+               @nc.request(@reply, AckTerm, params)
+             else
+               @nc.publish(@reply, AckTerm)
+             end
+      @sub.synchronize { @ackd = true }
+
+      resp
+    end
+
+    def in_progress(params={})
+      params[:timeout] ? @nc.request(@reply, AckProgress, params) : @nc.publish(@reply, AckProgress)
+    end
+
+    def inspect
+      hdr = ", header=#{@header}" if @header
+      "#<NATS::Msg(subject: \"#{@subject}\", reply: \"#{@reply}\", data: #{@data.slice(0, 10).inspect}#{hdr})>"
+    end
+
+    private
+
+    def ensure_is_acked_once!
+      @sub.synchronize { raise JetStream::InvalidJSAck.new("nats: invalid ack") if @ackd }
     end
   end
 
@@ -1792,6 +1873,7 @@ module NATS
     attr_accessor :pending_queue, :pending_size, :wait_for_msgs_t, :wait_for_msgs_cond, :is_slow_consumer
     attr_accessor :pending_msgs_limit, :pending_bytes_limit
     attr_accessor :nc
+    attr_accessor :jsi
 
     def initialize
       super # required to initialize monitor
@@ -1838,9 +1920,9 @@ module NATS
     end
   end
 
-  # Implementation of MonotonicTime adapted from
-  # https://github.com/ruby-concurrency/concurrent-ruby/
   class MonotonicTime
+    # Implementation of MonotonicTime adapted from
+    # https://github.com/ruby-concurrency/concurrent-ruby/
     class << self
       case
       when defined?(Process::CLOCK_MONOTONIC)
@@ -1866,6 +1948,10 @@ module NATS
         if duration > timeout
           raise NATS::IO::Timeout.new("nats: timeout")
         end
+      end
+
+      def since(t0)
+        now - t0
       end
     end
   end
