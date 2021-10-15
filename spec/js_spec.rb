@@ -84,6 +84,17 @@ describe 'JetStream' do
       nc.close
     end
 
+    after(:each) do
+      nc = NATS.connect(@s.uri)
+      stream_req = {
+        name: "test",
+        subjects: ["test"]
+      }
+      resp = nc.request("$JS.API.STREAM.DELETE.test", stream_req.to_json)
+      expect(resp).to_not be_nil
+      nc.close
+    end
+
     it 'should pull subscribe and fetch messages' do
       nc = NATS.connect(@s.uri)
       js = nc.jetstream
@@ -113,6 +124,24 @@ describe 'JetStream' do
       end
       msg = msgs.first
       expect(msg.data).to eql("hello: 1")
+
+      meta = msg.metadata
+      expect(meta.sequence.stream).to eql(1)
+      expect(meta.sequence.consumer).to eql(1)
+      expect(meta.domain).to eql("")
+      expect(meta.num_delivered).to eql(1)
+      expect(meta.num_pending).to eql(9)
+      expect(meta.stream).to eql("test")
+      expect(meta.consumer).to eql("test")
+
+      # Check again that the parsing is memoized.
+      meta = msg.metadata
+      expect(meta.sequence.stream).to eql(1)
+      expect(meta.sequence.consumer).to eql(1)
+
+      # Confirm the metadata.o
+      time_since = Time.now - meta.timestamp
+      expect(time_since).to be_between(0, 1)
 
       # Confirm that cannot double ack a message.
       [:ack, :ack_sync, :nak, :term].each do |method_sym|

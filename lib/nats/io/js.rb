@@ -252,6 +252,8 @@ module NATS
 
     class InvalidJSAck < Error; end
 
+    class NotJSMessage < Error; end
+
     class APIError < Error
       attr_reader :code, :err_code, :description, :stream, :seq
 
@@ -342,5 +344,80 @@ module NATS
       end
     end
     private_constant :JS
+
+    class MsgMetadata
+      attr_reader :sequence, :num_delivered, :num_pending, :timestamp, :stream, :consumer, :domain
+
+      module Ack
+        Empty = (''.freeze)
+        DotSep = ('.'.freeze)
+        NoDomainName = ('_'.freeze)
+       
+        # Position
+        Prefix0 = ('$JS'.freeze)
+        Prefix1 = ('ACK'.freeze)
+        Domain = 2
+        AccHash = 3
+        Stream = 4
+        Consumer = 5
+        NumDelivered = 6
+        StreamSeq = 7
+        ConsumerSeq = 8
+        Timestamp = 9
+        NumPending = 10
+
+        # Subject without domain:
+        # $JS.ACK.<stream>.<consumer>.<delivered>.<sseq>.<cseq>.<tm>.<pending>
+        #
+        # Subject with domain:
+        # $JS.ACK.<domain>.<account hash>.<stream>.<consumer>.<delivered>.<sseq>.<cseq>.<tm>.<pending>.<a token with a random value>
+        #
+        V1TokenCounts = 9
+        V2TokenCounts = 12
+
+        class << self
+          def parse_metadata(reply)
+            tokens = reply.split(Ack::DotSep)
+            n = tokens.count
+
+            case
+            when n < Ack::V1TokenCounts || (n > Ack::V1TokenCounts and n < Ack::V2TokenCounts)
+              raise NotJSMessage.new("nats: not a jetstream message")
+            when tokens[0] != Ack::Prefix0 || tokens[1] != Ack::Prefix1
+              raise NotJSMessage.new("nats: not a jetstream message")
+            when n == Ack::V1TokenCounts
+              tokens.insert(Ack::Domain, Ack::Empty)
+              tokens.insert(Ack::AccHash, Ack::Empty)
+            when tokens[Ack::Domain] == Ack::NoDomainName
+              tokens[Ack::Domain] = Ack::Empty
+            end
+
+            MsgMetadata.new(tokens)
+          end
+        end
+      end
+      private_constant :Ack
+
+      SequencePair = Struct.new(:stream, :consumer)
+
+      def initialize(opts)
+        @sequence      = SequencePair.new(opts[Ack::StreamSeq].to_i, opts[Ack::ConsumerSeq].to_i)
+        @domain        = opts[Ack::Domain]
+        @num_delivered = opts[Ack::NumDelivered].to_i
+        @num_pending   = opts[Ack::NumPending].to_i
+        @timestamp     = Time.at((opts[Ack::Timestamp].to_i / 1_000_000_000.0))
+        @stream        = opts[Ack::Stream]
+        @consumer      = opts[Ack::Consumer]
+        # TODO: Not exposed in Go client either right now.
+        # @account       = opts[Ack::AccHash]
+      end
+
+      class << self
+        def parse_metadata(reply)
+          Ack.parse_metadata(reply)
+        end
+      end
+    end
   end
 end
+

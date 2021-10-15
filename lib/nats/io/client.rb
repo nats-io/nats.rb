@@ -844,7 +844,7 @@ module NATS
         end
 
         hdr
-      end     
+      end
 
 
       # Methods only used by the parser
@@ -1778,12 +1778,13 @@ module NATS
 
     def initialize(opts={})
       @subject = opts[:subject]
-      @reply = opts[:reply]
-      @data = opts[:data]
-      @header = opts[:header]
-      @nc = opts[:nc]
-      @sub = opts[:sub]
-      @ackd = false
+      @reply   = opts[:reply]
+      @data    = opts[:data]
+      @header  = opts[:header]
+      @nc      = opts[:nc]
+      @sub     = opts[:sub]
+      @ackd    = false
+      @meta    = nil
     end
 
     def respond(data)
@@ -1854,6 +1855,10 @@ module NATS
       params[:timeout] ? @nc.request(@reply, AckProgress, params) : @nc.publish(@reply, AckProgress)
     end
 
+    def metadata
+      @meta ||= ::NATS::JetStream::MsgMetadata.parse_metadata(@reply)
+    end
+
     def inspect
       hdr = ", header=#{@header}" if @header
       "#<NATS::Msg(subject: \"#{@subject}\", reply: \"#{@reply}\", data: #{@data.slice(0, 10).inspect}#{hdr})>"
@@ -1909,7 +1914,7 @@ module NATS
     # next_msg blocks and waiting for the next message to be received.
     def next_msg(opts={})
       timeout = opts[:timeout] ||= 0.5
-      synchronize do 
+      synchronize do
         return @pending_queue.pop if not @pending_queue.empty?
 
         # Wait for a bit until getting a signal.
