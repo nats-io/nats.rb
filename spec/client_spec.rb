@@ -87,8 +87,7 @@ describe 'Client - Specification' do
   end
 
   it 'should be able to receive requests synchronously with a timeout' do
-    nc = NATS::IO::Client.new
-    nc.connect(:servers => [@s.uri])
+    nc = NATS.connect(@s.uri)
 
     received = []
     nc.subscribe("help") do |msg, reply, subject|
@@ -101,8 +100,8 @@ describe 'Client - Specification' do
     responses << nc.request("help", 'please', timeout: 1)
     responses << nc.request("help", 'again', timeout: 1)
     expect(responses.count).to eql(2)
-    expect(responses.first[:data]).to eql('reply.1')
-    expect(responses.last[:data]).to eql('reply.2')
+    expect(responses.first.data).to eql('reply.1')
+    expect(responses.last.data).to eql('reply.2')
 
     nc.close
   end
@@ -328,8 +327,8 @@ describe 'Client - Specification' do
       responses << nc.request("help", 'please', timeout: 1)
       responses << nc.request("help", 'again', timeout: 1)
       expect(responses.count).to eql(2)
-      expect(responses.first[:data]).to eql('reply.1')
-      expect(responses.last[:data]).to eql('reply.2')
+      expect(responses.first.data).to eql('reply.1')
+      expect(responses.last.data).to eql('reply.2')
 
       nc.close
     end
