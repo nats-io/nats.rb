@@ -18,14 +18,22 @@ module NATS
 
     def initialize(conn, params={})
       @nc = conn
-      @prefix = params[:prefix] ||= JS::DefaultAPIPrefix
+      @prefix = if params[:prefix]
+                  params[:prefix]
+                elsif params[:domain]
+                  "$JS.#{params[:domain]}.API"
+                else
+                  JS::DefaultAPIPrefix
+                end
       @opts = params
-      @jsm = JSM.new(conn, params)
+      @opts[:timeout] ||= 5 # seconds
+      params[:prefix] = @prefix
+      @jsm = JSM.new(conn, @opts)
     end
 
     # publish produces a message for JetStream.
-    def publish(subject, payload=EMPTY_MSG, params={})
-      params[:timeout] ||= 0.5
+    def publish(subject, payload="", params={})
+      params[:timeout] ||= @opts[:timeout]
       if params[:stream]
         params[:header] ||= {}
         params[:header][JS::Header::ExpectedStream] = params[:stream]
@@ -55,6 +63,9 @@ module NATS
       sub = @nc.subscribe(deliver)
       sub.extend(PullSubscription)
 
+      # Assert that the consumer is present.
+      @jsm.consumer_info(params[:stream], params[:consumer])
+
       stream = params[:stream]
       consumer = params[:consumer]
       subject = "#{@prefix}.CONSUMER.MSG.NEXT.#{stream}.#{consumer}"
@@ -64,14 +75,32 @@ module NATS
                             consumer: params[:consumer],
                             nms: subject
                             )
-
       sub
     end
 
     class JSM
       def initialize(conn=nil, params={})
         @prefix = params[:prefix]
+        @opts = params
         @nc = conn
+      end
+
+      def consumer_info(stream, consumer)
+        raise JetStream::Error.new("nats: invalid stream name") if stream.nil? or stream.empty?
+        raise JetStream::Error.new("nats: invalid consumer name") if consumer.nil? or consumer.empty?
+
+        subject = "#{@prefix}.CONSUMER.INFO.#{stream}.#{consumer}"
+
+        # FIXME: Handle this in a generic way...
+        begin
+          msg = @nc.request(subject, '', timeout: @opts[:timeout])
+          result = JSON.parse(msg.data, symbolize_names: true)
+        rescue NATS::IO::NoRespondersError
+          raise NotEnabledError
+        end
+        raise JetStream::APIError.new(result[:error]) if result[:error]
+
+        result
       end
     end
     private_constant :JSM
@@ -112,7 +141,8 @@ module NATS
                 case msg.header["Status"]
                 when JS::Status::NoMsgs
                   msg = nil
-                else raise APIError.from_msg(msg)
+                else
+                  raise APIError.from_msg(msg)
                 end
               else
                 msgs << msg
@@ -178,7 +208,8 @@ module NATS
               next_req.delete(:no_wait)
 
               @nc.publish(@jsi.nms, JS.next_req_to_json(next_req), @subject)
-            else raise APIError.from_msg(msg)
+            else
+              raise APIError.from_msg(msg)
             end
           else
             msgs << msg
@@ -221,7 +252,8 @@ module NATS
 
                     # Likely only received a subset of the messages.
                     return msgs
-                  else raise APIError.from_msg(msg)
+                  else
+                    raise APIError.from_msg(msg)
                   end
                 else
                   msgs << msg
@@ -245,6 +277,9 @@ module NATS
 
     class Error < StandardError; end
 
+    # When JetStream is not enabled and get 503 status.
+    class NotEnabledError < Error; end
+
     # When there is a no responders error on a publish.
     class NoStreamResponseError < Error; end
 
@@ -254,16 +289,26 @@ module NATS
 
     class NotJSMessage < Error; end
 
+    class StreamNotFound < Error; end
+
     class APIError < Error
       attr_reader :code, :err_code, :description, :stream, :seq
 
       class << self
+        def check_503_error(msg)
+          return if msg.nil? or msg.header.nil?
+          if msg.header[JS::Header::Status] == JS::Status::ServiceUnavailable
+            raise NotEnabledError
+          end
+        end
+
         # header={"Status"=>"408", "Description"=>"Request Timeout"})>
         def from_msg(msg)
-          return unless msg and msg.header
+          check_503_error(msg)
+
           return APIError.new({
-              code: msg.header["Status"],
-              description: msg.header["Description"]
+              code: msg.header[JS::Header::Status],
+              description: msg.header[JS::Header::Desc]
             })
         end
       end
@@ -296,7 +341,9 @@ module NATS
       module Status
         CtrlMsg        = ("100".freeze)
         NoMsgs         = ("404".freeze)
+        NotFound       = ("404".freeze)
         RequestTimeout = ("408".freeze)
+        ServiceUnavailable = ("503".freeze)
       end
 
       module Header
@@ -352,7 +399,7 @@ module NATS
         Empty = (''.freeze)
         DotSep = ('.'.freeze)
         NoDomainName = ('_'.freeze)
-       
+
         # Position
         Prefix0 = ('$JS'.freeze)
         Prefix1 = ('ACK'.freeze)

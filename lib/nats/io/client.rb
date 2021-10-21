@@ -758,6 +758,7 @@ module NATS
       def jetstream(opts={})
         ::NATS::JetStream.new(self, opts)
       end
+      alias_method :JetStream, :jetstream
 
       private
 
@@ -1922,6 +1923,10 @@ module NATS
           wait_for_msgs_cond.wait(timeout)
         end
       end
+    end
+
+    def inspect
+      "#<NATS::Subscription(subject: \"#{@subject}\", queue: \"#{@queue}\", sid: #{@sid})>"
     end
   end
 

@@ -17,18 +17,18 @@ require 'monitor'
 require 'tmpdir'
 
 describe 'JetStream' do
-  before(:each) do
-    @tmpdir = Dir.mktmpdir("ruby-jetstream")
-    @s = NatsServerControl.new("nats://127.0.0.1:4524", "/tmp/test-nats.pid", "-js -sd=#{@tmpdir}")
-    @s.start_server(true)
-  end
-
-  after(:each) do
-    @s.kill_server
-    FileUtils.remove_entry(@tmpdir)
-  end
-
   describe 'Publish' do
+    before(:each) do
+      @tmpdir = Dir.mktmpdir("ruby-jetstream")
+      @s = NatsServerControl.new("nats://127.0.0.1:4524", "/tmp/test-nats.pid", "-js -sd=#{@tmpdir}")
+      @s.start_server(true)
+    end
+
+    after(:each) do
+      @s.kill_server
+      FileUtils.remove_entry(@tmpdir)
+    end
+
     it 'should publish messages to a stream' do
       nc = NATS.connect(@s.uri)
 
@@ -73,6 +73,17 @@ describe 'JetStream' do
   end
 
   describe 'Pull Subscribe' do
+    before(:each) do
+      @tmpdir = Dir.mktmpdir("ruby-jetstream")
+      @s = NatsServerControl.new("nats://127.0.0.1:4524", "/tmp/test-nats.pid", "-js -sd=#{@tmpdir}")
+      @s.start_server(true)
+    end
+
+    after(:each) do
+      @s.kill_server
+      FileUtils.remove_entry(@tmpdir)
+    end
+
     before(:each) do
       nc = NATS.connect(@s.uri)
       stream_req = {
@@ -373,6 +384,132 @@ describe 'JetStream' do
       expect(api_err.first.code).to eql("408")
 
       nc.close
+    end
+  end
+
+  describe 'Domain' do
+    before(:each) do
+      @tmpdir = Dir.mktmpdir("ruby-jetstream-domain")
+      config_opts = {
+        'pid_file'      => '/tmp/nats_js_domain_1.pid',
+        'host'          => '127.0.0.1',
+        'port'          => 4729,
+      }
+      @domain = "estre"
+      @s = NatsServerControl.init_with_config_from_string(%Q(
+        port = #{config_opts['port']}
+        jetstream {
+          domain = #{@domain}
+          store_dir = "#{@tmpdir}"
+        }
+      ), config_opts)
+      @s.start_server(true)
+    end
+
+    after(:each) do
+      @s.kill_server
+      FileUtils.remove_entry(@tmpdir)
+    end
+
+    it 'should produce, consume and ack messages in a stream' do
+      nc = NATS.connect(@s.uri)
+
+      # Create stream in the domain.
+      subject = "foo"
+      stream_name = "test"
+      stream_req = {
+        name: stream_name,
+        subjects: [subject]
+      }
+      resp = nc.request("$JS.#{@domain}.API.STREAM.CREATE.#{stream_name}",
+                        stream_req.to_json)
+      expect(resp).to_not be_nil
+
+      # Now create a consumer in the domain.
+      durable_name = "test"
+      consumer_req = {
+        stream_name: stream_name,
+        config: {
+          durable_name: "test",
+          ack_policy: "explicit",
+          max_ack_pending: 20,
+          max_waiting: 3,
+          ack_wait: 5 * 1_000_000_000 # 5 seconds
+        }
+      }
+      resp = nc.request("$JS.#{@domain}.API.CONSUMER.DURABLE.CREATE.#{stream_name}.#{durable_name}",
+                        consumer_req.to_json)
+      expect(resp).to_not be_nil
+
+      # Create producer with custom domain.
+      producer = nc.JetStream(domain: @domain)
+      ack = producer.publish(subject)
+      expect(ack[:stream]).to eql(stream_name)
+      expect(ack[:domain]).to eql(@domain)
+      expect(ack[:seq]).to eql(1)
+
+      # Without domain would work as well in this case.
+      js = nc.JetStream()
+      ack = js.publish(subject)
+      expect(ack[:stream]).to eql(stream_name)
+      expect(ack[:domain]).to eql(@domain)
+      expect(ack[:seq]).to eql(2)
+
+      # Connecting to wrong domain should fail.
+      js = nc.JetStream(domain: "stok")
+      expect do
+        js.pull_subscribe(subject, durable_name, stream: stream_name)
+      end.to raise_error(NATS::JetStream::NotEnabledError)
+
+      # Check pending acks before fetching.
+      resp = nc.request("$JS.#{@domain}.API.CONSUMER.INFO.#{stream_name}.#{durable_name}")
+      info = JSON.parse(resp.data, symbolize_names: true)
+      expect(info[:num_pending]).to eql(2)
+
+      js = nc.JetStream(domain: @domain)
+      sub = js.pull_subscribe(subject, durable_name, stream: stream_name)
+      msgs = sub.fetch(1)
+      msg = msgs.first
+      msg.ack_sync
+
+      # Confirm ack went through.
+      resp = nc.request("$JS.#{@domain}.API.CONSUMER.INFO.#{stream_name}.#{durable_name}")
+      info = JSON.parse(resp.data, symbolize_names: true)
+      expect(info[:num_pending]).to eql(1)
+    end
+
+    it 'should bail when stream or consumer does not exist in domain' do
+      nc = NATS.connect(@s.uri)
+      js = nc.JetStream(domain: @domain)
+
+      # Should try to auto lookup and fail.
+      # expect do
+      #   sub = js.pull_subscribe("foo", "bar")
+      # end.to raise_error(NATS::JetStream::NotEnabledError)
+
+      # Invalid stream name.
+      expect do
+        js.pull_subscribe("foo", "bar", stream: nil)
+      end.to raise_error(NATS::JetStream::Error)
+
+      # Stream that does not exist.
+      expect do
+        js.pull_subscribe("foo", "bar", stream: "nonexistent")
+      end.to raise_error(NATS::JetStream::APIError)
+      # end.to raise_error(NATS::JetStream::StreamNotFound)
+
+      # Now create the stream.
+      stream_req = {
+        name: "foo"
+      }
+      resp = nc.request("$JS.#{@domain}.API.STREAM.CREATE.foo", stream_req.to_json)
+      expect(resp).to_not be_nil
+
+      # Should find the stream now.
+      expect do
+        js.pull_subscribe("foo", "bar", stream: "foo")
+      end.to raise_error(NATS::JetStream::APIError)
+      # end.to raise_error(NATS::JetStream::ConsumerNotFound)
     end
   end
 end
