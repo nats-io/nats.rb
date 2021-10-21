@@ -29,6 +29,8 @@ rescue LoadError
 end
 
 module NATS
+  class Error < StandardError; end
+
   class << self
     def connect(uri=nil, opts={})
       nc = NATS::IO::Client.new
@@ -89,7 +91,7 @@ module NATS
     RECONNECTING = 3
     CONNECTING   = 4
 
-    class Error < StandardError; end
+    class Error < Error; end
 
     # When the NATS server sends us an 'ERR' message.
     class ServerError < Error; end
@@ -1775,7 +1777,9 @@ module NATS
 
   class Msg
     attr_accessor :subject, :reply, :data, :header
-    attr_reader :ackd
+
+    # Enhance it with ack related methods from JetStream.
+    include JetStream::Msg::AckMethods
 
     def initialize(opts={})
       @subject = opts[:subject]
@@ -1798,77 +1802,9 @@ module NATS
       @nc.publish_msg(msg)
     end
 
-    AckAck      = "+ACK"
-    AckNak      = "-NAK"
-    AckProgress = "+WPI"
-    AckTerm     = "+TERM"
-
-    def ack(params={})
-      ensure_is_acked_once!
-
-      resp = if params[:timeout]
-               @nc.request(@reply, AckAck, params)
-             else
-               @nc.publish(@reply, AckAck)
-             end
-      @sub.synchronize { @ackd = true }
-
-      resp
-    end
-
-    def ack_sync(params={})
-      ensure_is_acked_once!
-
-      params[:timeout] ||= 0.5
-      resp = @nc.request(@reply, AckAck)
-      @sub.synchronize { @ackd = true }
-
-      resp
-    end
-
-    def nak(params={})
-      ensure_is_acked_once!
-
-      resp = if params[:timeout]
-               @nc.request(@reply, AckNak, params)
-             else
-               @nc.publish(@reply, AckNak)
-             end
-      @sub.synchronize { @ackd = true }
-
-      resp
-    end
-
-    def term(params={})
-      ensure_is_acked_once!
-
-      resp = if params[:timeout]
-               @nc.request(@reply, AckTerm, params)
-             else
-               @nc.publish(@reply, AckTerm)
-             end
-      @sub.synchronize { @ackd = true }
-
-      resp
-    end
-
-    def in_progress(params={})
-      params[:timeout] ? @nc.request(@reply, AckProgress, params) : @nc.publish(@reply, AckProgress)
-    end
-
-    def metadata
-      @meta ||= ::NATS::JetStream::MsgMetadata.parse_metadata(@reply)
-    end
-
     def inspect
       hdr = ", header=#{@header}" if @header
       "#<NATS::Msg(subject: \"#{@subject}\", reply: \"#{@reply}\", data: #{@data.slice(0, 10).inspect}#{hdr})>"
-    end
-
-    private
-
-    def ensure_is_acked_once!
-      @sub.synchronize { raise JetStream::InvalidJSAck.new("nats: invalid ack") if @ackd }
     end
   end
 

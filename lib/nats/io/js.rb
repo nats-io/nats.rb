@@ -11,8 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+require 'nats/io/client'
 
 module NATS
+
+  class JetStreamError < StandardError; end
+
   class JetStream
     attr_reader :opts, :prefix
 
@@ -48,15 +52,16 @@ module NATS
         resp = @nc.request_msg(msg, params)
         result = JSON.parse(resp.data, symbolize_names: true)
       rescue ::NATS::IO::NoRespondersError
-        raise JetStream::NoStreamResponseError.new("nats: no response from stream")
+        raise JetStream::Error::NoStreamResponse.new("nats: no response from stream")
       end
-      raise JetStream::APIError.new(result[:error]) if result[:error]
+      raise JetStream::Error::APIError.new(result[:error]) if result[:error]
 
       result
     end
 
+    # pull_subsbcribe binds or creates a susbcription to a JetStream pull consumer.
     def pull_subscribe(subject, durable, params={})
-      raise JetStream::InvalidDurableNameError if durable.empty?
+      raise JetStream::Error::InvalidDurableName if durable.empty?
       params[:consumer] ||= durable
 
       deliver = @nc.new_inbox
@@ -70,11 +75,11 @@ module NATS
       consumer = params[:consumer]
       subject = "#{@prefix}.CONSUMER.MSG.NEXT.#{stream}.#{consumer}"
       sub.jsi = JS::Sub.new(
-                            js: self,
-                            stream: params[:stream],
-                            consumer: params[:consumer],
-                            nms: subject
-                            )
+        js: self,
+        stream: params[:stream],
+        consumer: params[:consumer],
+        nms: subject
+      )
       sub
     end
 
@@ -86,8 +91,8 @@ module NATS
       end
 
       def consumer_info(stream, consumer)
-        raise JetStream::Error.new("nats: invalid stream name") if stream.nil? or stream.empty?
-        raise JetStream::Error.new("nats: invalid consumer name") if consumer.nil? or consumer.empty?
+        raise JetStream::Error::InvalidStreamName.new("nats: invalid stream name") if stream.nil? or stream.empty?
+        raise JetStream::Error::InvalidConsumerName.new("nats: invalid consumer name") if consumer.nil? or consumer.empty?
 
         subject = "#{@prefix}.CONSUMER.INFO.#{stream}.#{consumer}"
 
@@ -96,9 +101,9 @@ module NATS
           msg = @nc.request(subject, '', timeout: @opts[:timeout])
           result = JSON.parse(msg.data, symbolize_names: true)
         rescue NATS::IO::NoRespondersError
-          raise NotEnabledError
+          raise JetStream::Error::ServiceUnavailable
         end
-        raise JetStream::APIError.new(result[:error]) if result[:error]
+        raise JetStream::Error::APIError.new(result[:error]) if result[:error]
 
         result
       end
@@ -107,12 +112,12 @@ module NATS
 
     module PullSubscription
       def next_msg(params={})
-        raise JetStream::Error.new("nats: pull subscription cannot use next_msg")
+        raise ::NATS::JetStreamError.new("nats: pull subscription cannot use next_msg")
       end
 
       def fetch(batch, params={})
         if batch < 1
-          raise JetStream::Error.new("nats: invalid batch size")
+          raise ::NATS::JetStreamError.new("nats: invalid batch size")
         end
 
         t = MonotonicTime.now
@@ -142,7 +147,7 @@ module NATS
                 when JS::Status::NoMsgs
                   msg = nil
                 else
-                  raise APIError.from_msg(msg)
+                  raise ::NATS::JetStream::Error::APIError.from_msg(msg)
                 end
               else
                 msgs << msg
@@ -169,7 +174,7 @@ module NATS
             # Should have received at least a message at this point,
             # if that is not the case then error already.
             if JS.is_status_msg(msgs.first)
-              raise APIError.from_msg(msgs.first)
+              raise ::NATS::JetStream::Error::APIError.from_msg(msgs.first)
             end
           end
         when batch > 1
@@ -209,7 +214,7 @@ module NATS
 
               @nc.publish(@jsi.nms, JS.next_req_to_json(next_req), @subject)
             else
-              raise APIError.from_msg(msg)
+              raise ::NATS::JetStream::Error::APIError.from_msg(msg)
             end
           else
             msgs << msg
@@ -237,7 +242,7 @@ module NATS
                 if msgs.empty? && @pending_queue.empty? and duration > timeout
                   raise NATS::IO::Timeout.new("nats: fetch timeout")
                 end
-             else
+              else
                 msg = @pending_queue.pop
 
                 if JS.is_status_msg(msg)
@@ -253,7 +258,7 @@ module NATS
                     # Likely only received a subset of the messages.
                     return msgs
                   else
-                    raise APIError.from_msg(msg)
+                    raise ::NATS::JetStream::Error::APIError.from_msg(msg)
                   end
                 else
                   msgs << msg
@@ -274,59 +279,207 @@ module NATS
     # JetStream Errors  #
     #                   #
     #####################
+    module Error
+      # When JetStream is not enabled and get 503 status.
+      class ServiceUnavailable < JetStreamError; end
 
-    class Error < StandardError; end
+      # When there is a no responders error on a publish.
+      class NoStreamResponse < JetStreamError; end
 
-    # When JetStream is not enabled and get 503 status.
-    class NotEnabledError < Error; end
+      class InvalidDurableName < JetStreamError; end
 
-    # When there is a no responders error on a publish.
-    class NoStreamResponseError < Error; end
+      class InvalidJSAck < JetStreamError; end
 
-    class InvalidDurableNameError < Error; end
+      class NotJSMessage < JetStreamError; end
 
-    class InvalidJSAck < Error; end
+      class StreamNotFound < JetStreamError; end
 
-    class NotJSMessage < Error; end
+      class InvalidStreamName < JetStreamError; end
 
-    class StreamNotFound < Error; end
+      class InvalidConsumerName < JetStreamError; end
 
-    class APIError < Error
-      attr_reader :code, :err_code, :description, :stream, :seq
+      class APIError < JetStreamError
+        attr_reader :code, :err_code, :description, :stream, :seq
 
-      class << self
-        def check_503_error(msg)
-          return if msg.nil? or msg.header.nil?
-          if msg.header[JS::Header::Status] == JS::Status::ServiceUnavailable
-            raise NotEnabledError
+        class << self
+          def check_503_error(msg)
+            return if msg.nil? or msg.header.nil?
+            if msg.header[JS::Header::Status] == JS::Status::ServiceUnavailable
+              raise ServiceUnavailable
+            end
+          end
+
+          # header={"Status"=>"503"})
+          # header={"Status"=>"408", "Description"=>"Request Timeout"})
+          def from_msg(msg)
+            check_503_error(msg)
+
+            return APIError.new({
+                                  code: msg.header[JS::Header::Status],
+                                 description: msg.header[JS::Header::Desc]
+                                })
           end
         end
 
-        # header={"Status"=>"408", "Description"=>"Request Timeout"})>
-        def from_msg(msg)
-          check_503_error(msg)
+        def initialize(params={})
+          @code = params[:code]
+          @err_code = params[:err_code]
+          @description = params[:description]
+          @stream = params[:stream]
+          @seq = params[:seq]
+        end
 
-          return APIError.new({
-              code: msg.header[JS::Header::Status],
-              description: msg.header[JS::Header::Desc]
-            })
+        def to_s
+          "nats: #{@description}"
+        end
+
+        def inspect
+          "#<NATS::JetStream::APIError(code: #{@code}, err_code: #{@err_code}, description: '#{@description}')>"
+        end
+      end
+    end
+
+    #######################################
+    #                                     #
+    #  JetStream Message and Ack Methods  #
+    #                                     #
+    #######################################
+    module Msg
+      module Ack
+        # Ack types
+        Ack      = ("+ACK".freeze)
+        Nak      = ("-NAK".freeze)
+        Progress = ("+WPI".freeze)
+        Term     = ("+TERM".freeze)
+
+        Empty = (''.freeze)
+        DotSep = ('.'.freeze)
+        NoDomainName = ('_'.freeze)
+
+        # Position
+        Prefix0 = ('$JS'.freeze)
+        Prefix1 = ('ACK'.freeze)
+        Domain = 2
+        AccHash = 3
+        Stream = 4
+        Consumer = 5
+        NumDelivered = 6
+        StreamSeq = 7
+        ConsumerSeq = 8
+        Timestamp = 9
+        NumPending = 10
+
+        # Subject without domain:
+        # $JS.ACK.<stream>.<consumer>.<delivered>.<sseq>.<cseq>.<tm>.<pending>
+        #
+        # Subject with domain:
+        # $JS.ACK.<domain>.<account hash>.<stream>.<consumer>.<delivered>.<sseq>.<cseq>.<tm>.<pending>.<a token with a random value>
+        #
+        V1TokenCounts = 9
+        V2TokenCounts = 12
+
+        SequencePair = Struct.new(:stream, :consumer)
+      end
+      private_constant :Ack
+
+      class Metadata
+        attr_reader :sequence, :num_delivered, :num_pending, :timestamp, :stream, :consumer, :domain
+
+        def initialize(opts)
+          @sequence      = Ack::SequencePair.new(opts[Ack::StreamSeq].to_i, opts[Ack::ConsumerSeq].to_i)
+          @domain        = opts[Ack::Domain]
+          @num_delivered = opts[Ack::NumDelivered].to_i
+          @num_pending   = opts[Ack::NumPending].to_i
+          @timestamp     = Time.at((opts[Ack::Timestamp].to_i / 1_000_000_000.0))
+          @stream        = opts[Ack::Stream]
+          @consumer      = opts[Ack::Consumer]
+          # TODO: Not exposed in Go client either right now.
+          # @account       = opts[Ack::AccHash]
         end
       end
 
-      def initialize(params={})
-        @code = params[:code]
-        @err_code = params[:err_code]
-        @description = params[:description]
-        @stream = params[:stream]
-        @seq = params[:seq]
-      end
+      module AckMethods
+        def ack(params={})
+          ensure_is_acked_once!
 
-      def to_s
-        "nats: #{@description}"
-      end
+          resp = if params[:timeout]
+                   @nc.request(@reply, Ack::Ack, params)
+                 else
+                   @nc.publish(@reply, Ack::Ack)
+                 end
+          @sub.synchronize { @ackd = true }
 
-      def inspect
-        "#<NATS::JetStream::APIError(code: #{@code}, err_code: #{@err_code}, description: '#{@description}')>"
+          resp
+        end
+
+        def ack_sync(params={})
+          ensure_is_acked_once!
+
+          params[:timeout] ||= 0.5
+          resp = @nc.request(@reply, Ack::Ack)
+          @sub.synchronize { @ackd = true }
+
+          resp
+        end
+
+        def nak(params={})
+          ensure_is_acked_once!
+
+          resp = if params[:timeout]
+                   @nc.request(@reply, Ack::Nak, params)
+                 else
+                   @nc.publish(@reply, Ack::Nak)
+                 end
+          @sub.synchronize { @ackd = true }
+
+          resp
+        end
+
+        def term(params={})
+          ensure_is_acked_once!
+
+          resp = if params[:timeout]
+                   @nc.request(@reply, Ack::Term, params)
+                 else
+                   @nc.publish(@reply, Ack::Term)
+                 end
+          @sub.synchronize { @ackd = true }
+
+          resp
+        end
+
+        def in_progress(params={})
+          params[:timeout] ? @nc.request(@reply, Ack::Progress, params) : @nc.publish(@reply, Ack::Progress)
+        end
+
+        def metadata
+          @meta ||= parse_metadata(reply)
+        end
+
+        private
+
+        def ensure_is_acked_once!
+          @sub.synchronize { raise JetStream::Error::InvalidJSAck.new("nats: invalid ack") if @ackd }
+        end
+
+        def parse_metadata(reply)
+          tokens = reply.split(Ack::DotSep)
+          n = tokens.count
+
+          case
+          when n < Ack::V1TokenCounts || (n > Ack::V1TokenCounts and n < Ack::V2TokenCounts)
+            raise NotJSMessage.new("nats: not a jetstream message")
+          when tokens[0] != Ack::Prefix0 || tokens[1] != Ack::Prefix1
+            raise NotJSMessage.new("nats: not a jetstream message")
+          when n == Ack::V1TokenCounts
+            tokens.insert(Ack::Domain, Ack::Empty)
+            tokens.insert(Ack::AccHash, Ack::Empty)
+          when tokens[Ack::Domain] == Ack::NoDomainName
+            tokens[Ack::Domain] = Ack::Empty
+          end
+
+          Metadata.new(tokens)
+        end
       end
     end
 
@@ -365,6 +518,17 @@ module NATS
         AckNone     = ("none".freeze)
       end
 
+      class Sub
+        attr_reader :js, :stream, :consumer, :nms
+
+        def initialize(opts={})
+          @js = opts[:js]
+          @stream = opts[:stream]
+          @consumer = opts[:consumer]
+          @nms = opts[:nms]
+        end
+      end
+
       class << self
         def next_req_to_json(next_req)
           req = {}
@@ -378,93 +542,7 @@ module NATS
           return (!msg.nil? and (!msg.header.nil? and msg.header["Status"]))
         end
       end
-
-      class Sub
-        attr_reader :js, :stream, :consumer, :nms
-
-        def initialize(opts={})
-          @js = opts[:js]
-          @stream = opts[:stream]
-          @consumer = opts[:consumer]
-          @nms = opts[:nms]
-        end
-      end
     end
     private_constant :JS
-
-    class MsgMetadata
-      attr_reader :sequence, :num_delivered, :num_pending, :timestamp, :stream, :consumer, :domain
-
-      module Ack
-        Empty = (''.freeze)
-        DotSep = ('.'.freeze)
-        NoDomainName = ('_'.freeze)
-
-        # Position
-        Prefix0 = ('$JS'.freeze)
-        Prefix1 = ('ACK'.freeze)
-        Domain = 2
-        AccHash = 3
-        Stream = 4
-        Consumer = 5
-        NumDelivered = 6
-        StreamSeq = 7
-        ConsumerSeq = 8
-        Timestamp = 9
-        NumPending = 10
-
-        # Subject without domain:
-        # $JS.ACK.<stream>.<consumer>.<delivered>.<sseq>.<cseq>.<tm>.<pending>
-        #
-        # Subject with domain:
-        # $JS.ACK.<domain>.<account hash>.<stream>.<consumer>.<delivered>.<sseq>.<cseq>.<tm>.<pending>.<a token with a random value>
-        #
-        V1TokenCounts = 9
-        V2TokenCounts = 12
-
-        class << self
-          def parse_metadata(reply)
-            tokens = reply.split(Ack::DotSep)
-            n = tokens.count
-
-            case
-            when n < Ack::V1TokenCounts || (n > Ack::V1TokenCounts and n < Ack::V2TokenCounts)
-              raise NotJSMessage.new("nats: not a jetstream message")
-            when tokens[0] != Ack::Prefix0 || tokens[1] != Ack::Prefix1
-              raise NotJSMessage.new("nats: not a jetstream message")
-            when n == Ack::V1TokenCounts
-              tokens.insert(Ack::Domain, Ack::Empty)
-              tokens.insert(Ack::AccHash, Ack::Empty)
-            when tokens[Ack::Domain] == Ack::NoDomainName
-              tokens[Ack::Domain] = Ack::Empty
-            end
-
-            MsgMetadata.new(tokens)
-          end
-        end
-      end
-      private_constant :Ack
-
-      SequencePair = Struct.new(:stream, :consumer)
-
-      def initialize(opts)
-        @sequence      = SequencePair.new(opts[Ack::StreamSeq].to_i, opts[Ack::ConsumerSeq].to_i)
-        @domain        = opts[Ack::Domain]
-        @num_delivered = opts[Ack::NumDelivered].to_i
-        @num_pending   = opts[Ack::NumPending].to_i
-        @timestamp     = Time.at((opts[Ack::Timestamp].to_i / 1_000_000_000.0))
-        @stream        = opts[Ack::Stream]
-        @consumer      = opts[Ack::Consumer]
-        # TODO: Not exposed in Go client either right now.
-        # @account       = opts[Ack::AccHash]
-      end
-
-      class << self
-        def parse_metadata(reply)
-          Ack.parse_metadata(reply)
-        end
-      end
-    end
   end
 end
-

@@ -55,17 +55,17 @@ describe 'JetStream' do
       # Assert stream name.
       expect do
         ack = js.publish("foo.js", "hello world", stream: "bar")
-      end.to raise_error(NATS::JetStream::APIError)
+      end.to raise_error(NATS::JetStream::Error::APIError)
 
       begin
         js.publish("foo.js", "hello world", stream: "bar")
-      rescue NATS::JetStream::APIError => e
+      rescue NATS::JetStream::Error::APIError => e
         expect(e.code).to eql(400)
       end
 
       expect do
         js.publish("foo.bar", "hello world")
-      end.to raise_error(NATS::JetStream::NoStreamResponseError)
+      end.to raise_error(NATS::JetStream::Error::NoStreamResponse)
 
       nc.close
 
@@ -158,8 +158,11 @@ describe 'JetStream' do
       [:ack, :ack_sync, :nak, :term].each do |method_sym|
         expect do
           msg.send(method_sym)
-        end.to raise_error(NATS::JetStream::InvalidJSAck)
+        end.to raise_error(NATS::JetStream::Error::InvalidJSAck)
       end
+
+      # This one is ok to ack multiple times.
+      msg.in_progress
 
       # Fetch 1 more, should be 8 pending now.
       msgs = sub.fetch(1)
@@ -195,16 +198,16 @@ describe 'JetStream' do
       # Pull Subscribe only works with #fetch
       expect do
         sub.next_msg
-      end.to raise_error(NATS::JetStream::Error)
+      end.to raise_error(NATS::JetStreamError)
 
       # Invalid fetch sizes are errors.
       expect do
         sub.fetch(-1)
-      end.to raise_error(NATS::JetStream::Error)
+      end.to raise_error(NATS::JetStreamError)
 
       expect do
         sub.fetch(0)
-      end.to raise_error(NATS::JetStream::Error)
+      end.to raise_error(NATS::JetStreamError)
 
       # Nothing pending.
       resp = nc.request("$JS.API.CONSUMER.INFO.test.test")
@@ -379,7 +382,7 @@ describe 'JetStream' do
       ts.each do |t|
         t.join
       end
-      api_err = errors.select { |o| o.is_a?(NATS::JetStream::APIError) }
+      api_err = errors.select { |o| o.is_a?(NATS::JetStream::Error::APIError) }
       expect(api_err).to_not be_empty
       expect(api_err.first.code).to eql("408")
 
@@ -459,7 +462,7 @@ describe 'JetStream' do
       js = nc.JetStream(domain: "stok")
       expect do
         js.pull_subscribe(subject, durable_name, stream: stream_name)
-      end.to raise_error(NATS::JetStream::NotEnabledError)
+      end.to raise_error(NATS::JetStream::Error::ServiceUnavailable)
 
       # Check pending acks before fetching.
       resp = nc.request("$JS.#{@domain}.API.CONSUMER.INFO.#{stream_name}.#{durable_name}")
@@ -490,12 +493,13 @@ describe 'JetStream' do
       # Invalid stream name.
       expect do
         js.pull_subscribe("foo", "bar", stream: nil)
-      end.to raise_error(NATS::JetStream::Error)
+      end.to raise_error(NATS::JetStream::Error::InvalidStreamName)
 
       # Stream that does not exist.
       expect do
-        js.pull_subscribe("foo", "bar", stream: "nonexistent")
-      end.to raise_error(NATS::JetStream::APIError)
+        sub = js.pull_subscribe("foo", "bar", stream: "nonexistent")
+        p sub
+      end.to raise_error(NATS::JetStream::Error::APIError)
       # end.to raise_error(NATS::JetStream::StreamNotFound)
 
       # Now create the stream.
@@ -508,7 +512,7 @@ describe 'JetStream' do
       # Should find the stream now.
       expect do
         js.pull_subscribe("foo", "bar", stream: "foo")
-      end.to raise_error(NATS::JetStream::APIError)
+      end.to raise_error(NATS::JetStream::Error::APIError)
       # end.to raise_error(NATS::JetStream::ConsumerNotFound)
     end
   end
