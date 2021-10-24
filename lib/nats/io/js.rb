@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+require_relative 'msg'
 require_relative 'client'
 require_relative 'errors'
 
@@ -418,7 +419,7 @@ module NATS
           @stream        = opts[Ack::Stream]
           @consumer      = opts[Ack::Consumer]
           # TODO: Not exposed in Go client either right now.
-          # @account       = opts[Ack::AccHash]
+          # account      = opts[Ack::AccHash]
         end
       end
 
