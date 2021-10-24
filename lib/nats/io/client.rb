@@ -12,9 +12,11 @@
 # limitations under the License.
 #
 
-require 'nats/io/parser'
-require 'nats/io/version'
-require 'nats/io/js'
+require_relative 'parser'
+require_relative 'version'
+require_relative 'errors'
+require_relative 'js'
+
 require 'nats/nuid'
 require 'thread'
 require 'socket'
@@ -29,9 +31,8 @@ rescue LoadError
 end
 
 module NATS
-  class Error < StandardError; end
-
   class << self
+    # NATS.connect
     def connect(uri=nil, opts={})
       nc = NATS::IO::Client.new
       nc.connect(uri, opts)
@@ -90,41 +91,6 @@ module NATS
     CLOSED       = 2
     RECONNECTING = 3
     CONNECTING   = 4
-
-    class Error < Error; end
-
-    # When the NATS server sends us an 'ERR' message.
-    class ServerError < Error; end
-
-    # When we detect error on the client side.
-    class ClientError < Error; end
-
-    # When we cannot connect to the server (either initially or after a reconnect).
-    class ConnectError < Error; end
-
-    # When we cannot connect to the server because authorization failed.
-    class AuthError < ConnectError; end
-
-    # When we cannot connect since there are no servers available.
-    class NoServersError < ConnectError; end
-
-    # When there are no subscribers available to respond.
-    class NoRespondersError < ConnectError; end
-
-    # When the connection exhausts max number of pending pings replies.
-    class StaleConnectionError < Error; end
-
-    # When we do not get a result within a specified time.
-    class Timeout < Error; end
-
-    # When there is an i/o timeout with the socket.
-    class SocketTimeoutError < Error; end
-
-    # When we use an invalid subject.
-    class BadSubject < Error; end
-
-    # When a subscription hits the pending messages limit.
-    class SlowConsumer < Error; end
 
     class Client
       include MonitorMixin
@@ -322,7 +288,7 @@ module NATS
 
           # Add back to rotation since successfully connected
           server_pool << srv
-        rescue NoServersError => e
+        rescue NATS::IO::NoServersError => e
           @disconnect_cb.call(e) if @disconnect_cb
           raise @last_err || e
         rescue => e
@@ -364,10 +330,12 @@ module NATS
 
         # Connected to NATS so Ready to start parser loop, flusher and ping interval
         start_threads!
+
+        self
       end
 
       def publish(subject, msg=EMPTY_MSG, opt_reply=nil, &blk)
-        raise BadSubject if !subject or subject.empty?
+        raise NATS::IO::BadSubject if !subject or subject.empty?
         msg_size = msg.bytesize
 
         # Accounting
@@ -381,7 +349,7 @@ module NATS
       # Publishes a NATS::Msg that may include headers.
       def publish_msg(msg)
         raise TypeError, "nats: expected NATS::Msg, got #{msg.class.name}" unless msg.is_a?(Msg)
-        raise BadSubject if !msg.subject or msg.subject.empty?
+        raise NATS::IO::BadSubject if !msg.subject or msg.subject.empty?
 
         msg.reply ||= ''
         msg.data ||= ''
@@ -486,7 +454,7 @@ module NATS
       # specified deadline.
       # If given a callback, then the request happens asynchronously.
       def request(subject, payload="", opts={}, &blk)
-        raise BadSubject if !subject or subject.empty?
+        raise NATS::IO::BadSubject if !subject or subject.empty?
 
         # If a block was given then fallback to method using auto unsubscribe.
         return old_request(subject, payload, opts, &blk) if blk
@@ -532,7 +500,7 @@ module NATS
 
         if response and response.header
           status = response.header[STATUS_HDR]
-          raise NoRespondersError if status == "503"
+          raise NATS::IO::NoRespondersError if status == "503"
         end
 
         response
@@ -541,7 +509,7 @@ module NATS
       # request_msg makes a NATS request using a NATS::Msg that may include headers.
       def request_msg(msg, opts={})
         raise TypeError, "nats: expected NATS::Msg, got #{msg.class.name}" unless msg.is_a?(Msg)
-        raise BadSubject if !msg.subject or msg.subject.empty?
+        raise NATS::IO::BadSubject if !msg.subject or msg.subject.empty?
 
         token = nil
         inbox = nil
@@ -586,7 +554,7 @@ module NATS
 
         if response and response.header
           status = response.header[STATUS_HDR]
-          raise NoRespondersError if status == "503"
+          raise NATS::IO::NoRespondersError if status == "503"
         end
 
         response
@@ -653,7 +621,7 @@ module NATS
 
         if response and response.header
           status = response.header[STATUS_HDR]
-          raise NoRespondersError if status == "503"
+          raise NATS::IO::NoRespondersError if status == "503"
         end
 
         response
@@ -931,7 +899,7 @@ module NATS
             # and should be able to consume messages in parallel.
             if sub.pending_queue.size >= sub.pending_msgs_limit \
               or sub.pending_size >= sub.pending_bytes_limit then
-              err = SlowConsumer.new("nats: slow consumer, messages dropped")
+              err = NATS::IO::SlowConsumer.new("nats: slow consumer, messages dropped")
             else
               hdr = process_hdr(header)
 
@@ -955,7 +923,7 @@ module NATS
       end
 
       def select_next_server
-        raise NoServersError.new("nats: No servers available") if server_pool.empty?
+        raise NATS::IO::NoServersError.new("nats: No servers available") if server_pool.empty?
 
         # Pick next from head of the list
         srv = server_pool.shift
@@ -1111,7 +1079,7 @@ module NATS
                 @ping_interval_thread.exit if @ping_interval_thread.alive?
 
                 attempt_reconnect
-              rescue NoServersError => e
+              rescue NATS::IO::NoServersError => e
                 @last_err = e
                 close
               end
@@ -1201,7 +1169,7 @@ module NATS
           next if !connected?
 
           if @pings_outstanding >= @options[:max_outstanding_pings]
-            process_op_error(StaleConnectionError.new("nats: stale connection"))
+            process_op_error(NATS::IO::StaleConnectionError.new("nats: stale connection"))
             return
           end
 
@@ -1216,14 +1184,14 @@ module NATS
       def process_connect_init
         line = @io.read_line(options[:connect_timeout])
         if !line or line.empty?
-          raise ConnectError.new("nats: protocol exception, INFO not received")
+          raise NATS::IO::ConnectError.new("nats: protocol exception, INFO not received")
         end
 
         if match = line.match(NATS::Protocol::INFO)
           info_json = match.captures.first
           process_info(info_json)
         else
-          raise ConnectError.new("nats: protocol exception, INFO not valid")
+          raise NATS::IO::ConnectError.new("nats: protocol exception, INFO not valid")
         end
 
         case
@@ -1327,7 +1295,7 @@ module NATS
 
           # Add back to rotation since successfully connected
           server_pool << srv
-        rescue NoServersError => e
+        rescue NATS::IO::NoServersError => e
           raise e
         rescue => e
           # In case there was an error from the server check
@@ -1679,7 +1647,7 @@ module NATS
       def read_line(deadline=nil)
         # FIXME: Should accumulate and read in a non blocking way instead
         unless ::IO.select([@socket], nil, nil, deadline)
-          raise SocketTimeoutError
+          raise NATS::IO::SocketTimeoutError
         end
         @socket.gets
       end
@@ -1692,13 +1660,13 @@ module NATS
           if ::IO.select([@socket], nil, nil, deadline)
             retry
           else
-            raise SocketTimeoutError
+            raise NATS::IO::SocketTimeoutError
           end
         rescue ::IO::WaitWritable
           if ::IO.select(nil, [@socket], nil, deadline)
             retry
           else
-            raise SocketTimeoutError
+            raise NATS::IO::SocketTimeoutError
           end
         end
       rescue EOFError => e
@@ -1726,13 +1694,13 @@ module NATS
             if ::IO.select(nil, [@socket], nil, deadline)
               retry
             else
-              raise SocketTimeoutError
+              raise NATS::IO::SocketTimeoutError
             end
           rescue ::IO::WaitReadable
             if ::IO.select([@socket], nil, nil, deadline)
               retry
             else
-              raise SocketTimeoutError
+              raise NATS::IO::SocketTimeoutError
             end
           end
         end
@@ -1759,7 +1727,7 @@ module NATS
           sock.connect_nonblock(sockaddr)
         rescue Errno::EINPROGRESS, Errno::EALREADY, ::IO::WaitWritable
           unless ::IO.select(nil, [sock], nil, @connect_timeout)
-            raise SocketTimeoutError
+            raise NATS::IO::SocketTimeoutError
           end
 
           # Confirm that connection was established
