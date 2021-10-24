@@ -1602,6 +1602,10 @@ module NATS
     end
   end
 
+  # NATS::Timeout is raised when the client gives up waiting for a response
+  # from a service.
+  class Timeout < ::NATS::IO::Timeout; end
+
   module IO
     include ConnectionStatus
 

@@ -17,8 +17,10 @@ require_relative 'errors'
 
 module NATS
 
+  # JetStream returns a context with a similar API as the NATS::Client
+  # but with enhanced functions to persist and consume messages from
+  # the NATS JetStream engine.
   class JetStream
-    attr_reader :opts, :prefix
 
     def initialize(conn, params={})
       @nc = conn
@@ -34,8 +36,26 @@ module NATS
       params[:prefix] = @prefix
       @jsm = JSM.new(conn, @opts)
     end
+    private_class_method :new
+
+    # PubAck is the API response from a successfully published message.
+    #
+    # @!attribute stream [String] Name of the stream that processed the published message.
+    # @!attribute seq [String] Sequence of the message in the stream.
+    # @!attribute duplicate [String] Indicates whether the published message is a duplicate.
+    # @!attribute domain [String] JetStream Domain that processed the ack response.
+    PubAck = Struct.new(:stream, :seq, :duplicate, :domain, keyword_init: true)
 
     # publish produces a message for JetStream.
+    #
+    # @param subject [String] The subject from a stream where the message will be sent.
+    # @param payload [String] The payload of the message.
+    # @param params [Hash] Options to customize the publish message request.
+    # @option params [Float] :timeout Time to wait for an PubAck response or an error.
+    # @option params [Hash] :header NATS Headers to use for the message.
+    # @option params [String] :stream Expected Stream to which the message is being published.
+    # @raise [NATS::Timeout] When it takes too long to receive an ack response.
+    # @return [PubAck] The pub ack response.
     def publish(subject, payload="", params={})
       params[:timeout] ||= @opts[:timeout]
       if params[:stream]
@@ -56,7 +76,7 @@ module NATS
       end
       raise JetStream::Errors::APIError.from_error(result[:error]) if result[:error]
 
-      result
+      PubAck.new(result)
     end
 
     # pull_subsbcribe binds or creates a susbcription to a JetStream pull consumer.
@@ -278,6 +298,8 @@ module NATS
     # JetStream Errors  #
     #                   #
     #####################
+
+    # Error is any error that may arise when interacting with JetStream.
     class Error < ::NATS::Error; end
 
     module Errors
@@ -369,6 +391,9 @@ module NATS
     #  JetStream Message and Ack Methods  #
     #                                     #
     #######################################
+
+    # JetStream::Msg module includes the methods so that a regular NATS::Msg
+    # can be enhanced with JetStream features like acking and metadata.
     module Msg
       module Ack
         # Ack types
