@@ -14,7 +14,7 @@
 
 require 'spec_helper'
 
-describe 'Client - Specification' do
+describe 'Client - Errors' do
 
   before(:each) do
     @s = NatsServerControl.new

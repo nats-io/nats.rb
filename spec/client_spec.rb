@@ -29,7 +29,7 @@ describe 'Client - Specification' do
 
   it 'should connect' do
     expect do
-      nc = NATS::IO::Client.new
+      nc = NATS::Client.new
       nc.connect(servers: [@s.uri])
       nc.close
     end.to_not raise_error
@@ -65,7 +65,7 @@ describe 'Client - Specification' do
   end
 
   it 'should received a message when subscribed to a topic' do
-    nc = NATS::IO::Client.new
+    nc = NATS::Client.new
     nc.connect(:servers => [@s.uri])
 
     msgs = []
@@ -110,7 +110,7 @@ describe 'Client - Specification' do
     mon = Monitor.new
     done = mon.new_cond
 
-    nc = NATS::IO::Client.new
+    nc = NATS::Client.new
     nc.connect(:servers => [@s.uri])
 
     received = []
