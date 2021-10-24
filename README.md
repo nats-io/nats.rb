@@ -23,9 +23,7 @@ gem install nkeys
 ```ruby
 require 'nats/io/client'
 
-nats = NATS::IO::Client.new
-
-nats.connect("demo.nats.io")
+nats = NATS.connect("demo.nats.io")
 puts "Connected to #{nats.connected_server}"
 
 # Simple subscriber
@@ -80,7 +78,7 @@ nats.close
 ```ruby
 require 'nats/io/client'
 
-nats = NATS::IO::Client.new
+nats = NATS.connect
 
 nats.on_error do |e|
   puts "Error: #{e}"
@@ -105,7 +103,7 @@ cluster_opts = {
   max_reconnect_attempts: 2
 }
 
-nats.connect(cluster_opts)
+NATS.connect(cluster_opts)
 puts "Connected to #{nats.connected_server}"
 
 nats.subscribe("hello") do |msg|
@@ -129,7 +127,7 @@ an [OpenSSL](http://ruby-doc.org/stdlib-2.3.2/libdoc/openssl/rdoc/OpenSSL/SSL/SS
 tls_context = OpenSSL::SSL::SSLContext.new
 tls_context.ssl_version = :TLSv1_2
 
-nats.connect({
+NATS.connect({
    servers: ['tls://127.0.0.1:4444'],
    reconnect: false,
    tls: {
@@ -145,7 +143,7 @@ This requires server with version >= 2.0.0
 NATS servers have a new security and authentication mechanism to authenticate with user credentials and NKEYS. A single file containing the JWT and NKEYS to authenticate against a NATS v2 server can be set with the `user_credentials` option:
 
 ```ruby
-nats.connect("tls://connect.ngs.global", user_credentials: "/path/to/creds")
+NATS.connect("tls://connect.ngs.global", user_credentials: "/path/to/creds")
 ```
 
 This will create two callback handlers to present the user JWT and sign the nonce challenge from the server. The core client library never has direct access to your private key and simply performs the callback for signing the server challenge. The library will load and wipe and clear the objects it uses for each connect or reconnect.
@@ -161,7 +159,7 @@ SUAGMJH5XLGZKQQWAWKRZJIGMOU4HPFUYLXJMXOO5NLFEO2OOQJ5LPRDPM
 Then in the client specify the path to the seed using the `nkeys_seed` option:
 
 ```ruby
-nats.connect("tls://connect.ngs.global", nkeys_seed: "path/to/seed.txt")
+NATS.connect("tls://connect.ngs.global", nkeys_seed: "path/to/seed.txt")
 ```
 
 ## License
