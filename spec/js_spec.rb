@@ -108,6 +108,28 @@ describe 'JetStream' do
       nc.close
     end
 
+    it 'should find the pull subscription by subject' do
+      nc = NATS.connect(@s.uri)
+      js = nc.jetstream
+
+      consumer_req = {
+        stream_name: "test",
+        config: {
+          durable_name: "test-find",
+          ack_policy: "explicit",
+          max_ack_pending: 20,
+          max_waiting: 3,
+          ack_wait: 5 * 1_000_000_000 # 5 seconds
+        }
+      }
+      resp = nc.request("$JS.API.CONSUMER.DURABLE.CREATE.test.test-find", consumer_req.to_json)
+      expect(resp).to_not be_nil
+
+      sub = js.pull_subscribe("test", "test-find")
+      expect(sub.sid).to eql(2)
+      sub.unsubscribe
+    end
+
     it 'should pull subscribe and fetch messages' do
       nc = NATS.connect(@s.uri)
       js = nc.jetstream
@@ -530,13 +552,13 @@ describe 'JetStream' do
       js = nc.JetStream(domain: @domain)
 
       # Should try to auto lookup and fail.
-      # expect do
-      #   sub = js.pull_subscribe("foo", "bar")
-      # end.to raise_error(NATS::JetStream::NotEnabledError)
+      expect do
+        js.pull_subscribe("foo", "bar")
+      end.to raise_error(NATS::JetStream::Error::NotFound)
 
       # Invalid stream name.
       expect do
-        js.pull_subscribe("foo", "bar", stream: nil)
+        js.pull_subscribe("foo", "bar", stream: "")
       end.to raise_error(NATS::JetStream::Error::InvalidStreamName)
 
       # Stream that does not exist.
@@ -546,15 +568,34 @@ describe 'JetStream' do
 
       # Now create the stream.
       stream_req = {
-        name: "foo"
+        name: "foo",
+        subjects: ["foo"]
       }
       resp = nc.request("$JS.#{@domain}.API.STREAM.CREATE.foo", stream_req.to_json)
       expect(resp).to_not be_nil
 
-      # Should find the stream now.
+      # Should find the stream now but fail to find the consumer.
       expect do
         js.pull_subscribe("foo", "bar", stream: "foo")
       end.to raise_error(NATS::JetStream::Error::ConsumerNotFound)
+
+      consumer_req = {
+        stream_name: "foo",
+        config: {
+          durable_name: "test-find",
+          ack_policy: "explicit",
+          max_ack_pending: 20,
+          max_waiting: 3,
+          ack_wait: 5 * 1_000_000_000 # 5 seconds
+        }
+      }
+      resp = nc.request("$JS.API.CONSUMER.DURABLE.CREATE.foo.test-find", consumer_req.to_json)
+      expect(resp).to_not be_nil
+
+      # FIXME: This should return a not found error instead of empty response.
+      # {:type=>"io.nats.jetstream.api.v1.stream_names_response", :total=>0, :offset=>0, :limit=>1024, :streams=>nil}
+      # sub = js.pull_subscribe("missing", "bar")
+      js.pull_subscribe("foo", "test-find")
     end
   end
 

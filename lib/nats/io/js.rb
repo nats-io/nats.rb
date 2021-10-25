@@ -100,13 +100,14 @@ module NATS
     def pull_subscribe(subject, durable, params={})
       raise JetStream::Error::InvalidDurableName.new("nats: invalid durable name") if durable.empty?
       params[:consumer] ||= durable
+      params[:stream] ||= @jsm.find_stream_by_subject(subject)
+
+      # Assert that the consumer is present.
+      @jsm.consumer_info(params[:stream], params[:consumer])
 
       deliver = @nc.new_inbox
       sub = @nc.subscribe(deliver)
       sub.extend(PullSubscription)
-
-      # Assert that the consumer is present.
-      @jsm.consumer_info(params[:stream], params[:consumer])
 
       stream = params[:stream]
       consumer = params[:consumer]
@@ -120,7 +121,7 @@ module NATS
       sub
     end
 
-    # JSM can be used to make requests.
+    # JSM can be used to make requests to the JetStream API.
     # @!visibility public
     class JSM
       def initialize(conn=nil, params={})
@@ -144,6 +145,21 @@ module NATS
         raise JetStream::Error::APIError.from_error(result[:error]) if result[:error]
 
         result
+      end
+
+      def find_stream_by_subject(subject)
+        req_subject = "#{@prefix}.STREAM.NAMES"
+        req = {subject: subject }
+        begin
+          msg = @nc.request(req_subject, req.to_json, timeout: @opts[:timeout])
+          result = JSON.parse(msg.data, symbolize_names: true)
+        rescue NATS::IO::NoRespondersError
+          raise JetStream::Error::ServiceUnavailable
+        end
+        raise JetStream::Error::APIError.from_error(result[:error]) if result[:error]
+        raise JetStream::Error::NotFound unless result[:streams]
+
+        result[:streams].first
       end
     end
     private_constant :JSM
@@ -380,13 +396,13 @@ module NATS
           @seq = params[:seq]
         end
 
-        def to_s
-          "nats: #{@description}"
-        end
-
-        def inspect
-          "#<NATS::JetStream::Error::APIError(code: #{@code}, err_code: #{@err_code}, description: '#{@description}')>"
-        end
+        # def to_s
+        #   "nats: #{@description}"
+        # end
+        # 
+        # def inspect
+        #   "#<NATS::JetStream::Error::APIError(code: #{@code}, err_code: #{@err_code}, description: '#{@description}')>"
+        # end
 
         class << self
           def check_503_error(msg)
