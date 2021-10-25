@@ -46,34 +46,34 @@ module NATS
     end
   end
 
-  # ConnectionStatus are the different states from a NATS connection.
+  # Status represents the different states from a NATS connection.
   # A client starts from the DISCONNECTED state to CONNECTING during
   # the initial connect, then CONNECTED.  If the connection is reset
   # then it goes from DISCONNECTED to RECONNECTING until it is back to
   # the CONNECTED state.  In case the client gives up reconnecting or
   # the connection is manually closed then it will reach the CLOSED
   # connection state after which it will not reconnect again.
-  module ConnectionStatus
+  module Status
     # When the client is not actively connected.
     DISCONNECTED = 0
 
     # When the client is connected.
-    CONNECTED    = 1
+    CONNECTED = 1
 
     # When the client will no longer attempt to connect to a NATS Server.
-    CLOSED       = 2
+    CLOSED = 2
 
     # When the client has disconnected and is attempting to reconnect.
     RECONNECTING = 3
 
     # When the client is attempting to connect to a NATS Server for the first time.
-    CONNECTING   = 4
+    CONNECTING = 4
   end
 
   # Client creates a connection to the NATS Server.
   class Client
     include MonitorMixin
-    include ConnectionStatus
+    include Status
 
     attr_reader :status, :server_info, :server_pool, :options, :connected_server, :stats, :uri
 
@@ -1609,7 +1609,7 @@ module NATS
   end
 
   module IO
-    include ConnectionStatus
+    include Status
 
     # Client creates a connection to the NATS Server.
     Client = ::NATS::Client
