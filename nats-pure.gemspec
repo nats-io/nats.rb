@@ -28,6 +28,7 @@ spec = Gem::Specification.new do |s|
   s.require_paths = ['lib']
 
   s.files = %w[
+    lib/nats.rb
     lib/nats/client.rb
     lib/nats/io/client.rb
     lib/nats/io/parser.rb
