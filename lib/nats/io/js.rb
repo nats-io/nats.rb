@@ -41,7 +41,7 @@ module NATS
       @opts = params
       @opts[:timeout] ||= 5 # seconds
       params[:prefix] = @prefix
-      @jsm = JSM.new(conn, @opts)
+      @jsm = Manager.new(conn, @opts)
     end
 
     # PubAck is the API response from a successfully published message.
@@ -84,12 +84,12 @@ module NATS
       rescue ::NATS::IO::NoRespondersError
         raise JetStream::Error::NoStreamResponse.new("nats: no response from stream")
       end
-      raise JetStream::Error::APIError.from_error(result[:error]) if result[:error]
+      raise JS.from_error(result[:error]) if result[:error]
 
       PubAck.new(result)
     end
 
-    # pull_subsbcribe binds or creates a susbcription to a JetStream pull consumer.
+    # pull_subscribe binds or creates a subscription to a JetStream pull consumer.
     #
     # @param subject [String] Subject from which the messages will be fetched.
     # @param durable [String] Consumer durable name from where the messages will be fetched.
@@ -121,16 +121,16 @@ module NATS
       sub
     end
 
-    # JSM can be used to make requests to the JetStream API.
+    # A JetStream::Manager can be used to make requests to the JetStream API.
     # @!visibility public
-    class JSM
+    class Manager
       def initialize(conn=nil, params={})
         @prefix = params[:prefix]
         @opts = params
         @nc = conn
       end
 
-      def consumer_info(stream, consumer)
+      def consumer_info(stream, consumer, params={})
         raise JetStream::Error::InvalidStreamName.new("nats: invalid stream name") if stream.nil? or stream.empty?
         raise JetStream::Error::InvalidConsumerName.new("nats: invalid consumer name") if consumer.nil? or consumer.empty?
 
@@ -142,7 +142,7 @@ module NATS
         rescue NATS::IO::NoRespondersError
           raise JetStream::Error::ServiceUnavailable
         end
-        raise JetStream::Error::APIError.from_error(result[:error]) if result[:error]
+        raise JS.from_error(result[:error]) if result[:error]
 
         result
       end
@@ -156,13 +156,12 @@ module NATS
         rescue NATS::IO::NoRespondersError
           raise JetStream::Error::ServiceUnavailable
         end
-        raise JetStream::Error::APIError.from_error(result[:error]) if result[:error]
+        raise JS.from_error(result[:error]) if result[:error]
         raise JetStream::Error::NotFound unless result[:streams]
 
         result[:streams].first
       end
     end
-    private_constant :JSM
 
     # PullSubscription is included into NATS::Subscription so that it
     # can be used to fetch messages from a pull based consumer from
@@ -229,7 +228,7 @@ module NATS
                 when JS::Status::NoMsgs
                   msg = nil
                 else
-                  raise ::NATS::JetStream::Error::APIError.from_msg(msg)
+                  raise JS.from_msg(msg)
                 end
               else
                 msgs << msg
@@ -256,7 +255,7 @@ module NATS
             # Should have received at least a message at this point,
             # if that is not the case then error already.
             if JS.is_status_msg(msgs.first)
-              raise ::NATS::JetStream::Error::APIError.from_msg(msgs.first)
+              raise JS.from_msg(msgs.first)
             end
           end
         when batch > 1
@@ -296,7 +295,7 @@ module NATS
 
               @nc.publish(@jsi.nms, JS.next_req_to_json(next_req), @subject)
             else
-              raise ::NATS::JetStream::Error::APIError.from_msg(msg)
+              raise JS.from_msg(msg)
             end
           else
             msgs << msg
@@ -340,7 +339,7 @@ module NATS
                     # Likely only received a subset of the messages.
                     return msgs
                   else
-                    raise ::NATS::JetStream::Error::APIError.from_msg(msg)
+                    raise JS.from_msg(msg)
                   end
                 else
                   msgs << msg
@@ -355,149 +354,6 @@ module NATS
       end
     end
     private_constant :PullSubscription
-
-    #####################
-    #                   #
-    # JetStream Errors  #
-    #                   #
-    #####################
-
-    # Error is any error that may arise when interacting with JetStream.
-    class Error < ::NATS::Error
-
-      # When there is a NATS::IO::NoResponders error after making a publish request.
-      class NoStreamResponse < Error; end
-
-      # When an invalid durable or consumer name was attempted to be used.
-      class InvalidDurableName < Error; end
-
-      # When an ack is no longer valid, for example when it has been acked already.
-      class InvalidJSAck < Error; end
-
-      # When the delivered message does not behave as a message delivered by JetStream,
-      # for example when the ack reply has unrecognizable fields.
-      class NotJSMessage < Error; end
-
-      # When the stream name is invalid.
-      class InvalidStreamName < Error; end
-
-      # When the consumer name is invalid.
-      class InvalidConsumerName < Error; end
-
-      # When the server responds with an error from the JetStream API.
-      class APIError < Error
-        attr_reader :code, :err_code, :description, :stream, :seq
-
-        def initialize(params={})
-          @code = params[:code]
-          @err_code = params[:err_code]
-          @description = params[:description]
-          @stream = params[:stream]
-          @seq = params[:seq]
-        end
-
-        # def to_s
-        #   "nats: #{@description}"
-        # end
-        # 
-        # def inspect
-        #   "#<NATS::JetStream::Error::APIError(code: #{@code}, err_code: #{@err_code}, description: '#{@description}')>"
-        # end
-
-        class << self
-          def check_503_error(msg)
-            return if msg.nil? or msg.header.nil?
-            if msg.header[JS::Header::Status] == JS::Status::ServiceUnavailable
-              raise ServiceUnavailable
-            end
-          end
-
-          # from_msg takes a plain NATS::Msg and checks its headers to confirm
-          # if it was an error.
-          #
-          # ```
-          # header={"Status"=>"503"})
-          # header={"Status"=>"408", "Description"=>"Request Timeout"})
-          # ```
-          #
-          def from_msg(msg)
-            check_503_error(msg)
-            code = msg.header[JS::Header::Status]
-            desc = msg.header[JS::Header::Desc]
-            return APIError.new({code: code, description: desc})
-          end
-
-          # from_error takes an API response that errored and maps the error
-          # into a JetStream error type based on the status and error code.
-          def from_error(err)
-            return unless err
-            case err[:code]
-            when 503
-              ServiceUnavailable.new(err)
-            when 500
-              ServerError.new(err)
-            when 404
-              case err[:err_code]
-              when 10059
-                StreamNotFound.new(err)
-              when 10014
-                ConsumerNotFound.new(err)
-              else
-                NotFound.new(err)
-              end
-            when 400
-              BadRequest.new(err)
-            else
-              APIError.new(err)
-            end
-          end
-        end
-      end
-
-      # When JetStream is not currently available, this could be due to JetStream
-      # not being enabled or temporarily unavailable due to a leader election when
-      # running in cluster mode.
-      # This condition is represented with a message that has 503 status code header.
-      class ServiceUnavailable < APIError
-        def initialize(params={})
-          super(params)
-          @code ||= 503
-        end
-      end
-
-      # When there is a hard failure in the JetStream.
-      # This condition is represented with a message that has 500 status code header.
-      class ServerError < APIError
-        def initialize(params={})
-          super(params)
-          @code ||= 500
-        end
-      end
-
-      # When a JetStream object was not found.
-      # This condition is represented with a message that has 404 status code header.
-      class NotFound < APIError
-        def initialize(params={})
-          super(params)
-          @code ||= 404
-        end
-      end
-
-      # When the stream is not found.
-      class StreamNotFound < NotFound; end
-
-      # When the consumer or durable is not found by name.
-      class ConsumerNotFound < NotFound; end
-
-      # When the JetStream client makes an invalid request.
-      # This condition is represented with a message that has 400 status code header.
-      class BadRequest < APIError
-        def initialize(params={})
-          super(params)
-          @code ||= 400
-        end
-      end
-    end
 
     #######################################
     #                                     #
@@ -698,17 +554,165 @@ module NATS
       class << self
         def next_req_to_json(next_req)
           req = {}
-          req['batch'] = next_req[:batch]
-          req['expires'] = next_req[:expires].to_i if next_req[:expires]
-          req['no_wait'] = next_req[:no_wait] if next_req[:no_wait]
+          req[:batch] = next_req[:batch]
+          req[:expires] = next_req[:expires].to_i if next_req[:expires]
+          req[:no_wait] = next_req[:no_wait] if next_req[:no_wait]
           req.to_json
         end
 
         def is_status_msg(msg)
-          return (!msg.nil? and (!msg.header.nil? and msg.header["Status"]))
+          return (!msg.nil? and (!msg.header.nil? and msg.header[Header::Status]))
+        end
+
+        # check_503_error raises exception when a NATS::Msg has a 503 status header.
+        # @param msg [NATS::Msg] The message with status headers.
+        # @raise [NATS::JetStream::Error::ServiceUnavailable]
+        def check_503_error(msg)
+          return if msg.nil? or msg.header.nil?
+          if msg.header[Header::Status] == Status::ServiceUnavailable
+            raise ::NATS::JetStream::Error::ServiceUnavailable
+          end
+        end
+
+        # from_msg takes a plain NATS::Msg and checks its headers to confirm
+        # if it was an error:
+        #
+        # msg.header={"Status"=>"503"})
+        # msg.header={"Status"=>"408", "Description"=>"Request Timeout"})
+        #
+        # @param msg [NATS::Msg] The message with status headers.
+        # @return [NATS::JetStream::API::Error]
+        def from_msg(msg)
+          check_503_error(msg)
+          code = msg.header[JS::Header::Status]
+          desc = msg.header[JS::Header::Desc]
+          return ::NATS::JetStream::API::Error.new({code: code, description: desc})
+        end
+
+        # from_error takes an API response that errored and maps the error
+        # into a JetStream error type based on the status and error code.
+        def from_error(err)
+          return unless err
+          case err[:code]
+          when 503
+            ::NATS::JetStream::Error::ServiceUnavailable.new(err)
+          when 500
+            ::NATS::JetStream::Error::ServerError.new(err)
+          when 404
+            case err[:err_code]
+            when 10059
+              ::NATS::JetStream::Error::StreamNotFound.new(err)
+            when 10014
+              ::NATS::JetStream::Error::ConsumerNotFound.new(err)
+            else
+              ::NATS::JetStream::Error::NotFound.new(err)
+            end
+          when 400
+            ::NATS::JetStream::Error::BadRequest.new(err)
+          else
+            ::NATS::JetStream::API::Error.new(err)
+          end
         end
       end
     end
     private_constant :JS
+
+    #####################
+    #                   #
+    # JetStream Errors  #
+    #                   #
+    #####################
+
+    # Error is any error that may arise when interacting with JetStream.
+    class Error < Error
+
+      # When there is a NATS::IO::NoResponders error after making a publish request.
+      class NoStreamResponse < Error; end
+
+      # When an invalid durable or consumer name was attempted to be used.
+      class InvalidDurableName < Error; end
+
+      # When an ack is no longer valid, for example when it has been acked already.
+      class InvalidJSAck < Error; end
+
+      # When the delivered message does not behave as a message delivered by JetStream,
+      # for example when the ack reply has unrecognizable fields.
+      class NotJSMessage < Error; end
+
+      # When the stream name is invalid.
+      class InvalidStreamName < Error; end
+
+      # When the consumer name is invalid.
+      class InvalidConsumerName < Error; end
+
+      # When the server responds with an error from the JetStream API.
+      class APIError < Error
+        attr_reader :code, :err_code, :description, :stream, :seq
+
+        def initialize(params={})
+          @code = params[:code]
+          @err_code = params[:err_code]
+          @description = params[:description]
+          @stream = params[:stream]
+          @seq = params[:seq]
+        end
+      end
+
+      # When JetStream is not currently available, this could be due to JetStream
+      # not being enabled or temporarily unavailable due to a leader election when
+      # running in cluster mode.
+      # This condition is represented with a message that has 503 status code header.
+      class ServiceUnavailable < APIError
+        def initialize(params={})
+          super(params)
+          @code ||= 503
+        end
+      end
+
+      # When there is a hard failure in the JetStream.
+      # This condition is represented with a message that has 500 status code header.
+      class ServerError < APIError
+        def initialize(params={})
+          super(params)
+          @code ||= 5009
+        end
+      end
+
+      # When a JetStream object was not found.
+      # This condition is represented with a message that has 404 status code header.
+      class NotFound < APIError
+        def initialize(params={})
+          super(params)
+          @code ||= 404
+        end
+      end
+
+      # When the stream is not found.
+      class StreamNotFound < NotFound; end
+
+      # When the consumer or durable is not found by name.
+      class ConsumerNotFound < NotFound; end
+
+      # When the JetStream client makes an invalid request.
+      # This condition is represented with a message that has 400 status code header.
+      class BadRequest < APIError
+        def initialize(params={})
+          super(params)
+          @code ||= 400
+        end
+      end
+    end
+
+    #######################
+    #                     #
+    # JetStream API Types #
+    #                     #
+    #######################
+
+    # JetStream::API are the types used to interact with the JetStream API.
+    module API
+      # When the server responds with an error from the JetStream API.
+      Error = ::NATS::JetStream::Error::APIError
+    end
   end
 end

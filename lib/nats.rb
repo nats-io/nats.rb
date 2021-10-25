@@ -14,26 +14,3 @@
 
 require 'nats/io/client'
 require 'nats/nuid'
-
-# A thread safe Ruby client for the NATS messaging system (https://nats.io).
-#
-# @example Service example
-#   nc = NATS.connect("demo.nats.io")
-#   nc.subscribe("foo") do |msg|
-#     msg.respond("Hello World")
-#   end
-#
-#   resp = nc.request("foo")
-#   puts "Received: #{msg.data}"
-# 
-# 
-# @example Stream example
-#   nc = NATS.connect("demo.nats.io")
-#   sub = nc.subscribe("foo")
-# 
-#   nc.publish("foo")
-#   msg = sub.next_msg
-#   puts "Received: #{msg.data}"
-# 
-module NATS
-end

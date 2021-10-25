@@ -57,11 +57,11 @@ describe 'JetStream' do
       # Assert stream name.
       expect do
         ack = js.publish("foo.js", "hello world", stream: "bar")
-      end.to raise_error(NATS::JetStream::Error::APIError)
+      end.to raise_error(NATS::JetStream::API::Error)
 
       begin
         js.publish("foo.js", "hello world", stream: "bar")
-      rescue NATS::JetStream::Error::APIError => e
+      rescue NATS::JetStream::API::Error => e
         expect(e.code).to eql(400)
       end
 
@@ -406,14 +406,14 @@ describe 'JetStream' do
       ts.each do |t|
         t.join
       end
-      api_err = errors.select { |o| o.is_a?(NATS::JetStream::Error::APIError) }
+      api_err = errors.select { |o| o.is_a?(NATS::JetStream::API::Error) }
       expect(api_err).to_not be_empty
       expect(api_err.first.code).to eql("408")
 
       nc.close
     end
 
-    it 'should unsubscribe a pull subscriber' do
+    it 'should unsubscribe' do
       nc = NATS.connect(@s.uri)
       js = nc.jetstream
 
@@ -633,10 +633,10 @@ describe 'JetStream' do
       end.to raise_error(NATS::Error)
     end
 
-    it "JetStream::Error::APIError" do
+    it "JetStream::API::Error" do
       expect do
         raise NATS::JetStream::Error::ConsumerNotFound
-      end.to raise_error(NATS::JetStream::Error::APIError)
+      end.to raise_error(NATS::JetStream::API::Error)
 
       expect do
         raise NATS::JetStream::Error::ConsumerNotFound
@@ -644,7 +644,7 @@ describe 'JetStream' do
 
       expect do
         raise NATS::JetStream::Error::StreamNotFound
-      end.to raise_error(NATS::JetStream::Error::APIError)
+      end.to raise_error(NATS::JetStream::API::Error)
 
       expect do
         raise NATS::JetStream::Error::StreamNotFound
@@ -656,7 +656,15 @@ describe 'JetStream' do
 
       expect do
         raise NATS::JetStream::Error::ServiceUnavailable
-      end.to raise_error(NATS::JetStream::Error::APIError)
+      end.to raise_error(NATS::JetStream::Error)
+
+      expect do
+        raise NATS::JetStream::Error::ServiceUnavailable
+      end.to raise_error(NATS::JetStream::API::Error)
+
+      expect do
+        raise NATS::JetStream::Error::ServiceUnavailable
+      end.to raise_error(NATS::Error)
 
       expect do
         raise NATS::JetStream::Error::ServiceUnavailable
