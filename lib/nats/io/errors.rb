@@ -53,4 +53,8 @@ module NATS
     # When a subscription hits the pending messages limit.
     class SlowConsumer < Error; end
   end
+
+  # NATS::Timeout is raised when the client gives up waiting for a response
+  # from a service.
+  class Timeout < ::NATS::IO::Timeout; end
 end

@@ -22,6 +22,13 @@ module NATS
   # the NATS JetStream engine.
   class JetStream
 
+    # Create a new JetStream context for a NATS connection.
+    #
+    # @param conn [NATS::Client]
+    # @param params [Hash] Options to customize JetStream context.
+    # @option params [String] :prefix JetStream API prefix to use for the requests.
+    # @option params [String] :domain JetStream Domain to use for the requests.
+    # @option params [Float] :timeout Default timeout to use for JS requests.
     def initialize(conn, params={})
       @nc = conn
       @prefix = if params[:prefix]
@@ -36,14 +43,17 @@ module NATS
       params[:prefix] = @prefix
       @jsm = JSM.new(conn, @opts)
     end
-    private_class_method :new
 
     # PubAck is the API response from a successfully published message.
     #
-    # @!attribute stream [String] Name of the stream that processed the published message.
-    # @!attribute seq [String] Sequence of the message in the stream.
-    # @!attribute duplicate [String] Indicates whether the published message is a duplicate.
-    # @!attribute domain [String] JetStream Domain that processed the ack response.
+    # @!attribute [stream] stream
+    #   @return [String] Name of the stream that processed the published message.
+    # @!attribute [seq] seq
+    #   @return [Fixnum] Sequence of the message in the stream.
+    # @!attribute [duplicate] duplicate
+    #   @return [Boolean] Indicates whether the published message is a duplicate.
+    # @!attribute [domain] domain
+    #   @return [String] JetStream Domain that processed the ack response.
     PubAck = Struct.new(:stream, :seq, :duplicate, :domain, keyword_init: true)
 
     # publish produces a message for JetStream.
@@ -72,16 +82,16 @@ module NATS
         resp = @nc.request_msg(msg, params)
         result = JSON.parse(resp.data, symbolize_names: true)
       rescue ::NATS::IO::NoRespondersError
-        raise JetStream::Errors::NoStreamResponse.new("nats: no response from stream")
+        raise JetStream::Error::NoStreamResponse.new("nats: no response from stream")
       end
-      raise JetStream::Errors::APIError.from_error(result[:error]) if result[:error]
+      raise JetStream::Error::APIError.from_error(result[:error]) if result[:error]
 
       PubAck.new(result)
     end
 
     # pull_subsbcribe binds or creates a susbcription to a JetStream pull consumer.
     def pull_subscribe(subject, durable, params={})
-      raise JetStream::Errors::InvalidDurableName if durable.empty?
+      raise JetStream::Error::InvalidDurableName.new("nats: invalid durable name") if durable.empty?
       params[:consumer] ||= durable
 
       deliver = @nc.new_inbox
@@ -111,8 +121,8 @@ module NATS
       end
 
       def consumer_info(stream, consumer)
-        raise JetStream::Errors::InvalidStreamName.new("nats: invalid stream name") if stream.nil? or stream.empty?
-        raise JetStream::Errors::InvalidConsumerName.new("nats: invalid consumer name") if consumer.nil? or consumer.empty?
+        raise JetStream::Error::InvalidStreamName.new("nats: invalid stream name") if stream.nil? or stream.empty?
+        raise JetStream::Error::InvalidConsumerName.new("nats: invalid consumer name") if consumer.nil? or consumer.empty?
 
         subject = "#{@prefix}.CONSUMER.INFO.#{stream}.#{consumer}"
 
@@ -120,20 +130,26 @@ module NATS
           msg = @nc.request(subject, '', timeout: @opts[:timeout])
           result = JSON.parse(msg.data, symbolize_names: true)
         rescue NATS::IO::NoRespondersError
-          raise JetStream::Errors::ServiceUnavailable
+          raise JetStream::Error::ServiceUnavailable
         end
-        raise JetStream::Errors::APIError.from_error(result[:error]) if result[:error]
+        raise JetStream::Error::APIError.from_error(result[:error]) if result[:error]
 
         result
       end
     end
     private_constant :JSM
 
+    # PullSubscription is a NATS::Subscription that can only be used to fetch messages
+    # from a pull based consumer.
     module PullSubscription
       def next_msg(params={})
         raise ::NATS::JetStream::Error.new("nats: pull subscription cannot use next_msg")
       end
 
+      # fetch makes a request to be delivered more messages from a pull consumer.
+      #
+      # @param batch [Fixnum]
+      # @return [Array<NATS::Msg>]
       def fetch(batch, params={})
         if batch < 1
           raise ::NATS::JetStream::Error.new("nats: invalid batch size")
@@ -149,7 +165,7 @@ module NATS
         msgs = []
         case
         when batch < 1
-          raise JetStream::Error.new("nats: invalid batch size")
+          raise ::NATS::JetStream::Error.new("nats: invalid batch size")
         when batch == 1
           ####################################################
           # Fetch (1)                                        #
@@ -166,7 +182,7 @@ module NATS
                 when JS::Status::NoMsgs
                   msg = nil
                 else
-                  raise ::NATS::JetStream::Errors::APIError.from_msg(msg)
+                  raise ::NATS::JetStream::Error::APIError.from_msg(msg)
                 end
               else
                 msgs << msg
@@ -187,13 +203,13 @@ module NATS
 
             duration = MonotonicTime.since(t)
             if duration > timeout
-              raise NATS::IO::Timeout.new("nats: fetch timeout")
+              raise ::NATS::Timeout.new("nats: fetch timeout")
             end
 
             # Should have received at least a message at this point,
             # if that is not the case then error already.
             if JS.is_status_msg(msgs.first)
-              raise ::NATS::JetStream::Errors::APIError.from_msg(msgs.first)
+              raise ::NATS::JetStream::Error::APIError.from_msg(msgs.first)
             end
           end
         when batch > 1
@@ -233,7 +249,7 @@ module NATS
 
               @nc.publish(@jsi.nms, JS.next_req_to_json(next_req), @subject)
             else
-              raise ::NATS::JetStream::Errors::APIError.from_msg(msg)
+              raise ::NATS::JetStream::Error::APIError.from_msg(msg)
             end
           else
             msgs << msg
@@ -242,7 +258,7 @@ module NATS
           # Check if have not received yet a single message.
           duration = MonotonicTime.since(start_time)
           if msgs.empty? and duration > timeout
-            raise NATS::IO::Timeout.new("nats: fetch timeout")
+            raise NATS::Timeout.new("nats: fetch timeout")
           end
 
           needed = batch - msgs.count
@@ -259,7 +275,7 @@ module NATS
 
                 duration = MonotonicTime.since(start_time)
                 if msgs.empty? && @pending_queue.empty? and duration > timeout
-                  raise NATS::IO::Timeout.new("nats: fetch timeout")
+                  raise NATS::Timeout.new("nats: fetch timeout")
                 end
               else
                 msg = @pending_queue.pop
@@ -271,13 +287,13 @@ module NATS
 
                     # Do not time out if we received at least some messages.
                     if msgs.empty? && @pending_queue.empty? and duration > timeout
-                      raise NATS::IO::Timeout.new("nats: fetch timeout")
+                      raise NATS::Timeout.new("nats: fetch timeout")
                     end
 
                     # Likely only received a subset of the messages.
                     return msgs
                   else
-                    raise ::NATS::JetStream::Errors::APIError.from_msg(msg)
+                    raise ::NATS::JetStream::Error::APIError.from_msg(msg)
                   end
                 else
                   msgs << msg
@@ -300,13 +316,9 @@ module NATS
     #####################
 
     # Error is any error that may arise when interacting with JetStream.
-    class Error < ::NATS::Error; end
+    class Error < ::NATS::Error
 
-    module Errors
-      # When JetStream is not currently enabled and get a 503 status from NATS Server.
-      class ServiceUnavailable < Error; end
-
-      # When there is a no responders error after making a publish request.
+      # When there is a NATS::IO::NoResponders error after making a publish request.
       class NoStreamResponse < Error; end
 
       # When an invalid durable or consumer name was attempted to be used.
@@ -342,7 +354,7 @@ module NATS
         end
 
         def inspect
-          "#<NATS::JetStream::APIError(code: #{@code}, err_code: #{@err_code}, description: '#{@description}')>"
+          "#<NATS::JetStream::Error::APIError(code: #{@code}, err_code: #{@err_code}, description: '#{@description}')>"
         end
 
         class << self
@@ -353,8 +365,14 @@ module NATS
             end
           end
 
+          # from_msg takes a plain NATS::Msg and checks its headers to confirm
+          # if it was an error.
+          #
+          # ```
           # header={"Status"=>"503"})
           # header={"Status"=>"408", "Description"=>"Request Timeout"})
+          # ```
+          #
           def from_msg(msg)
             check_503_error(msg)
             code = msg.header[JS::Header::Status]
@@ -362,16 +380,26 @@ module NATS
             return APIError.new({code: code, description: desc})
           end
 
+          # from_error takes an API response that errored and maps the error
+          # into a JetStream error type based on the status and error code.
           def from_error(err)
             return unless err
             case err[:code]
+            when 503
+              ServiceUnavailable.new(err)
+            when 500
+              ServerError.new(err)
             when 404
               case err[:err_code]
               when 10059
                 StreamNotFound.new(err)
               when 10014
                 ConsumerNotFound.new(err)
+              else
+                NotFound.new(err)
               end
+            when 400
+              BadRequest.new(err)
             else
               APIError.new(err)
             end
@@ -379,11 +407,49 @@ module NATS
         end
       end
 
+      # When JetStream is not currently available, this could be due to JetStream
+      # not being enabled or temporarily unavailable due to a leader election when
+      # running in cluster mode.
+      # This condition is represented with a message that has 503 status code header.
+      class ServiceUnavailable < APIError
+        def initialize(params={})
+          super(params)
+          @code ||= 503
+        end
+      end
+
+      # When there is a hard failure in the JetStream.
+      # This condition is represented with a message that has 500 status code header.
+      class ServerError < APIError
+        def initialize(params={})
+          super(params)
+          @code ||= 500
+        end
+      end
+
+      # When a JetStream object was not found.
+      # This condition is represented with a message that has 404 status code header.
+      class NotFound < APIError
+        def initialize(params={})
+          super(params)
+          @code ||= 404
+        end
+      end
+
       # When the stream is not found.
-      class StreamNotFound < APIError; end
+      class StreamNotFound < NotFound; end
 
       # When the consumer or durable is not found by name.
-      class ConsumerNotFound < APIError; end
+      class ConsumerNotFound < NotFound; end
+
+      # When the JetStream client makes an invalid request.
+      # This condition is represented with a message that has 400 status code header.
+      class BadRequest < APIError
+        def initialize(params={})
+          super(params)
+          @code ||= 400
+        end
+      end
     end
 
     #######################################
@@ -509,7 +575,7 @@ module NATS
         private
 
         def ensure_is_acked_once!
-          @sub.synchronize { raise JetStream::Errors::InvalidJSAck.new("nats: invalid ack") if @ackd }
+          @sub.synchronize { raise JetStream::Error::InvalidJSAck.new("nats: invalid ack") if @ackd }
         end
 
         def parse_metadata(reply)
