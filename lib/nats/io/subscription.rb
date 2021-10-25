@@ -13,6 +13,17 @@
 #
 
 module NATS
+
+  # A Subscription represents interest in a given subject.
+  # 
+  # @example Create NATS subscription with callback.
+  #   require 'nats/client'
+  # 
+  #   nc = NATS.connect("demo.nats.io")
+  #   sub = nc.subscribe("foo") do |msg|
+  #     puts "Received [#{msg.subject}]: #{}"
+  #   end
+  # 
   class Subscription
     include MonitorMixin
 
@@ -21,6 +32,7 @@ module NATS
     attr_accessor :pending_msgs_limit, :pending_bytes_limit
     attr_accessor :nc
     attr_accessor :jsi
+    attr_accessor :closed
 
     def initialize
       super # required to initialize monitor
@@ -34,6 +46,7 @@ module NATS
       @pending  = nil
       @sid      = nil
       @nc       = nil
+      @closed   = nil
 
       # State from async subscriber messages delivery
       @pending_queue       = nil

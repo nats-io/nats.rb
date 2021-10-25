@@ -13,12 +13,8 @@
 #
 
 module NATS
-
-  class Error < StandardError; end
-
   module IO
-
-    class Error < ::NATS::Error; end
+    class Error < StandardError; end
 
     # When the NATS server sends us an 'ERR' message.
     class ServerError < Error; end
@@ -32,7 +28,7 @@ module NATS
     # When we cannot connect to the server because authorization failed.
     class AuthError < ConnectError; end
 
-    # When we cannot connect since there are no servers available.
+    # When we cannot connect serverince there are no servers available.
     class NoServersError < ConnectError; end
 
     # When there are no subscribers available to respond.
@@ -45,16 +41,22 @@ module NATS
     class Timeout < Error; end
 
     # When there is an i/o timeout with the socket.
-    class SocketTimeoutError < Error; end
+    class SocketTimeoutError < Timeout; end
 
     # When we use an invalid subject.
     class BadSubject < Error; end
+
+    # When an invalid subscription is used, like one already unsubscribed
+    # or when the NATS connection is already closed.
+    class BadSubscription < Error; end
 
     # When a subscription hits the pending messages limit.
     class SlowConsumer < Error; end
   end
 
-  # NATS::Timeout is raised when the client gives up waiting for a response
-  # from a service.
-  class Timeout < ::NATS::IO::Timeout; end
+  # Timeout is raised when the client gives up waiting for a response from a service.
+  Timeout = ::NATS::IO::Timeout
+
+  # Error is any error thrown by the client library.
+  Error = ::NATS::IO::Error
 end

@@ -36,7 +36,7 @@ module NATS
   class << self
     # NATS.connect creates a connection to the NATS Server.
     def connect(uri=nil, opts={})
-      nc = NATS::IO::Client.new
+      nc = NATS::Client.new
       nc.connect(uri, opts)
 
       nc
@@ -51,17 +51,26 @@ module NATS
   # the connection is manually closed then it will reach the CLOSED
   # connection state after which it will not reconnect again.
   module ConnectionStatus
+    # When the client is not actively connected.
     DISCONNECTED = 0
+
+    # When the client is connected.
     CONNECTED    = 1
+
+    # When the client will no longer attempt to connect to a NATS Server.
     CLOSED       = 2
+
+    # When the client has disconnected and is attempting to reconnect.
     RECONNECTING = 3
+
+    # When the client is attempting to connect to a NATS Server for the first time.
     CONNECTING   = 4
   end
 
   # Client creates a connection to the NATS Server.
   class Client
     include MonitorMixin
-    include NATS::ConnectionStatus
+    include ConnectionStatus
 
     attr_reader :status, :server_info, :server_pool, :options, :connected_server, :stats, :uri
 
@@ -472,7 +481,7 @@ module NATS
             future.wait(timeout)
           end
         end
-      rescue NATS::IO::Timeout => e
+      rescue NATS::Timeout => e
         synchronize { @resp_map.delete(token) }
         raise e
       end
@@ -526,7 +535,7 @@ module NATS
             future.wait(timeout)
           end
         end
-      rescue NATS::IO::Timeout => e
+      rescue NATS::Timeout => e
         synchronize { @resp_map.delete(token) }
         raise e
       end
@@ -613,28 +622,6 @@ module NATS
       response
     end
 
-    # Auto unsubscribes the server by sending UNSUB command and throws away
-    # subscription in case already present and has received enough messages.
-    def unsubscribe(sid, opt_max=nil)
-      opt_max_str = " #{opt_max}" unless opt_max.nil?
-      send_command("UNSUB #{sid}#{opt_max_str}#{CR_LF}")
-      @flush_queue << :unsub
-
-      return unless sub = @subs[sid]
-      synchronize do
-        sub.max = opt_max
-        @subs.delete(sid) unless (sub.max && (sub.received < sub.max))
-
-        # Stop messages delivery thread for async subscribers
-        if sub.wait_for_msgs_t && sub.wait_for_msgs_t.alive?
-          sub.wait_for_msgs_t.exit
-          sub.pending_queue.clear
-        end
-      end
-
-      response
-    end
-
     # Send a ping and wait for a pong back within a timeout.
     def flush(timeout=60)
       # Schedule sending a PING, and block until we receive PONG back,
@@ -654,6 +641,8 @@ module NATS
 
     alias :servers :server_pool
 
+    # discovered_servers returns the NATS Servers that have been discovered
+    # via INFO protocol updates.
     def discovered_servers
       servers.select {|s| s[:discovered] }
     end
@@ -665,6 +654,8 @@ module NATS
       close_connection(CLOSED, true)
     end
 
+    # new_inbox returns a unique inbox used for subscriptions.
+    # @return [String]
     def new_inbox
       "_INBOX.#{@nuid.next}"
     end
@@ -951,12 +942,20 @@ module NATS
     # Auto unsubscribes the server by sending UNSUB command and throws away
     # subscription in case already present and has received enough messages.
     def unsubscribe(sub, opt_max=nil)
-      sid = sub.sid
+      sid = nil
+      closed = nil
+      sub.synchronize do
+        sid = sub.sid
+        closed = sub.closed
+      end
+      raise NATS::IO::BadSubscription.new("nats: invalid subscription") if closed
+
       opt_max_str = " #{opt_max}" unless opt_max.nil?
       send_command("UNSUB #{sid}#{opt_max_str}#{CR_LF}")
       @flush_queue << :unsub
 
-      return unless sub = @subs[sid]
+      synchronize { sub = @subs[sid] }
+      return unless sub
       synchronize do
         sub.max = opt_max
         @subs.delete(sid) unless (sub.max && (sub.received < sub.max))
@@ -966,6 +965,10 @@ module NATS
           sub.wait_for_msgs_t.exit
           sub.pending_queue.clear
         end
+      end
+
+      sub.synchronize do
+        sub.closed = true
       end
     end
 
@@ -1606,7 +1609,7 @@ module NATS
     include ConnectionStatus
 
     # Client creates a connection to the NATS Server.
-    class Client < ::NATS::Client; end
+    Client = ::NATS::Client
 
     MAX_RECONNECT_ATTEMPTS = 10
     RECONNECT_TIME_WAIT = 2
@@ -1786,7 +1789,7 @@ module NATS
         end_time = now
         duration = end_time - start_time
         if duration > timeout
-          raise NATS::IO::Timeout.new("nats: timeout")
+          raise NATS::Timeout.new("nats: timeout")
         end
       end
 

@@ -390,6 +390,48 @@ describe 'JetStream' do
 
       nc.close
     end
+
+    it 'should unsubscribe a pull subscriber' do
+      nc = NATS.connect(@s.uri)
+      js = nc.jetstream
+
+      consumer_req = {
+        stream_name: "test",
+        config: {
+          durable_name: "delsub",
+          ack_policy: "explicit",
+          max_ack_pending: 20,
+          max_waiting: 3,
+          ack_wait: 5 * 1_000_000_000 # 5 seconds
+        }
+      }
+      resp = nc.request("$JS.API.CONSUMER.DURABLE.CREATE.test.delsub", consumer_req.to_json)
+      expect(resp).to_not be_nil
+
+      sub = js.pull_subscribe("test", "delsub", stream: "test")
+
+      expect do
+        msgs = sub.fetch(1, timeout: 0.5)
+      end.to raise_error(NATS::IO::Timeout)
+
+      ack = js.publish("test", "hello")
+      expect(ack.seq).to eql(1)
+      msgs = sub.fetch
+      expect(msgs.size).to eql(1)
+
+      ack = js.publish("test", "hello")
+      expect(ack.seq).to eql(2)
+
+      sub.unsubscribe
+
+      expect do
+        msgs = sub.fetch(1, timeout: 0.5)
+      end.to raise_error(NATS::Timeout)
+
+      expect do
+        sub.unsubscribe
+      end.to raise_error(NATS::IO::BadSubscription)
+    end
   end
 
   describe 'Domain' do
@@ -521,6 +563,14 @@ describe 'JetStream' do
       expect do
         raise NATS::IO::Timeout
       end.to raise_error(NATS::Error)
+
+      expect do
+        raise NATS::IO::SocketTimeoutError
+      end.to raise_error(NATS::Error)
+
+      expect do
+        raise NATS::IO::SocketTimeoutError
+      end.to raise_error(NATS::Timeout)
     end
 
     it "JetStream::Error" do

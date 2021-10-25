@@ -90,6 +90,13 @@ module NATS
     end
 
     # pull_subsbcribe binds or creates a susbcription to a JetStream pull consumer.
+    #
+    # @param subject [String] Subject from which the messages will be fetched.
+    # @param durable [String] Consumer durable name from where the messages will be fetched.
+    # @param params [Hash] Options to customize the PullSubscription.
+    # @option params [String] :stream Name of the Stream to which the consumer belongs.
+    # @option params [String] :consumer Name of the Consumer to which the PullSubscription will be bound.
+    # @return [NATS::JetStream::PullSubscription]
     def pull_subscribe(subject, durable, params={})
       raise JetStream::Error::InvalidDurableName.new("nats: invalid durable name") if durable.empty?
       params[:consumer] ||= durable
@@ -113,6 +120,8 @@ module NATS
       sub
     end
 
+    # JSM can be used to make requests.
+    # @!visibility public
     class JSM
       def initialize(conn=nil, params={})
         @prefix = params[:prefix]
@@ -139,18 +148,40 @@ module NATS
     end
     private_constant :JSM
 
-    # PullSubscription is a NATS::Subscription that can only be used to fetch messages
-    # from a pull based consumer.
+    # PullSubscription is included into NATS::Subscription so that it
+    # can be used to fetch messages from a pull based consumer from
+    # JetStream.
+    #
+    # @example Create a pull subscription using JetStream context.
+    #
+    #   require 'nats/client'
+    #
+    #   nc = NATS.connect
+    #   js = nc.jetstream
+    #   psub = js.pull_subscribe("foo", "bar")
+    #
+    #   loop do
+    #     msgs = psub.fetch(5)
+    #     msgs.each do |msg|
+    #       msg.ack
+    #     end
+    #   end
+    #
+    # @!visibility public
     module PullSubscription
+      # next_msg is not available for pull based susbcriptions.
+      # @raise [NATS::JetStream::Error]
       def next_msg(params={})
         raise ::NATS::JetStream::Error.new("nats: pull subscription cannot use next_msg")
       end
 
       # fetch makes a request to be delivered more messages from a pull consumer.
       #
-      # @param batch [Fixnum]
+      # @param batch [Fixnum] Number of messages to pull from the stream.
+      # @param params [Hash] Options to customize the fetch request.
+      # @option params [Float] :timeout Duration of the fetch request before it expires.
       # @return [Array<NATS::Msg>]
-      def fetch(batch, params={})
+      def fetch(batch=1, params={})
         if batch < 1
           raise ::NATS::JetStream::Error.new("nats: invalid batch size")
         end
@@ -604,6 +635,9 @@ module NATS
     # JetStream Configuration Options  #
     #                                  #
     ####################################
+
+    # Misc internal functions to support JS API.
+    # @private
     module JS
       DefaultAPIPrefix = ("$JS.API".freeze)
 

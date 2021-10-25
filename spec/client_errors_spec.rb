@@ -338,6 +338,8 @@ describe 'Client - Errors' do
       expect(nats.last_error).to be_a(NATS::IO::SocketTimeoutError)
       expect(errors.first).to be_a(NATS::IO::SocketTimeoutError)
       expect(errors.last).to be_a(NATS::IO::SocketTimeoutError)
+      expect(errors.first).to be_a(NATS::Timeout)
+      expect(errors.last).to be_a(NATS::Timeout)
 
       # Fails on the second reconnect attempt
       expect(errors.count).to eql(2)
