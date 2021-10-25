@@ -35,6 +35,9 @@ end
 module NATS
   class << self
     # NATS.connect creates a connection to the NATS Server.
+    # @param uri [String] URL endpoint of the NATS Server or cluster.
+    # @param opts [Hash] Options to customize the NATS connection.
+    # @return [NATS::Client]
     def connect(uri=nil, opts={})
       nc = NATS::Client.new
       nc.connect(uri, opts)
