@@ -14,9 +14,13 @@
 
 module NATS
   module IO
-    # NOTE: These are all announced to the server on CONNECT
-    VERSION  = "2.0.0-alpha"
-    LANG     = "#{RUBY_ENGINE}#{RUBY_VERSION}".freeze
+    # VERSION is the version of the client announced on CONNECT to the server.
+    VERSION = "2.0.0-alpha".freeze
+
+    # LANG is the lang runtime of the client announced on CONNECT to the server.
+    LANG = "#{RUBY_ENGINE}#{RUBY_VERSION}".freeze
+
+    # PROTOCOL is the supported version of the protocol in the client.
     PROTOCOL = 1
   end
 end

@@ -14,14 +14,19 @@
 require_relative 'msg'
 require_relative 'client'
 require_relative 'errors'
+require 'time'
 
 module NATS
 
   # JetStream returns a context with a similar API as the NATS::Client
   # but with enhanced functions to persist and consume messages from
   # the NATS JetStream engine.
+  #
+  # @example
+  #   nc = NATS.connect("demo.nats.io")
+  #   js = nc.jetstream()
+  #
   class JetStream
-
     # Create a new JetStream context for a NATS connection.
     #
     # @param conn [NATS::Client]
@@ -41,7 +46,9 @@ module NATS
       @opts = params
       @opts[:timeout] ||= 5 # seconds
       params[:prefix] = @prefix
-      @jsm = Manager.new(conn, @opts)
+
+      # Include JetStream::Manager
+      extend Manager
     end
 
     # PubAck is the API response from a successfully published message.
@@ -100,10 +107,10 @@ module NATS
     def pull_subscribe(subject, durable, params={})
       raise JetStream::Error::InvalidDurableName.new("nats: invalid durable name") if durable.empty?
       params[:consumer] ||= durable
-      params[:stream] ||= @jsm.find_stream_by_subject(subject)
+      params[:stream] ||= find_stream_by_subject(subject)
 
       # Assert that the consumer is present.
-      @jsm.consumer_info(params[:stream], params[:consumer])
+      consumer_info(params[:stream], params[:consumer])
 
       deliver = @nc.new_inbox
       sub = @nc.subscribe(deliver)
@@ -122,34 +129,34 @@ module NATS
     end
 
     # A JetStream::Manager can be used to make requests to the JetStream API.
-    # @!visibility public
-    class Manager
-      def initialize(conn=nil, params={})
-        @prefix = params[:prefix]
-        @opts = params
-        @nc = conn
-      end
+    module Manager
 
+      # consumer_info retrieves the current status of a consumer.
+      # @return [JetStream::API::ConsumerInfo] The latest ConsumerInfo of the consumer.
       def consumer_info(stream, consumer, params={})
         raise JetStream::Error::InvalidStreamName.new("nats: invalid stream name") if stream.nil? or stream.empty?
         raise JetStream::Error::InvalidConsumerName.new("nats: invalid consumer name") if consumer.nil? or consumer.empty?
 
         subject = "#{@prefix}.CONSUMER.INFO.#{stream}.#{consumer}"
+        params[:timeout] ||= @opts[:timeout]
 
         begin
-          msg = @nc.request(subject, '', timeout: @opts[:timeout])
+          msg = @nc.request(subject, '', timeout: params[:timeout])
           result = JSON.parse(msg.data, symbolize_names: true)
         rescue NATS::IO::NoRespondersError
           raise JetStream::Error::ServiceUnavailable
         end
         raise JS.from_error(result[:error]) if result[:error]
 
-        result
+        JetStream::API::ConsumerInfo.new(result)
       end
 
+      # find_stream_by_subject does a lookup for the stream to which
+      # the subject belongs.
+      # @return [String] The name of the JetStream stream for the subject.
       def find_stream_by_subject(subject)
         req_subject = "#{@prefix}.STREAM.NAMES"
-        req = {subject: subject }
+        req = { subject: subject }
         begin
           msg = @nc.request(req_subject, req.to_json, timeout: @opts[:timeout])
           result = JSON.parse(msg.data, symbolize_names: true)
@@ -674,7 +681,7 @@ module NATS
       class ServerError < APIError
         def initialize(params={})
           super(params)
-          @code ||= 5009
+          @code ||= 500
         end
       end
 
@@ -713,6 +720,85 @@ module NATS
     module API
       # When the server responds with an error from the JetStream API.
       Error = ::NATS::JetStream::Error::APIError
+
+      # SequenceInfo is a pair of consumer and stream sequence and last activity.
+      # @!attribute consumer_seq
+      #   @return [Integer]
+      # @!attribute stream_seq
+      #   @return [Integer]
+      SequenceInfo = Struct.new(:consumer_seq, :stream_seq, :last_active, keyword_init: true)
+
+      # ConsumerInfo is the current status of a JetStream consumer.
+      # 
+      # @!attribute stream_name
+      #   @return [String] name of the stream to which the consumer belongs.
+      # @!attribute name
+      #   @return [String] name of the consumer
+      # @!attribute created
+      #   @return [String] time when the consumer was created.
+      # @!attribute config 
+      #   @return [ConsumerConfig] consumer configuration
+      # @!attribute delivered
+      #   @return [SequenceInfo]
+      # @!attribute ack_floor
+      #   @return [SequenceInfo]
+      # @!attribute num_ack_pending
+      #   @return [Integer]
+      # @!attribute num_redelivered
+      #   @return [Integer]
+      # @!attribute num_waiting
+      #   @return [Integer]
+      # @!attribute num_pending
+      #   @return [Integer]
+      # @!attribute cluster
+      #   @return [Hash]
+      ConsumerInfo = Struct.new(:type, :stream_name, :name, :created,
+                                :config, :delivered, :ack_floor,
+                                :num_ack_pending, :num_redelivered, :num_waiting, :num_pending,
+                                :cluster, :push_bound, keyword_init: true) do
+        def initialize(opts={})
+          opts[:created] = Time.parse(opts[:created])
+          opts[:config] = ConsumerConfig.new(opts[:config])
+          opts[:ack_floor] = SequenceInfo.new(opts[:ack_floor])
+          opts[:delivered] = SequenceInfo.new(opts[:delivered])
+          opts[:config][:ack_wait] = opts[:config][:ack_wait] / 1_000_000_000
+          opts.delete(:cluster)
+          # Filter unrecognized fields just in case.
+          rem = opts.keys - members
+          opts.delete_if { |k| rem.include?(k) }
+          super(opts)
+        end
+      end
+
+      # ConsumerConfig is the consumer configuration.
+      # 
+      # @!attribute durable_name
+      #   @return [String]
+      # @!attribute deliver_policy
+      #   @return [String]
+      # @!attribute ack_policy
+      #   @return [String]
+      # @!attribute ack_wait
+      #   @return [Integer]
+      # @!attribute max_deliver
+      #   @return [Integer]
+      # @!attribute replay_policy
+      #   @return [String]
+      # @!attribute max_waiting
+      #   @return [Integer]
+      # @!attribute max_ack_pending
+      #   @return [Integer]
+      ConsumerConfig = Struct.new(:durable_name, :deliver_policy,
+                                  :ack_policy, :ack_wait, :max_deliver,
+                                  :replay_policy, :max_waiting,
+                                  :max_ack_pending, keyword_init: true) do 
+        def initialize(opts={})
+          # Filter unrecognized fields just in case.
+          rem = opts.keys - members
+          opts.delete_if { |k| rem.include?(k) }
+          super(opts)
+        end
+      end
     end
   end
 end

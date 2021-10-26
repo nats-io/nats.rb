@@ -38,6 +38,13 @@ module NATS
     # @param uri [String] URL endpoint of the NATS Server or cluster.
     # @param opts [Hash] Options to customize the NATS connection.
     # @return [NATS::Client]
+    #
+    # @example
+    #   require 'nats'
+    #   nc = NATS.connect("demo.nats.io")
+    #   nc.publish("hello", "world")
+    #   nc.close
+    #
     def connect(uri=nil, opts={})
       nc = NATS::Client.new
       nc.connect(uri, opts)
