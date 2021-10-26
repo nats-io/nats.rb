@@ -107,7 +107,7 @@ module NATS
     def pull_subscribe(subject, durable, params={})
       raise JetStream::Error::InvalidDurableName.new("nats: invalid durable name") if durable.empty?
       params[:consumer] ||= durable
-      params[:stream] ||= find_stream_by_subject(subject)
+      params[:stream] ||= find_stream_name_by_subject(subject)
 
       # Assert that the consumer is present.
       consumer_info(params[:stream], params[:consumer])
@@ -151,14 +151,19 @@ module NATS
         JetStream::API::ConsumerInfo.new(result)
       end
 
-      # find_stream_by_subject does a lookup for the stream to which
+      # find_stream_name_by_subject does a lookup for the stream to which
       # the subject belongs.
+      # @param [String] The subject that belongs to a stream.
+      # @param [Hash] Options to customize API request.
+      # @option [Float] :timeout Time to wait for response.
       # @return [String] The name of the JetStream stream for the subject.
-      def find_stream_by_subject(subject)
+      def find_stream_name_by_subject(subject, params={})
         req_subject = "#{@prefix}.STREAM.NAMES"
         req = { subject: subject }
+
+        params[:timeout] ||= @opts[:timeout]
         begin
-          msg = @nc.request(req_subject, req.to_json, timeout: @opts[:timeout])
+          msg = @nc.request(req_subject, req.to_json, params)
           result = JSON.parse(msg.data, symbolize_names: true)
         rescue NATS::IO::NoRespondersError
           raise JetStream::Error::ServiceUnavailable
@@ -191,7 +196,7 @@ module NATS
     #
     # @!visibility public
     module PullSubscription
-      # next_msg is not available for pull based susbcriptions.
+      # next_msg is not available for pull based subscriptions.
       # @raise [NATS::JetStream::Error]
       def next_msg(params={})
         raise ::NATS::JetStream::Error.new("nats: pull subscription cannot use next_msg")
@@ -398,10 +403,11 @@ module NATS
         # Subject without domain:
         # $JS.ACK.<stream>.<consumer>.<delivered>.<sseq>.<cseq>.<tm>.<pending>
         #
+        V1TokenCounts = 9
+
         # Subject with domain:
         # $JS.ACK.<domain>.<account hash>.<stream>.<consumer>.<delivered>.<sseq>.<cseq>.<tm>.<pending>.<a token with a random value>
         #
-        V1TokenCounts = 9
         V2TokenCounts = 12
 
         SequencePair = Struct.new(:stream, :consumer)
@@ -442,7 +448,7 @@ module NATS
           ensure_is_acked_once!
 
           params[:timeout] ||= 0.5
-          resp = @nc.request(@reply, Ack::Ack)
+          resp = @nc.request(@reply, Ack::Ack, params)
           @sub.synchronize { @ackd = true }
 
           resp
@@ -723,21 +729,29 @@ module NATS
 
       # SequenceInfo is a pair of consumer and stream sequence and last activity.
       # @!attribute consumer_seq
-      #   @return [Integer]
+      #   @return [Integer] The consumer sequence.
       # @!attribute stream_seq
-      #   @return [Integer]
-      SequenceInfo = Struct.new(:consumer_seq, :stream_seq, :last_active, keyword_init: true)
+      #   @return [Integer] The stream sequence.
+      SequenceInfo = Struct.new(:consumer_seq, :stream_seq, :last_active, keyword_init: true) do
+        def initialize(opts={})
+          # Filter unrecognized fields just in case.
+          rem = opts.keys - members
+          opts.delete_if { |k| rem.include?(k) }
+          super(opts)
+          freeze
+        end
+      end
 
       # ConsumerInfo is the current status of a JetStream consumer.
       # 
       # @!attribute stream_name
       #   @return [String] name of the stream to which the consumer belongs.
       # @!attribute name
-      #   @return [String] name of the consumer
+      #   @return [String] name of the consumer.
       # @!attribute created
       #   @return [String] time when the consumer was created.
       # @!attribute config 
-      #   @return [ConsumerConfig] consumer configuration
+      #   @return [ConsumerConfig] consumer configuration.
       # @!attribute delivered
       #   @return [SequenceInfo]
       # @!attribute ack_floor
@@ -758,15 +772,16 @@ module NATS
                                 :cluster, :push_bound, keyword_init: true) do
         def initialize(opts={})
           opts[:created] = Time.parse(opts[:created])
-          opts[:config] = ConsumerConfig.new(opts[:config])
           opts[:ack_floor] = SequenceInfo.new(opts[:ack_floor])
           opts[:delivered] = SequenceInfo.new(opts[:delivered])
           opts[:config][:ack_wait] = opts[:config][:ack_wait] / 1_000_000_000
+          opts[:config] = ConsumerConfig.new(opts[:config])
           opts.delete(:cluster)
           # Filter unrecognized fields just in case.
           rem = opts.keys - members
           opts.delete_if { |k| rem.include?(k) }
           super(opts)
+          freeze
         end
       end
 

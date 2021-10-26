@@ -1459,9 +1459,10 @@ module NATS
             @resp_map[token][:response] = msg
           end
 
-          # Signal back that the response has arrived.
+          # Signal back that the response has arrived
+          # in case the future has not been yet delete.
           @resp_sub.synchronize do
-            future.signal
+            future.signal if future
           end
         end
       end

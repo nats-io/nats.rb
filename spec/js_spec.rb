@@ -682,4 +682,125 @@ describe 'JetStream' do
                            .and having_attributes(code: 400))
     end
   end
+
+  describe 'Manager' do
+    before(:each) do
+      @tmpdir = Dir.mktmpdir("ruby-jsm")
+      config_opts = {
+        'pid_file'      => '/tmp/nats_jsm_1.pid',
+        'host'          => '127.0.0.1',
+        'port'          => 4730,
+      }
+      @domain = "estre"
+      @s = NatsServerControl.init_with_config_from_string(%Q(
+        port = #{config_opts['port']}
+        jetstream {
+          domain = #{@domain}
+          store_dir = "#{@tmpdir}"
+        }
+      ), config_opts)
+      @s.start_server(true)
+    end
+
+    after(:each) do
+      @s.kill_server
+      FileUtils.remove_entry(@tmpdir)
+    end
+
+    it "should lookup streams by subject" do
+      nc = NATS.connect(@s.uri)
+
+      stream_req = {
+        name: "foo",
+        subjects: ["a", "a.*", "a.>"]
+      }
+      resp = nc.request("$JS.API.STREAM.CREATE.foo", stream_req.to_json)
+      expect(resp).to_not be_nil
+
+      stream_req = {
+        name: "bar",
+        subjects: ["b", "b.*", "b.>"]
+      }
+      resp = nc.request("$JS.API.STREAM.CREATE.bar", stream_req.to_json)
+      expect(resp).to_not be_nil
+
+      js = nc.jetstream
+      stream = js.find_stream_name_by_subject("a")
+      expect(stream).to eql("foo")
+
+      stream = js.find_stream_name_by_subject("a.>")
+      expect(stream).to eql("foo")
+
+      stream = js.find_stream_name_by_subject("a.*")
+      expect(stream).to eql("foo")
+
+      stream = js.find_stream_name_by_subject("b")
+      expect(stream).to eql("bar")
+
+      stream = js.find_stream_name_by_subject("b.>")
+      expect(stream).to eql("bar")
+
+      stream = js.find_stream_name_by_subject("b.*")
+      expect(stream).to eql("bar")
+
+      expect do
+        js.find_stream_name_by_subject("c")
+      end.to raise_error(NATS::JetStream::Error::NotFound)
+
+      expect do
+        js.find_stream_name_by_subject("c")
+      end.to raise_error(NATS::JetStream::API::Error)
+
+      expect do
+        js.find_stream_name_by_subject("c", timeout: 0.00001)
+      end.to raise_error(NATS::Timeout)
+    end
+
+    it "should get consumer info" do
+      nc = NATS.connect(@s.uri)
+
+      stream_req = {
+        name: "quux",
+        subjects: ["q"]
+      }
+      resp = nc.request("$JS.API.STREAM.CREATE.quux", stream_req.to_json)
+      expect(resp).to_not be_nil
+
+      consumer_req = {
+        stream_name: "quux",
+        config: {
+          durable_name: "test",
+          ack_policy: "explicit",
+          max_ack_pending: 20,
+          max_waiting: 3,
+          ack_wait: 5 * 1_000_000_000 # 5 seconds
+        }
+      }
+      resp = nc.request("$JS.API.CONSUMER.DURABLE.CREATE.quux.test", consumer_req.to_json)
+      expect(resp).to_not be_nil
+
+      js = nc.jetstream
+
+      js.publish("q", "hello world")
+
+      info = js.consumer_info("quux", "test")
+      expect(info.type).to eql("io.nats.jetstream.api.v1.consumer_info_response")
+
+      # It is a struct so either is ok
+      expect(info.num_pending).to eql(1)
+      expect(info[:num_pending]).to eql(1)
+
+      expect do 
+        info.num_pending = 10
+      end.to raise_error(FrozenError)
+
+      expect do
+        js.consumer_info("quux", "missing")
+      end.to raise_error(NATS::JetStream::API::Error)
+
+      expect do
+        js.consumer_info("quux", "missing")
+      end.to raise_error(NATS::JetStream::Error::NotFound)
+    end
+  end
 end
