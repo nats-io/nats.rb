@@ -706,9 +706,9 @@ describe 'JetStream' do
       FileUtils.remove_entry(@tmpdir)
     end
 
-    it "should create streams with config" do
-      nc = NATS.connect(@s.uri)
+    let(:nc) { NATS.connect(@s.uri) }
 
+    it "should support jsm.add_stream" do
       stream_config = {
         name: "mystream"
       }
@@ -734,13 +734,26 @@ describe 'JetStream' do
       expect(resp.config.num_replicas).to eql(1)
 
       expect do 
-        resp = nc.jsm.add_stream(foo: "foo")
+        nc.jsm.add_stream(foo: "foo")
       end.to raise_error(ArgumentError)
+
+      expect do 
+        nc.jsm.add_stream(foo: "foo.*")
+      end.to raise_error(ArgumentError)
+      nc.close
     end
 
-    it "should lookup streams by subject" do
-      nc = NATS.connect(@s.uri)
+    it "should support jsm.stream_info" do
+      nc.jsm.add_stream(name: "a")
+      info = nc.jsm.stream_info("a")
+      expect(info).to be_a NATS::JetStream::API::StreamInfo
+      expect(info.state).to be_a NATS::JetStream::API::StreamState
+      expect(info.config).to be_a NATS::JetStream::API::StreamConfig
+      expect(info.created).to be_a Time
+      nc.close
+    end
 
+    it "should support jsm.find_stream_name_by_subject" do
       stream_req = {
         name: "foo",
         subjects: ["a", "a.*", "a.>"]
@@ -785,9 +798,11 @@ describe 'JetStream' do
       expect do
         js.find_stream_name_by_subject("c", timeout: 0.00001)
       end.to raise_error(NATS::Timeout)
+
+      nc.close
     end
 
-    it "should get consumer info" do
+    it "should support jsm.consumer_info" do
       nc = NATS.connect(@s.uri)
 
       stream_req = {

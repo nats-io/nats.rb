@@ -142,6 +142,9 @@ module NATS
     module Manager
       # add_stream creates a stream with a given config.
       # @param config [JetStream::API::StreamConfig] Configuration of the stream to create.
+      # @param params [Hash] Options to customize API request.
+      # @option params [Float] :timeout Time to wait for response.
+      # @return [JetStream::API::StreamCreateResponse] The result of creating a Stream.
       def add_stream(config, params={})
         config = if not config.is_a?(JetStream::API::StreamConfig)
                    JetStream::API::StreamConfig.new(config)
@@ -152,6 +155,19 @@ module NATS
         req_subject = "#{@prefix}.STREAM.CREATE.#{config[:name]}"
         result = api_request(req_subject, config.to_json, params)
         JetStream::API::StreamCreateResponse.new(result)
+      end
+
+      # stream_info retrieves the current status of a stream.
+      # @param stream [String] Name of the stream.
+      # @param params [Hash] Options to customize API request.
+      # @option params [Float] :timeout Time to wait for response.
+      # @return [JetStream::API::StreamInfo] The latest StreamInfo of the stream.
+      def stream_info(stream, params={})
+        raise JetStream::Error::InvalidStreamName.new("nats: invalid stream name") if stream.nil? or stream.empty?
+
+        req_subject = "#{@prefix}.STREAM.INFO.#{stream}"
+        result = api_request(req_subject, '', params)
+        JetStream::API::StreamInfo.new(result)
       end
 
       # consumer_info retrieves the current status of a consumer.
@@ -759,7 +775,7 @@ module NATS
       #   @return [Integer] The stream sequence.
       SequenceInfo = Struct.new(:consumer_seq, :stream_seq, :last_active, keyword_init: true) do
         def initialize(opts={})
-          # Filter unrecognized fields just in case.
+          # Filter unrecognized fields and freeze.
           rem = opts.keys - members
           opts.delete_if { |k| rem.include?(k) }
           super(opts)
@@ -847,7 +863,7 @@ module NATS
       end
 
       # StreamConfig represents the configuration of a stream from JetStream.
-      # 
+      #
       # @!attribute type
       #   @return [String]
       # @!attribute config
@@ -903,8 +919,34 @@ module NATS
         end
       end
 
+      # StreamInfo is the info about a stream from JetStream.
+      #
+      # @!attribute type
+      #   @return [String]
+      # @!attribute config
+      #   @return [Hash]
+      # @!attribute created
+      #   @return [String]
+      # @!attribute state
+      #   @return [Hash]
+      # @!attribute domain
+      #   @return [String]
+      StreamInfo = Struct.new(:type, :config, :created, :state, :domain, keyword_init: true) do
+        def initialize(opts={})
+          opts[:config] = StreamConfig.new(opts[:config])
+          opts[:state] = StreamState.new(opts[:state])
+          opts[:created] = Time.parse(opts[:created])
+
+          # Filter fields and freeze.
+          rem = opts.keys - members
+          opts.delete_if { |k| rem.include?(k) }
+          super(opts)
+          freeze
+        end
+      end
+
       # StreamState is the state of a stream.
-      # 
+      #
       # @!attribute messages
       #   @return [Integer]
       # @!attribute bytes
@@ -917,15 +959,14 @@ module NATS
       #   @return [Integer]
       StreamState = Struct.new(:messages, :bytes, :first_seq, :first_ts, :last_seq, :last_ts, :consumer_count) do
         def initialize(opts={})
-          # Filter unrecognized fields just in case.
           rem = opts.keys - members
           opts.delete_if { |k| rem.include?(k) }
           super(opts)
-        end        
+        end
       end
 
       # StreamCreateResponse is the response from the JetStream $JS.API.STREAM.CREATE API.
-      # 
+      #
       # @!attribute type
       #   @return [String]
       # @!attribute config
@@ -939,7 +980,6 @@ module NATS
       StreamCreateResponse = Struct.new(:type, :config, :created, :state,
                                         :did_create, keyword_init: true) do
         def initialize(opts={})
-          # Filter unrecognized fields just in case.
           rem = opts.keys - members
           opts.delete_if { |k| rem.include?(k) }
           opts[:config] = StreamConfig.new(opts[:config])
