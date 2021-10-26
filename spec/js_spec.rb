@@ -753,6 +753,62 @@ describe 'JetStream' do
       nc.close
     end
 
+    it "should support jsm.add_consumer" do
+      stream_name = "add-consumer-test"
+      nc.jsm.add_stream(name: stream_name, subjects: ["foo"])
+
+      # Create durable consumer
+      consumer_config = {
+        durable_name: "test-create",
+        ack_policy: "explicit",
+        max_ack_pending: 20,
+        max_waiting: 3,
+        ack_wait: 5
+      }
+      resp = nc.jsm.add_consumer(stream_name, consumer_config)
+      expect(resp).to be_a NATS::JetStream::API::ConsumerInfo
+      expect(resp.stream_name).to eql(stream_name)
+      expect(resp.name).to eql("test-create")
+
+      # Create ephemeral consumer (with deliver subject).
+      inbox = nc.new_inbox
+      consumer_config = {
+        deliver_subject: inbox,
+        ack_policy: "explicit",
+        max_ack_pending: 20,
+        ack_wait: 5 # seconds
+      }
+      consumer = nc.jsm.add_consumer(stream_name, consumer_config)
+      expect(consumer).to be_a NATS::JetStream::API::ConsumerInfo
+      expect(consumer.stream_name).to eql(stream_name)
+      expect(consumer.name).to_not eql("")
+      expect(consumer.config.deliver_subject).to eql(inbox)
+
+      js = nc.jetstream
+      js.publish("foo", "Hello World!")
+
+      # Now lookup the consumer using the ephemeral name.
+      info = nc.jsm.consumer_info(stream_name, consumer.name)
+
+      # Fetch with pull subscribe.
+      psub = js.pull_subscribe("foo", "test-create")
+      msgs = psub.fetch
+      expect(msgs.count).to eql(1)
+      msgs.each do |msg|
+        msg.ack_sync
+      end
+
+      # Fetch with ephemeral.
+      sub = nc.subscribe(inbox)
+      msg = sub.next_msg(timeout: 1)
+      resp = msg.ack_sync
+      expect(resp).to_not be_nil
+
+      expect do
+        sub.next_msg(timeout: 0.5)
+      end.to raise_error NATS::Timeout
+    end
+
     it "should support jsm.find_stream_name_by_subject" do
       stream_req = {
         name: "foo",

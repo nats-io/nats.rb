@@ -151,8 +151,9 @@ module NATS
                  else
                    config
                  end
-        raise ArgumentError.new(":name is required to create streams") unless config[:name]
-        req_subject = "#{@prefix}.STREAM.CREATE.#{config[:name]}"
+        stream = config[:name]
+        raise ArgumentError.new(":name is required to create streams") unless stream
+        req_subject = "#{@prefix}.STREAM.CREATE.#{stream}"
         result = api_request(req_subject, config.to_json, params)
         JetStream::API::StreamCreateResponse.new(result)
       end
@@ -168,6 +169,39 @@ module NATS
         req_subject = "#{@prefix}.STREAM.INFO.#{stream}"
         result = api_request(req_subject, '', params)
         JetStream::API::StreamInfo.new(result)
+      end
+
+      # add_consumer creates a consumer with a given config.
+      # @param stream [String] Name of the stream.
+      # @param config [JetStream::API::ConsumerConfig] Configuration of the consumer to create.
+      # @param params [Hash] Options to customize API request.
+      # @option params [Float] :timeout Time to wait for response.
+      # @return [JetStream::API::ConsumerInfo] The result of creating a Consumer.
+      def add_consumer(stream, config, params={})
+        raise JetStream::Error::InvalidStreamName.new("nats: invalid stream name") if stream.nil? or stream.empty?
+        config = if not config.is_a?(JetStream::API::ConsumerConfig)
+                   JetStream::API::ConsumerConfig.new(config)
+                 else
+                   config
+                 end
+        req_subject = if config[:durable_name]
+                        "#{@prefix}.CONSUMER.DURABLE.CREATE.#{stream}.#{config[:durable_name]}"
+                      else
+                        "#{@prefix}.CONSUMER.CREATE.#{stream}"
+                      end
+
+        # Check if have to normalize ack wait so that it is in nanoseconds for Go compat.
+        if config[:ack_wait]
+          raise ArgumentError.new("nats: invalid ack wait") unless config[:ack_wait].is_a?(Integer)
+          config[:ack_wait] = config[:ack_wait] * 1_000_000_000
+        end
+
+        req = {
+          stream_name: stream,
+          config: config
+        }
+        result = api_request(req_subject, req.to_json, params)
+        JetStream::API::ConsumerInfo.new(result).freeze
       end
 
       # consumer_info retrieves the current status of a consumer.
@@ -710,6 +744,10 @@ module NATS
           @stream = params[:stream]
           @seq = params[:seq]
         end
+
+        def to_s
+          "#{@description} (status_code=#{@code}, err_code=#{@err_code})"
+        end
       end
 
       # When JetStream is not currently available, this could be due to JetStream
@@ -773,7 +811,8 @@ module NATS
       #   @return [Integer] The consumer sequence.
       # @!attribute stream_seq
       #   @return [Integer] The stream sequence.
-      SequenceInfo = Struct.new(:consumer_seq, :stream_seq, :last_active, keyword_init: true) do
+      SequenceInfo = Struct.new(:consumer_seq, :stream_seq, :last_active,
+                                keyword_init: true) do
         def initialize(opts={})
           # Filter unrecognized fields and freeze.
           rem = opts.keys - members
@@ -809,8 +848,9 @@ module NATS
       #   @return [Hash]
       ConsumerInfo = Struct.new(:type, :stream_name, :name, :created,
                                 :config, :delivered, :ack_floor,
-                                :num_ack_pending, :num_redelivered, :num_waiting, :num_pending,
-                                :cluster, :push_bound, keyword_init: true) do
+                                :num_ack_pending, :num_redelivered, :num_waiting,
+                                :num_pending, :cluster, :push_bound,
+                                keyword_init: true) do
         def initialize(opts={})
           opts[:created] = Time.parse(opts[:created])
           opts[:ack_floor] = SequenceInfo.new(opts[:ack_floor])
@@ -844,10 +884,13 @@ module NATS
       #   @return [Integer]
       # @!attribute max_ack_pending
       #   @return [Integer]
-      ConsumerConfig = Struct.new(:durable_name, :deliver_policy,
-                                  :ack_policy, :ack_wait, :max_deliver,
-                                  :replay_policy, :max_waiting,
-                                  :max_ack_pending, keyword_init: true) do
+      ConsumerConfig = Struct.new(:durable_name, :description, :deliver_subject,
+                                  :deliver_group, :deliver_policy, :opt_start_seq,
+                                  :opt_start_time, :ack_policy, :ack_wait, :max_deliver,
+                                  :filter_subject, :replay_policy, :rate_limit_bps,
+                                  :sample_freq, :max_waiting, :max_ack_pending,
+                                  :flow_control, :idle_heartbeat, :headers_only,
+                                  keyword_init: true) do
         def initialize(opts={})
           # Filter unrecognized fields just in case.
           rem = opts.keys - members
@@ -855,10 +898,10 @@ module NATS
           super(opts)
         end
 
-        def to_json
+        def to_json(*args)
           config = self.to_h
           config.delete_if { |_k, v| v.nil? }
-          config.to_json
+          config.to_json(*args)
         end
       end
 
@@ -912,10 +955,10 @@ module NATS
           super(opts)
         end
 
-        def to_json
+        def to_json(*args)
           config = self.to_h
           config.delete_if { |_k, v| v.nil? }
-          config.to_json
+          config.to_json(*args)
         end
       end
 
@@ -931,7 +974,8 @@ module NATS
       #   @return [Hash]
       # @!attribute domain
       #   @return [String]
-      StreamInfo = Struct.new(:type, :config, :created, :state, :domain, keyword_init: true) do
+      StreamInfo = Struct.new(:type, :config, :created, :state, :domain,
+                              keyword_init: true) do
         def initialize(opts={})
           opts[:config] = StreamConfig.new(opts[:config])
           opts[:state] = StreamState.new(opts[:state])
@@ -957,7 +1001,9 @@ module NATS
       #   @return [Integer]
       # @!attribute consumer_count
       #   @return [Integer]
-      StreamState = Struct.new(:messages, :bytes, :first_seq, :first_ts, :last_seq, :last_ts, :consumer_count) do
+      StreamState = Struct.new(:messages, :bytes, :first_seq, :first_ts,
+                               :last_seq, :last_ts, :consumer_count,
+                               keyword_init: true) do
         def initialize(opts={})
           rem = opts.keys - members
           opts.delete_if { |k| rem.include?(k) }
@@ -977,8 +1023,8 @@ module NATS
       #   @return [StreamState]
       # @!attribute did_create
       #   @return [Boolean]
-      StreamCreateResponse = Struct.new(:type, :config, :created, :state,
-                                        :did_create, keyword_init: true) do
+      StreamCreateResponse = Struct.new(:type, :config, :created, :state, :did_create,
+                                        keyword_init: true) do
         def initialize(opts={})
           rem = opts.keys - members
           opts.delete_if { |k| rem.include?(k) }

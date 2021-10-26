@@ -76,6 +76,12 @@ module NATS
         MonotonicTime::with_nats_timeout(timeout) do
           wait_for_msgs_cond.wait(timeout)
         end
+
+        if not @pending_queue.empty?
+          return @pending_queue.pop
+        else
+          raise NATS::Timeout
+        end
       end
     end
 
