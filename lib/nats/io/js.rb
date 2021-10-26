@@ -129,49 +129,74 @@ module NATS
     end
 
     # A JetStream::Manager can be used to make requests to the JetStream API.
+    #
+    # @example
+    #   require 'nats/client'
+    #
+    #   nc = NATS.connect("demo.nats.io")
+    #
+    #   config = JetStream::API::StreamConfig.new()
+    #   nc.jsm.add_stream(config)
+    #
+    #
     module Manager
+      # add_stream creates a stream with a given config.
+      # @param config [JetStream::API::StreamConfig] Configuration of the stream to create.
+      def add_stream(config, params={})
+        config = if not config.is_a?(JetStream::API::StreamConfig)
+                   JetStream::API::StreamConfig.new(config)
+                 else
+                   config
+                 end
+        raise ArgumentError.new(":name is required to create streams") unless config[:name]
+        req_subject = "#{@prefix}.STREAM.CREATE.#{config[:name]}"
+        result = api_request(req_subject, config.to_json, params)
+        JetStream::API::StreamCreateResponse.new(result)
+      end
 
       # consumer_info retrieves the current status of a consumer.
+      # @param stream [String] Name of the stream.
+      # @param consumer [String] Name of the consumer.
+      # @param params [Hash] Options to customize API request.
+      # @option params [Float] :timeout Time to wait for response.
       # @return [JetStream::API::ConsumerInfo] The latest ConsumerInfo of the consumer.
       def consumer_info(stream, consumer, params={})
         raise JetStream::Error::InvalidStreamName.new("nats: invalid stream name") if stream.nil? or stream.empty?
         raise JetStream::Error::InvalidConsumerName.new("nats: invalid consumer name") if consumer.nil? or consumer.empty?
 
-        subject = "#{@prefix}.CONSUMER.INFO.#{stream}.#{consumer}"
-        params[:timeout] ||= @opts[:timeout]
-
-        begin
-          msg = @nc.request(subject, '', timeout: params[:timeout])
-          result = JSON.parse(msg.data, symbolize_names: true)
-        rescue NATS::IO::NoRespondersError
-          raise JetStream::Error::ServiceUnavailable
-        end
-        raise JS.from_error(result[:error]) if result[:error]
-
+        req_subject = "#{@prefix}.CONSUMER.INFO.#{stream}.#{consumer}"
+        result = api_request(req_subject, '', params)
         JetStream::API::ConsumerInfo.new(result)
       end
 
       # find_stream_name_by_subject does a lookup for the stream to which
       # the subject belongs.
-      # @param [String] The subject that belongs to a stream.
-      # @param [Hash] Options to customize API request.
-      # @option [Float] :timeout Time to wait for response.
+      # @param subject [String] The subject that belongs to a stream.
+      # @param params [Hash] Options to customize API request.
+      # @option params [Float] :timeout Time to wait for response.
       # @return [String] The name of the JetStream stream for the subject.
       def find_stream_name_by_subject(subject, params={})
         req_subject = "#{@prefix}.STREAM.NAMES"
         req = { subject: subject }
-
-        params[:timeout] ||= @opts[:timeout]
-        begin
-          msg = @nc.request(req_subject, req.to_json, params)
-          result = JSON.parse(msg.data, symbolize_names: true)
-        rescue NATS::IO::NoRespondersError
-          raise JetStream::Error::ServiceUnavailable
-        end
-        raise JS.from_error(result[:error]) if result[:error]
+        result = api_request(req_subject, req.to_json, params)
         raise JetStream::Error::NotFound unless result[:streams]
 
         result[:streams].first
+      end
+
+      private
+
+      def api_request(req_subject, req="", params={})
+        params[:timeout] ||= @opts[:timeout]
+        result = begin
+                   msg = @nc.request(req_subject, req, params)
+                   JSON.parse(msg.data, symbolize_names: true)
+                 rescue NATS::IO::NoRespondersError
+                   raise JetStream::Error::ServiceUnavailable
+                 end
+        raise JS.from_error(result[:error]) if result[:error]
+
+        result
       end
     end
 
@@ -743,14 +768,14 @@ module NATS
       end
 
       # ConsumerInfo is the current status of a JetStream consumer.
-      # 
+      #
       # @!attribute stream_name
       #   @return [String] name of the stream to which the consumer belongs.
       # @!attribute name
       #   @return [String] name of the consumer.
       # @!attribute created
       #   @return [String] time when the consumer was created.
-      # @!attribute config 
+      # @!attribute config
       #   @return [ConsumerConfig] consumer configuration.
       # @!attribute delivered
       #   @return [SequenceInfo]
@@ -786,7 +811,7 @@ module NATS
       end
 
       # ConsumerConfig is the consumer configuration.
-      # 
+      #
       # @!attribute durable_name
       #   @return [String]
       # @!attribute deliver_policy
@@ -806,12 +831,121 @@ module NATS
       ConsumerConfig = Struct.new(:durable_name, :deliver_policy,
                                   :ack_policy, :ack_wait, :max_deliver,
                                   :replay_policy, :max_waiting,
-                                  :max_ack_pending, keyword_init: true) do 
+                                  :max_ack_pending, keyword_init: true) do
         def initialize(opts={})
           # Filter unrecognized fields just in case.
           rem = opts.keys - members
           opts.delete_if { |k| rem.include?(k) }
           super(opts)
+        end
+
+        def to_json
+          config = self.to_h
+          config.delete_if { |_k, v| v.nil? }
+          config.to_json
+        end
+      end
+
+      # StreamConfig represents the configuration of a stream from JetStream.
+      # 
+      # @!attribute type
+      #   @return [String]
+      # @!attribute config
+      #   @return [Hash]
+      # @!attribute created
+      #   @return [String]
+      # @!attribute state
+      #   @return [StreamState]
+      # @!attribute did_create
+      #   @return [Boolean]
+      # @!attribute name
+      #   @return [String]
+      # @!attribute subjects
+      #   @return [Array]
+      # @!attribute retention
+      #   @return [String]
+      # @!attribute max_consumers
+      #   @return [Integer]
+      # @!attribute max_msgs
+      #   @return [Integer]
+      # @!attribute max_bytes
+      #   @return [Integer]
+      # @!attribute max_age
+      #   @return [Integer]
+      # @!attribute max_msgs_per_subject
+      #   @return [Integer]
+      # @!attribute max_msg_size
+      #   @return [Integer]
+      # @!attribute discard
+      #   @return [String]
+      # @!attribute storage
+      #   @return [String]
+      # @!attribute num_replicas
+      #   @return [Integer]
+      # @!attribute duplicate_window
+      #   @return [Integer]
+      StreamConfig = Struct.new(:name, :subjects, :retention, :max_consumers,
+                                :max_msgs, :max_bytes, :max_age,
+                                :max_msgs_per_subject, :max_msg_size,
+                                :discard, :storage, :num_replicas, :duplicate_window,
+                                keyword_init: true) do
+        def initialize(opts={})
+          # Filter unrecognized fields just in case.
+          rem = opts.keys - members
+          opts.delete_if { |k| rem.include?(k) }
+          super(opts)
+        end
+
+        def to_json
+          config = self.to_h
+          config.delete_if { |_k, v| v.nil? }
+          config.to_json
+        end
+      end
+
+      # StreamState is the state of a stream.
+      # 
+      # @!attribute messages
+      #   @return [Integer]
+      # @!attribute bytes
+      #   @return [Integer]
+      # @!attribute first_seq
+      #   @return [Integer]
+      # @!attribute last_seq
+      #   @return [Integer]
+      # @!attribute consumer_count
+      #   @return [Integer]
+      StreamState = Struct.new(:messages, :bytes, :first_seq, :first_ts, :last_seq, :last_ts, :consumer_count) do
+        def initialize(opts={})
+          # Filter unrecognized fields just in case.
+          rem = opts.keys - members
+          opts.delete_if { |k| rem.include?(k) }
+          super(opts)
+        end        
+      end
+
+      # StreamCreateResponse is the response from the JetStream $JS.API.STREAM.CREATE API.
+      # 
+      # @!attribute type
+      #   @return [String]
+      # @!attribute config
+      #   @return [StreamConfig]
+      # @!attribute created
+      #   @return [String]
+      # @!attribute state
+      #   @return [StreamState]
+      # @!attribute did_create
+      #   @return [Boolean]
+      StreamCreateResponse = Struct.new(:type, :config, :created, :state,
+                                        :did_create, keyword_init: true) do
+        def initialize(opts={})
+          # Filter unrecognized fields just in case.
+          rem = opts.keys - members
+          opts.delete_if { |k| rem.include?(k) }
+          opts[:config] = StreamConfig.new(opts[:config])
+          opts[:state] = StreamState.new(opts[:state])
+          super(opts)
+          freeze
         end
       end
     end

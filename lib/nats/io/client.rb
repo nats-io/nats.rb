@@ -717,6 +717,7 @@ module NATS
       ::NATS::JetStream.new(self, opts)
     end
     alias_method :JetStream, :jetstream
+    alias_method :jsm, :jetstream
 
     private
 

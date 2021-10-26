@@ -70,7 +70,6 @@ describe 'JetStream' do
       end.to raise_error(NATS::JetStream::Error::NoStreamResponse)
 
       nc.close
-
     end
   end
 
@@ -683,7 +682,7 @@ describe 'JetStream' do
     end
   end
 
-  describe 'Manager' do
+  describe 'JSM' do
     before(:each) do
       @tmpdir = Dir.mktmpdir("ruby-jsm")
       config_opts = {
@@ -705,6 +704,38 @@ describe 'JetStream' do
     after(:each) do
       @s.kill_server
       FileUtils.remove_entry(@tmpdir)
+    end
+
+    it "should create streams with config" do
+      nc = NATS.connect(@s.uri)
+
+      stream_config = {
+        name: "mystream"
+      }
+      resp = nc.jsm.add_stream(stream_config)
+      expect(resp).to be_a NATS::JetStream::API::StreamCreateResponse
+      expect(resp.type).to eql('io.nats.jetstream.api.v1.stream_create_response')
+      expect(resp.config.name).to eql('mystream')
+      expect(resp.config.num_replicas).to eql(1)
+
+      resp = nc.jsm.add_stream(name: 'stream2')
+      expect(resp).to be_a NATS::JetStream::API::StreamCreateResponse
+      expect(resp.config.name).to eql('stream2')
+      expect(resp.config.num_replicas).to eql(1)
+
+      # Can also use the types for the request.
+      stream_config = {
+        name: "stream3"
+      }
+      config = NATS::JetStream::API::StreamConfig.new(stream_config)
+      resp = nc.jsm.add_stream(config)
+      expect(resp).to be_a NATS::JetStream::API::StreamCreateResponse
+      expect(resp.config.name).to eql('stream3')
+      expect(resp.config.num_replicas).to eql(1)
+
+      expect do 
+        resp = nc.jsm.add_stream(foo: "foo")
+      end.to raise_error(ArgumentError)
     end
 
     it "should lookup streams by subject" do
@@ -786,11 +817,14 @@ describe 'JetStream' do
       info = js.consumer_info("quux", "test")
       expect(info.type).to eql("io.nats.jetstream.api.v1.consumer_info_response")
 
-      # It is a struct so either is ok
+      # It is a struct so either is ok.
       expect(info.num_pending).to eql(1)
       expect(info[:num_pending]).to eql(1)
+      expect(info.stream_name).to eql("quux")
+      expect(info.name).to eql("test")
 
-      expect do 
+      # Cannot modify the response.
+      expect do
         info.num_pending = 10
       end.to raise_error(FrozenError)
 
