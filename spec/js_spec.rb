@@ -753,6 +753,19 @@ describe 'JetStream' do
       nc.close
     end
 
+    it "should support jsm.delete_stream" do
+      stream_name = "stream-to-delete"
+      info = nc.jsm.add_stream(name: stream_name)
+      stream_info = nc.jsm.stream_info(stream_name)
+      expect(info.config).to eql(stream_info.config)
+      ok = nc.jsm.delete_stream(stream_name)
+      expect(ok).to eql(true)
+
+      expect do
+        nc.jsm.stream_info(stream_name)
+      end.to raise_error NATS::JetStream::Error::NotFound
+    end
+
     it "should support jsm.add_consumer" do
       stream_name = "add-consumer-test"
       nc.jsm.add_stream(name: stream_name, subjects: ["foo"])
@@ -807,6 +820,16 @@ describe 'JetStream' do
       expect do
         sub.next_msg(timeout: 0.5)
       end.to raise_error NATS::Timeout
+    end
+
+    it "should support jsm.delete_consumer" do
+      stream_name = "to-delete"
+      consumer_name = "dur"
+      nc.jsm.add_stream(name: stream_name)
+      nc.jsm.add_consumer(stream_name, { durable_name: consumer_name})
+      info = nc.jsm.consumer_info(stream_name, consumer_name)
+      ok = nc.jsm.delete_consumer(stream_name, consumer_name)
+      expect(ok).to eql(true)
     end
 
     it "should support jsm.find_stream_name_by_subject" do

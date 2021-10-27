@@ -171,6 +171,19 @@ module NATS
         JetStream::API::StreamInfo.new(result)
       end
 
+      # delete_stream deletes a stream.
+      # @param stream [String] Name of the stream.
+      # @param params [Hash] Options to customize API request.
+      # @option params [Float] :timeout Time to wait for response.
+      # @return [Boolean]
+      def delete_stream(stream, params={})
+        raise JetStream::Error::InvalidStreamName.new("nats: invalid stream name") if stream.nil? or stream.empty?
+
+        req_subject = "#{@prefix}.STREAM.DELETE.#{stream}"
+        result = api_request(req_subject, '', params)
+        result[:success]
+      end
+
       # add_consumer creates a consumer with a given config.
       # @param stream [String] Name of the stream.
       # @param config [JetStream::API::ConsumerConfig] Configuration of the consumer to create.
@@ -190,6 +203,7 @@ module NATS
                         "#{@prefix}.CONSUMER.CREATE.#{stream}"
                       end
 
+        config[:ack_policy] ||= JS::Config::AckExplicit
         # Check if have to normalize ack wait so that it is in nanoseconds for Go compat.
         if config[:ack_wait]
           raise ArgumentError.new("nats: invalid ack wait") unless config[:ack_wait].is_a?(Integer)
@@ -217,6 +231,21 @@ module NATS
         req_subject = "#{@prefix}.CONSUMER.INFO.#{stream}.#{consumer}"
         result = api_request(req_subject, '', params)
         JetStream::API::ConsumerInfo.new(result)
+      end
+
+      # delete_consumer deletes a consumer.
+      # @param stream [String] Name of the stream.
+      # @param consumer [String] Name of the consumer.
+      # @param params [Hash] Options to customize API request.
+      # @option params [Float] :timeout Time to wait for response.
+      # @return [Boolean]
+      def delete_consumer(stream, consumer, params={})
+        raise JetStream::Error::InvalidStreamName.new("nats: invalid stream name") if stream.nil? or stream.empty?
+        raise JetStream::Error::InvalidConsumerName.new("nats: invalid consumer name") if consumer.nil? or consumer.empty?
+
+        req_subject = "#{@prefix}.CONSUMER.DELETE.#{stream}.#{consumer}"
+        result = api_request(req_subject, '', params)
+        result[:success]
       end
 
       # find_stream_name_by_subject does a lookup for the stream to which
