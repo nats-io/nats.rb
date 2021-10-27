@@ -713,6 +713,11 @@ module NATS
     end
 
     # Create a JetStream context.
+    # @param opts [Hash] Options to customize the JetStream context.
+    # @option params [String] :prefix JetStream API prefix to use for the requests.
+    # @option params [String] :domain JetStream Domain to use for the requests.
+    # @option params [Float] :timeout Default timeout to use for JS requests.
+    # @return [NATS::JetStream]
     def jetstream(opts={})
       ::NATS::JetStream.new(self, opts)
     end
