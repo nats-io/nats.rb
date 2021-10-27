@@ -339,11 +339,14 @@ module NATS
       self
     end
 
-    def publish(subject, msg=EMPTY_MSG, opt_reply=nil, &blk)
+    def publish(subject, msg=EMPTY_MSG, opt_reply=nil, **options, &blk)
       raise NATS::IO::BadSubject if !subject or subject.empty?
-      msg_size = msg.bytesize
+      if options[:header]
+        return publish_msg(NATS::Msg.new(subject: subject, data: msg, reply: opt_reply, header: options[:header]))
+      end
 
       # Accounting
+      msg_size = msg.bytesize
       @stats[:out_msgs] += 1
       @stats[:out_bytes] += msg_size
 
@@ -458,12 +461,16 @@ module NATS
     # It times out in case the request is not retrieved within the
     # specified deadline.
     # If given a callback, then the request happens asynchronously.
-    def request(subject, payload="", opts={}, &blk)
+    def request(subject, payload="", **opts, &blk)
       raise NATS::IO::BadSubject if !subject or subject.empty?
 
       # If a block was given then fallback to method using auto unsubscribe.
       return old_request(subject, payload, opts, &blk) if blk
       return old_request(subject, payload, opts) if opts[:old_style]
+
+      if opts[:header]
+        return request_msg(NATS::Msg.new(subject: subject, data: payload, header: opts[:header]), **opts)
+      end
 
       token = nil
       inbox = nil
@@ -512,7 +519,7 @@ module NATS
     end
 
     # request_msg makes a NATS request using a NATS::Msg that may include headers.
-    def request_msg(msg, opts={})
+    def request_msg(msg, **opts)
       raise TypeError, "nats: expected NATS::Msg, got #{msg.class.name}" unless msg.is_a?(Msg)
       raise NATS::IO::BadSubject if !msg.subject or msg.subject.empty?
 

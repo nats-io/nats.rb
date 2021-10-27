@@ -91,6 +91,27 @@ describe 'Client - v2.2 features' do
     end
     sub1.unsubscribe
 
+    sub3 = nc.subscribe("quux")
+
+    # message with no headers
+    nc.publish("quux", "first")
+
+    # empty payload
+    nc.publish("quux", header: { "foo": "A"})
+
+    # payload and header
+    nc.publish("quux", "third", header: { "foo": "B"})
+    nc.flush
+
+    msg = sub3.next_msg
+    expect(msg.header).to be_nil
+
+    msg = sub3.next_msg
+    expect(msg.header["foo"]).to eql("A")
+
+    msg = sub3.next_msg
+    expect(msg.header["foo"]).to eql("B")
+
     nc.close
   end
 
@@ -114,7 +135,7 @@ describe 'Client - v2.2 features' do
     end
     nc.flush
 
-    1.upto(5) do |n|
+    1.upto(5) do |n|p
       data = "hello world-#{'A' * n}"
       msg = NATS::Msg.new(subject: 'hello',
                           data: data,
@@ -128,6 +149,26 @@ describe 'Client - v2.2 features' do
       nc.flush
     end
     expect(msgs.count).to eql(5)
+
+    sub2 = nc.subscribe("quux")
+    Thread.new do
+      # Add some custom headers...
+      msg = sub2.next_msg
+      msg.header["reply"] = "ok"
+      msg.respond
+    end
+
+    msg = nc.request("quux", timeout: 2, header: { "one": "1" })
+    expect(msg.data).to eql('')
+    expect(msg.header).to eql({"one" => "1", "reply" => "ok"})
+
+    expect do 
+      msg.respond_msg("foo")
+    end.to raise_error TypeError
+
+    expect do
+      nc.request("quux", timeout: 0.0001, header: { "one": "1" })
+    end.to raise_error NATS::Timeout
 
     nc.close
   end

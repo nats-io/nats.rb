@@ -31,9 +31,16 @@ module NATS
       @meta    = nil
     end
 
-    def respond(data)
+    def respond(data='')
       return unless @nc
-      @nc.publish(self.reply, data)
+      if self.header
+        dmsg = self.dup
+        dmsg.subject = self.reply
+        dmsg.data = data
+        @nc.publish_msg(dmsg)
+      else
+        @nc.publish(self.reply, data)
+      end
     end
 
     def respond_msg(msg)
