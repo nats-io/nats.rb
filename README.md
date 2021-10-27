@@ -10,14 +10,6 @@ A thread safe [Ruby](http://ruby-lang.org) client for the [NATS messaging system
 gem install nats-pure
 ```
 
-Starting from [v0.6.0](https://github.com/nats-io/nats-pure.rb/releases/tag/v0.6.0) release,
-you can also optionally install [NKEYS](https://github.com/nats-io/nkeys.rb) in order to use
-the new NATS v2.0 auth features:
-
-```bash
-gem install nkeys
-```
-
 ## Basic Usage
 
 ```ruby
@@ -163,6 +155,14 @@ NATS.connect({
 ### New Authentication (Nkeys and User Credentials)
 
 This requires server with version >= 2.0.0
+
+Starting from [v0.6.0](https://github.com/nats-io/nats-pure.rb/releases/tag/v0.6.0) release,
+you can also optionally install [NKEYS](https://github.com/nats-io/nkeys.rb) in order to use
+the new NATS v2.0 auth features:
+
+```bash
+gem install nkeys
+```
 
 NATS servers have a new security and authentication mechanism to authenticate with user credentials and NKEYS. A single file containing the JWT and NKEYS to authenticate against a NATS v2 server can be set with the `user_credentials` option:
 
