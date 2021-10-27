@@ -107,21 +107,35 @@ module NATS
     def pull_subscribe(subject, durable, params={})
       raise JetStream::Error::InvalidDurableName.new("nats: invalid durable name") if durable.empty?
       params[:consumer] ||= durable
-      params[:stream] ||= find_stream_name_by_subject(subject)
+      stream = params[:stream].nil? ? find_stream_name_by_subject(subject) : params[:stream]
 
-      # Assert that the consumer is present.
-      consumer_info(params[:stream], params[:consumer])
+      begin
+        consumer_info(stream, params[:consumer])
+      rescue NATS::JetStream::Error::NotFound => e
+        # If attempting to bind, then this is a hard error.
+        raise e if params[:stream]
+
+        config = if not params[:config]
+                   JetStream::API::ConsumerConfig.new
+                 elsif params[:config].is_a?(JetStream::API::ConsumerConfig)
+                   params[:config]
+                 else
+                   JetStream::API::ConsumerConfig.new(params[:config])
+                 end
+        config[:durable_name] = durable
+        config[:ack_policy] ||= JS::Config::AckExplicit
+        add_consumer(stream, config)
+      end
 
       deliver = @nc.new_inbox
       sub = @nc.subscribe(deliver)
       sub.extend(PullSubscription)
 
-      stream = params[:stream]
       consumer = params[:consumer]
       subject = "#{@prefix}.CONSUMER.MSG.NEXT.#{stream}.#{consumer}"
       sub.jsi = JS::Sub.new(
         js: self,
-        stream: params[:stream],
+        stream: stream,
         consumer: params[:consumer],
         nms: subject
       )
@@ -467,6 +481,14 @@ module NATS
         end
 
         msgs
+      end
+
+      # consumer_info retrieves the current status of the pull subscription consumer.
+      # @param params [Hash] Options to customize API request.
+      # @option params [Float] :timeout Time to wait for response.
+      # @return [JetStream::API::ConsumerInfo] The latest ConsumerInfo of the consumer.
+      def consumer_info(params={})
+        @jsi.js.consumer_info(@jsi.stream, @jsi.consumer, params)
       end
     end
     private_constant :PullSubscription

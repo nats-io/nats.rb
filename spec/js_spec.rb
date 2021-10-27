@@ -107,6 +107,42 @@ describe 'JetStream' do
       nc.close
     end
 
+    let(:nc) { NATS.connect(@s.uri) }
+
+    it "should auto create pull subscription" do
+      js = nc.jetstream
+      js.add_stream(name: "hello", subjects: ["hello", "world", "hello.>"])
+
+      js.publish("hello", "1")
+      js.publish("world", "2")
+      js.publish("hello.world", "3")
+      
+      sub = js.pull_subscribe("hello", "psub", config: { max_waiting: 30 })
+      info = sub.consumer_info
+      expect(info.config.max_waiting).to eql(30)
+      expect(info.num_pending).to eql(3)
+
+      msgs = sub.fetch(3)
+      msgs.each do |msg|
+        msg.ack
+      end
+
+      # Using the API type.
+      # TODO: Handle mismatch between config and current state.
+      config = NATS::JetStream::API::ConsumerConfig.new(max_waiting: 128)
+      sub = js.pull_subscribe("hello", "psub2", config: config)
+      info = sub.consumer_info
+      expect(info.config.max_waiting).to eql(128)
+      expect(info.num_pending).to eql(3)
+
+      msgs = sub.fetch(1)
+      msgs.each do |msg|
+        msg.ack_sync
+      end
+      info = sub.consumer_info
+      expect(info.num_pending).to eql(2)
+    end
+
     it 'should find the pull subscription by subject' do
       nc = NATS.connect(@s.uri)
       js = nc.jetstream
