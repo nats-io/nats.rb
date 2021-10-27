@@ -73,7 +73,7 @@ module NATS
     # @option params [String] :stream Expected Stream to which the message is being published.
     # @raise [NATS::Timeout] When it takes too long to receive an ack response.
     # @return [PubAck] The pub ack response.
-    def publish(subject, payload="", params={})
+    def publish(subject, payload="", **params)
       params[:timeout] ||= @opts[:timeout]
       if params[:stream]
         params[:header] ||= {}
@@ -86,7 +86,7 @@ module NATS
                           header: params[:header])
 
       begin
-        resp = @nc.request_msg(msg, params)
+        resp = @nc.request_msg(msg, **params)
         result = JSON.parse(resp.data, symbolize_names: true)
       rescue ::NATS::IO::NoRespondersError
         raise JetStream::Error::NoStreamResponse.new("nats: no response from stream")
@@ -282,7 +282,7 @@ module NATS
       def api_request(req_subject, req="", params={})
         params[:timeout] ||= @opts[:timeout]
         result = begin
-                   msg = @nc.request(req_subject, req, params)
+                   msg = @nc.request(req_subject, req, **params)
                    JSON.parse(msg.data, symbolize_names: true)
                  rescue NATS::IO::NoRespondersError
                    raise JetStream::Error::ServiceUnavailable
@@ -557,11 +557,11 @@ module NATS
       end
 
       module AckMethods
-        def ack(params={})
+        def ack(**params)
           ensure_is_acked_once!
 
           resp = if params[:timeout]
-                   @nc.request(@reply, Ack::Ack, params)
+                   @nc.request(@reply, Ack::Ack, **params)
                  else
                    @nc.publish(@reply, Ack::Ack)
                  end
@@ -570,21 +570,21 @@ module NATS
           resp
         end
 
-        def ack_sync(params={})
+        def ack_sync(**params)
           ensure_is_acked_once!
 
           params[:timeout] ||= 0.5
-          resp = @nc.request(@reply, Ack::Ack, params)
+          resp = @nc.request(@reply, Ack::Ack, **params)
           @sub.synchronize { @ackd = true }
 
           resp
         end
 
-        def nak(params={})
+        def nak(**params)
           ensure_is_acked_once!
 
           resp = if params[:timeout]
-                   @nc.request(@reply, Ack::Nak, params)
+                   @nc.request(@reply, Ack::Nak, **params)
                  else
                    @nc.publish(@reply, Ack::Nak)
                  end
@@ -593,11 +593,11 @@ module NATS
           resp
         end
 
-        def term(params={})
+        def term(**params)
           ensure_is_acked_once!
 
           resp = if params[:timeout]
-                   @nc.request(@reply, Ack::Term, params)
+                   @nc.request(@reply, Ack::Term, **params)
                  else
                    @nc.publish(@reply, Ack::Term)
                  end
@@ -606,8 +606,8 @@ module NATS
           resp
         end
 
-        def in_progress(params={})
-          params[:timeout] ? @nc.request(@reply, Ack::Progress, params) : @nc.publish(@reply, Ack::Progress)
+        def in_progress(**params)
+          params[:timeout] ? @nc.request(@reply, Ack::Progress, **params) : @nc.publish(@reply, Ack::Progress)
         end
 
         def metadata
