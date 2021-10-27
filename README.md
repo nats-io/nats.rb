@@ -2,7 +2,7 @@
 
 A thread safe [Ruby](http://ruby-lang.org) client for the [NATS messaging system](https://nats.io) written in pure Ruby.
 
-[![License Apache 2.0](https://img.shields.io/badge/License-Apache2-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)[![Build Status](https://travis-ci.org/nats-io/nats-pure.rb.svg)](http://travis-ci.org/nats-io/nats-pure.rb)[![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.7.0)](https://rubygems.org/gems/nats-pure/versions/0.7.0)
+[![License Apache 2.0](https://img.shields.io/badge/License-Apache2-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)[![Build Status](https://travis-ci.org/nats-io/nats-pure.rb.svg)](http://travis-ci.org/nats-io/nats-pure.rb)[![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=2.0.0)](https://rubygems.org/gems/nats-pure/versions/2.0.0)
 
 ## Getting Started
 
@@ -21,7 +21,7 @@ gem install nkeys
 ## Basic Usage
 
 ```ruby
-require 'nats/io/client'
+require 'nats/client'
 
 nats = NATS.connect("demo.nats.io")
 puts "Connected to #{nats.connected_server}"
@@ -49,7 +49,7 @@ end
 begin
   msg = nats.request('help', 'please', timeout: 0.5)
   puts "Received on '#{msg.subject}': #{msg.data}"
-rescue NATS::IO::Timeout
+rescue NATS::Timeout
   puts "nats: request timed out"
 end
 
@@ -58,14 +58,14 @@ begin
   msg = NATS::Msg.new(subject: "help", headers: {foo: 'bar'})
   resp = nats.request_msg(msg)
   puts "Received on '#{resp.subject}': #{resp.data}"
-rescue NATS::IO::Timeout => e
+rescue NATS::Timeout => e
   puts "nats: request timed out: #{e}"
 end
 
 # Server roundtrip which fails if it does not happen within 500ms
 begin
   nats.flush(0.5)
-rescue NATS::IO::Timeout
+rescue NATS::Timeout
   puts "nats: flush timeout"
 end
 
@@ -73,10 +73,34 @@ end
 nats.close
 ```
 
+## JetStream Usage
+
+Introduced in v2.0.0 series, the client can now publish and receive messages from JetStream.
+
+```ruby
+require 'nats/client'
+
+nc = NATS.connect
+js = nc.jetstream
+
+js.add_stream(name: "mystream", subjects: ["foo"])
+
+js.publish("foo", "Hello JetStream!")
+
+psub = js.pull_subscribe("foo", "bar")
+
+loop do
+  msgs = psub.fetch(5)
+  msgs.each do |msg|
+    msg.ack
+  end
+end
+```
+
 ## Clustered Usage
 
 ```ruby
-require 'nats/io/client'
+require 'nats/client'
 
 nats = NATS.connect
 
