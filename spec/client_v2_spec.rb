@@ -27,17 +27,32 @@ describe 'Client - v2.2 features' do
     sleep 1
   end
 
-  it 'should received a message with headers' do
+  it 'should receive a message with headers' do
     mon = Monitor.new
     done = mon.new_cond
+    done2 = mon.new_cond
 
     nc = NATS::IO::Client.new
     nc.connect(:servers => [@s.uri])
 
     msgs = []
-    nc.subscribe("hello") do |data, _, _, header|
+
+    # Multiple arity is still backwards compatible with v0.7.0
+    sub1 = nc.subscribe("hello") do |data, _, _, header|
       msg = NATS::Msg.new(data: data, header: header)
       msgs << msg
+
+      if msgs.count >= 5
+        mon.synchronize do
+          done.signal
+        end
+      end
+    end
+
+    # Single arity is now a NATS::Msg type
+    msgs2 = []
+    sub2 = nc.subscribe("hello") do |msg|
+      msgs2 << msg
 
       if msgs.count >= 5
         mon.synchronize do
@@ -68,6 +83,14 @@ describe 'Client - v2.2 features' do
       expect(msg.data).to eql("hello world-#{'A' * n}")
       expect(msg.header).to eql({"foo"=>"bar", "hello"=>"hello-#{n}"})
     end
+
+    msgs2.each_with_index do |msg, i|
+      n = i + 1
+      expect(msg.data).to eql("hello world-#{'A' * n}")
+      expect(msg.header).to eql({"foo"=>"bar", "hello"=>"hello-#{n}"})
+    end
+    sub1.unsubscribe
+
     nc.close
   end
 
@@ -211,7 +234,7 @@ describe 'Client - v2.2 features' do
 
     # Create the stream.
     resp = nc.request("$JS.API.STREAM.CREATE.foojs", stream_req.to_json)
-    expect(resp).to_not be_nil 
+    expect(resp).to_not be_nil
 
     # Publish with ack.
     resp = nc.request("foo.js", "hello world")
@@ -243,7 +266,115 @@ describe 'Client - v2.2 features' do
     expect(resp).to_not be_nil
     expect(resp.header).to_not be_nil
     expect(resp.header).to eql({"Status"=>"404", "Description"=>"No Messages"})
-    
+
+    nc.close
+  end
+
+  it 'should get a message with Subscription#next_msg' do
+    nc = NATS::IO::Client.new
+    nc.connect(:servers => [@s.uri])
+
+    sub = nc.subscribe("hello")
+    msgs = []
+    expect do
+      sub.next_msg
+    end.to raise_error(NATS::IO::Timeout)
+
+    1.upto(5) do |n|
+      data = "hello world-#{'A' * n}"
+      msg = NATS::Msg.new(subject: 'hello',
+                          data: data,
+                          header: {
+                            'foo': 'bar',
+                            'hello': "hello-#{n}"
+                          })
+      nc.publish_msg(msg)
+      nc.flush
+    end
+    1.upto(5) { msgs << sub.next_msg }
+
+    msgs.each_with_index do |msg, i|
+      n = i + 1
+      expect(msg.data).to eql("hello world-#{'A' * n}")
+      expect(msg.header).to eql({"foo"=>"bar", "hello"=>"hello-#{n}"})
+    end
+
+    expect do
+      sub.next_msg
+    end.to raise_error(NATS::IO::Timeout)
+
+    nc.close
+  end
+
+  it 'should support NATS::Msg#respond' do
+    nc = NATS::IO::Client.new
+    nc.connect(:servers => [@s.uri])
+    nc.on_error do |e|
+      puts "Error: #{e}"
+      puts e.backtrace
+    end
+
+    msgs = []
+    seq = 0
+    nc.subscribe("hello") do |msg|
+      seq += 1
+      msgs << msg
+      msg.respond("hi!")
+    end
+    nc.flush
+
+    1.upto(5) do |n|
+      data = "hello world-#{'A' * n}"
+      msg = NATS::Msg.new(subject: 'hello',
+                          data: data,
+                          header: {
+                            'foo': 'bar',
+                            'hello': "hello-#{n}"
+                          })
+      resp = nc.request_msg(msg, timeout: 1)
+      expect(resp.data).to eql("hi!")
+      nc.flush
+    end
+    expect(msgs.count).to eql(5)
+
+    nc.close
+  end
+
+  it 'should make responses with headers NATS::Msg#respond_msg' do
+    nc = NATS::IO::Client.new
+    nc.connect(:servers => [@s.uri])
+    nc.on_error do |e|
+      puts "Error: #{e}"
+      puts e.backtrace
+    end
+
+    msgs = []
+    seq = 0
+    nc.subscribe("hello") do |msg|
+      seq += 1
+      m = NATS::Msg.new(data: msg.data, subject: msg.reply, header: msg.header)
+      m.header['response'] = seq
+      msgs << m
+
+      msg.respond_msg(m)
+    end
+    nc.flush
+
+    1.upto(5) do |n|
+      data = "hello world-#{'A' * n}"
+      msg = NATS::Msg.new(subject: 'hello',
+                          data: data,
+                          header: {
+                            'foo': 'bar',
+                            'hello': "hello-#{n}"
+                          })
+      resp = nc.request_msg(msg, timeout: 1)
+      expect(resp.data).to eql("hello world-#{'A' * n}")
+      expect(resp.header).to eql({"foo" => "bar", "hello" => "hello-#{n}", "response" => "#{n}"})
+      nc.flush
+    end
+    expect(msgs.count).to eql(5)
+
     nc.close
   end
 end

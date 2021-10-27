@@ -71,22 +71,22 @@ module NATS
               @buf = $'
             when ERR
               @buf = $'
-              @nc.process_err($1)
+              @nc.send(:process_err, $1)
             when PING
               @buf = $'
-              @nc.process_ping
+              @nc.send(:process_ping)
             when PONG
               @buf = $'
-              @nc.process_pong
+              @nc.send(:process_pong)
             when INFO
               @buf = $'
               # First INFO message is processed synchronously on connect,
               # and onwards we would be receiving asynchronously INFO commands
               # signaling possible changes in the topology of the NATS cluster.
-              @nc.process_info($1)
+              @nc.send(:process_info, $1)
             when UNKNOWN
               @buf = $'
-              @nc.process_err("Unknown protocol: #{$1}")
+              @nc.send(:process_err, "Unknown protocol: #{$1}")
             else
               # If we are here we do not have a complete line yet that we understand.
               return
@@ -98,10 +98,10 @@ module NATS
             if @header_needed
               hbuf = @buf.slice(0, @header_needed)
               payload = @buf.slice(@header_needed, (@needed-@header_needed))
-              @nc.process_msg(@sub, @sid, @reply, payload, hbuf)
+              @nc.send(:process_msg, @sub, @sid, @reply, payload, hbuf)
               @buf = @buf.slice((@needed + CR_LF_SIZE), @buf.bytesize)
             else
-              @nc.process_msg(@sub, @sid, @reply, @buf.slice(0, @needed), nil)
+              @nc.send(:process_msg, @sub, @sid, @reply, @buf.slice(0, @needed), nil)
               @buf = @buf.slice((@needed + CR_LF_SIZE), @buf.bytesize)
             end
 

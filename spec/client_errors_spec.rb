@@ -1,4 +1,4 @@
-# Copyright 2016-2018 The NATS Authors
+# Copyright 2016-2021 The NATS Authors
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -14,7 +14,7 @@
 
 require 'spec_helper'
 
-describe 'Client - Specification' do
+describe 'Client - Errors' do
 
   before(:each) do
     @s = NatsServerControl.new
@@ -173,7 +173,7 @@ describe 'Client - Specification' do
     done = mon.new_cond
 
     errors = []
-    nats.on_error do |e|
+    nats.on_error do |nc, e, sub|
       errors << e
     end
 
@@ -189,8 +189,8 @@ describe 'Client - Specification' do
     end
 
     msgs = []
-    nats.subscribe("hello", pending_msgs_limit: 5) do |payload|
-      msgs << payload
+    nats.subscribe("hello", pending_msgs_limit: 5) do |msg|
+      msgs << msg.data
       sleep 1 if msgs.count == 5
     end
 
@@ -338,6 +338,8 @@ describe 'Client - Specification' do
       expect(nats.last_error).to be_a(NATS::IO::SocketTimeoutError)
       expect(errors.first).to be_a(NATS::IO::SocketTimeoutError)
       expect(errors.last).to be_a(NATS::IO::SocketTimeoutError)
+      expect(errors.first).to be_a(NATS::Timeout)
+      expect(errors.last).to be_a(NATS::Timeout)
 
       # Fails on the second reconnect attempt
       expect(errors.count).to eql(2)
