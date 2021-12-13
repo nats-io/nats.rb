@@ -10,7 +10,7 @@ describe 'Client - NATS v2 Auth' do
         'port'          => 4722,
       }
       @s = NatsServerControl.init_with_config_from_string(%Q(
-        authorization { 
+        authorization {
           timeout: 2
         }
 
@@ -63,6 +63,51 @@ describe 'Client - NATS v2 Auth' do
       expect(msgs.count).to eql(1)
     end
 
+    it 'should support user supplied credential callbacks' do
+      mon = Monitor.new
+      done = mon.new_cond
+
+      errors = []
+      msgs = []
+      nats = NATS::IO::Client.new
+      nats.on_error do |e|
+        errors << e
+      end
+
+      user_sig_called = false
+      sig_cb = proc { |nonce|
+        user_sig_called = true
+        nats.send(:signature_cb_for_creds_file, "./spec/configs/nkeys/foo-user.creds").call(nonce)
+      }
+
+      user_jwt_called = false
+      jwt_cb = proc {
+        user_jwt_called = true
+        nats.send(:jwt_cb_for_creds_file, "./spec/configs/nkeys/foo-user.creds").call()
+      }
+
+      nats.connect(servers: ['nats://127.0.0.1:4722'],
+                   reconnect: false,
+                   user_signature_cb: sig_cb,
+                   user_jwt_cb: jwt_cb)
+
+      expect(user_sig_called).to be(true)
+      expect(user_jwt_called).to be(true)
+
+      nats.subscribe("hello") do |msg|
+        msgs << msg
+        done.signal
+      end
+      nats.flush
+      nats.publish("hello", 'world')
+
+      mon.synchronize do
+        done.wait(1)
+      end
+      nats.close
+      expect(msgs.count).to eql(1)
+    end
+
     it 'should fail with auth error if no user credentials present' do
       mon = Monitor.new
       done = mon.new_cond
@@ -91,12 +136,12 @@ describe 'Client - NATS v2 Auth' do
         'port'          => 4723,
       }
       @s = NatsServerControl.init_with_config_from_string(%Q(
-        authorization { 
+        authorization {
           timeout: 2
         }
 
         port = #{config_opts['port']}
-        
+
         accounts {
           acme {
             users [
@@ -137,6 +182,51 @@ describe 'Client - NATS v2 Auth' do
       nats.connect(servers: ['nats://127.0.0.1:4723'],
                    reconnect: false,
                    nkeys_seed: "./spec/configs/nkeys/foo-user.nk")
+      nats.subscribe("hello") do |msg|
+        msgs << msg
+        done.signal
+      end
+      nats.flush
+      nats.publish("hello", 'world')
+
+      mon.synchronize do
+        done.wait(1)
+      end
+      nats.close
+      expect(msgs.count).to eql(1)
+    end
+
+    it 'should support user supplied nkey callbacks' do
+      mon = Monitor.new
+      done = mon.new_cond
+
+      errors = []
+      msgs = []
+      nats = NATS::IO::Client.new
+      nats.on_error do |e|
+        errors << e
+      end
+
+      user_nkey_called = false
+      user_nkey_cb = proc {
+        user_nkey_called = true
+        nats.send(:nkey_cb_for_nkey_file, "./spec/configs/nkeys/foo-user.nk").call()
+      }
+
+      user_sig_called = false
+      sig_cb = proc { |nonce|
+        user_sig_called = true
+        nats.send(:signature_cb_for_nkey_file, "./spec/configs/nkeys/foo-user.nk").call(nonce)
+      }
+
+      nats.connect(servers: ['nats://127.0.0.1:4723'],
+                   reconnect: false,
+                   user_nkey_cb: user_nkey_cb,
+                   user_signature_cb: sig_cb)
+
+      expect(user_sig_called).to be(true)
+      expect(user_nkey_called).to be(true)
+
       nats.subscribe("hello") do |msg|
         msgs << msg
         done.signal

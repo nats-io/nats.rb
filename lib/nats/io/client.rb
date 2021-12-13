@@ -182,6 +182,9 @@ module NATS
       @user_nkey_cb = nil
       @user_jwt_cb = nil
       @signature_cb = nil
+
+      # Tokens
+      @auth_token = nil
     end
 
     # Establishes a connection to NATS.
@@ -254,9 +257,16 @@ module NATS
       end
 
       # NKEYS
+      @signature_cb ||= opts[:user_signature_cb]
+      @user_jwt_cb ||= opts[:user_jwt_cb]
+      @user_nkey_cb ||= opts[:user_nkey_cb]
       @user_credentials ||= opts[:user_credentials]
       @nkeys_seed ||= opts[:nkeys_seed]
+
       setup_nkeys_connect if @user_credentials or @nkeys_seed
+
+      # Tokens, if set will take preference over the user@server uri token
+      @auth_token ||= opts[:auth_token]
 
       # Check for TLS usage
       @tls = @options[:tls]
@@ -1037,15 +1047,17 @@ module NATS
         else
           cs[:auth_token] = @uri.user
         end
-      when @user_credentials
+      when @user_jwt_cb && @signature_cb
         nonce = @server_info[:nonce]
         cs[:jwt] = @user_jwt_cb.call
         cs[:sig] = @signature_cb.call(nonce)
-      when @nkeys_seed
+      when @user_nkey_cb && @signature_cb
         nonce = @server_info[:nonce]
         cs[:nkey] = @user_nkey_cb.call
         cs[:sig] = @signature_cb.call(nonce)
       end
+
+      cs[:auth_token] = @auth_token if @auth_token
 
       if @server_info[:headers]
         cs[:headers] = @server_info[:headers]
@@ -1529,72 +1541,90 @@ module NATS
 
       case
       when @nkeys_seed
-        @user_nkey_cb = proc {
-          seed = File.read(@nkeys_seed).chomp
-          kp = NKEYS::from_seed(seed)
-
-          # Take a copy since original will be gone with the wipe.
-          pub_key = kp.public_key.dup
-          kp.wipe!
-
-          pub_key
-        }
-
-        @signature_cb = proc { |nonce|
-          seed = File.read(@nkeys_seed).chomp
-          kp = NKEYS::from_seed(seed)
-          raw_signed = kp.sign(nonce)
-          kp.wipe!
-          encoded = Base64.urlsafe_encode64(raw_signed)
-          encoded.gsub('=', '')
-        }
+        @user_nkey_cb = nkey_cb_for_nkey_file(@nkeys_seed)
+        @signature_cb = signature_cb_for_nkey_file(@nkeys_seed)
       when @user_credentials
         # When the credentials are within a single decorated file.
-        @user_jwt_cb = proc {
-          jwt_start = "BEGIN NATS USER JWT".freeze
-          found = false
-          jwt = nil
-          File.readlines(@user_credentials).each do |line|
-            case
-            when found
-              jwt = line.chomp
-              break
-            when line.include?(jwt_start)
-              found = true
-            end
-          end
-          raise(Error, "No JWT found in #{@user_credentials}") if not found
-
-          jwt
-        }
-
-        @signature_cb = proc { |nonce|
-          seed_start = "BEGIN USER NKEY SEED".freeze
-          found = false
-          seed = nil
-          File.readlines(@user_credentials).each do |line|
-            case
-            when found
-              seed = line.chomp
-              break
-            when line.include?(seed_start)
-              found = true
-            end
-          end
-          raise(Error, "No nkey user seed found in #{@user_credentials}") if not found
-
-          kp = NKEYS::from_seed(seed)
-          raw_signed = kp.sign(nonce)
-
-          # seed is a reference so also cleared when doing wipe,
-          # which can be done since Ruby strings are mutable.
-          kp.wipe
-          encoded = Base64.urlsafe_encode64(raw_signed)
-
-          # Remove padding
-          encoded.gsub('=', '')
-        }
+        @user_jwt_cb = jwt_cb_for_creds_file(@user_credentials)
+        @signature_cb = signature_cb_for_creds_file(@user_credentials)
       end
+    end
+
+    def signature_cb_for_nkey_file(nkey)
+      proc { |nonce|
+        seed = File.read(nkey).chomp
+        kp = NKEYS::from_seed(seed)
+        raw_signed = kp.sign(nonce)
+        kp.wipe!
+        encoded = Base64.urlsafe_encode64(raw_signed)
+        encoded.gsub('=', '')
+      }
+    end
+
+    def nkey_cb_for_nkey_file(nkey)
+      proc {
+        seed = File.read(nkey).chomp
+        kp = NKEYS::from_seed(seed)
+
+        # Take a copy since original will be gone with the wipe.
+        pub_key = kp.public_key.dup
+        kp.wipe!
+
+        pub_key
+      }
+    end
+
+    def jwt_cb_for_creds_file(creds)
+      proc {
+        jwt_start = "BEGIN NATS USER JWT".freeze
+        found = false
+        jwt = nil
+
+        File.readlines(creds).each do |line|
+          case
+          when found
+            jwt = line.chomp
+            break
+          when line.include?(jwt_start)
+            found = true
+          end
+        end
+
+        raise(Error, "No JWT found in #{creds}") if not found
+
+        jwt
+      }
+    end
+
+    def signature_cb_for_creds_file(creds)
+      proc { |nonce|
+        seed_start = "BEGIN USER NKEY SEED".freeze
+        found = false
+        seed = nil
+
+        File.readlines(creds).each do |line|
+          case
+          when found
+            seed = line.chomp
+            break
+          when line.include?(seed_start)
+            found = true
+          end
+        end
+
+        raise(Error, "No nkey user seed found in #{creds}") if not found
+
+        kp = NKEYS::from_seed(seed)
+        raw_signed = kp.sign(nonce)
+
+        # seed is a reference so also cleared when doing wipe,
+        # which can be done since Ruby strings are mutable.
+        kp.wipe
+        encoded = Base64.urlsafe_encode64(raw_signed)
+
+        # Remove padding
+        encoded.gsub('=', '')
+      }
     end
 
     def process_uri(uris)
