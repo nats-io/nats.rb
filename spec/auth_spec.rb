@@ -28,6 +28,7 @@ describe 'Client - Authorization' do
   TEST_ANOTHER_AUTH_SERVER_PID = '/tmp/nats_another_authorization.pid'
 
   TEST_TOKEN_AUTH_SERVER = "nats://#{USER}@127.0.0.1:9222"
+  TEST_WRONG_TOKEN_AUTH_SERVER = "nats://other@127.0.0.1:9222"
 
   after (:each) do
     @server_control.kill_server
@@ -53,14 +54,31 @@ describe 'Client - Authorization' do
       nats.connect(:servers => [TEST_TOKEN_AUTH_SERVER], :reconnect => false)
       nats.flush
     end.to_not raise_error
-
+    nats.close
 
     expect do
       nc = NATS.connect(TEST_TOKEN_AUTH_SERVER, reconnect: false)
       nc.flush
+      nc.close
     end.to_not raise_error
 
-    nats.close
+    expect do
+      nc = NATS.connect(TEST_AUTH_SERVER_NO_CRED, reconnect: false)
+      nc.flush
+      nc.close
+    end.to raise_error(NATS::IO::AuthError)
+
+    expect do
+      nc = NATS.connect(TEST_AUTH_SERVER_NO_CRED, reconnect: false, auth_token: 'secret')
+      nc.flush
+      nc.close
+    end.to_not raise_error
+
+    expect do
+      nc = NATS.connect(TEST_WRONG_TOKEN_AUTH_SERVER, reconnect: false, auth_token: 'secret')
+      nc.flush
+      nc.close
+    end.to_not raise_error
   end
 
   it 'should fail to connect to an authorized server without proper credentials' do
