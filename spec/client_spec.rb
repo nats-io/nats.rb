@@ -64,6 +64,18 @@ describe 'Client - Specification' do
     end.to_not raise_error
   end
 
+  it 'should support custom inbox prefixes' do
+    nc = NATS::Client.new
+    nc.connect(:servers => [@s.uri])
+    expect(nc.new_inbox).to start_with("_INBOX")
+    expect(nc.new_inbox.length).to eq(29)
+
+    nc = NATS::Client.new
+    nc.connect(:servers => [@s.uri], :custom_inbox_prefix => "custom_prefix")
+    expect(nc.new_inbox).to start_with("custom_prefix")
+    expect(nc.new_inbox.length).to eq(36)
+  end
+
   it 'should received a message when subscribed to a topic' do
     nc = NATS::Client.new
     nc.connect(:servers => [@s.uri])

@@ -185,6 +185,8 @@ module NATS
 
       # Tokens
       @auth_token = nil
+
+      @inbox_prefix = "_INBOX"
     end
 
     # Establishes a connection to NATS.
@@ -270,6 +272,8 @@ module NATS
 
       # Check for TLS usage
       @tls = @options[:tls]
+
+      @inbox_prefix = opts.fetch(:custom_inbox_prefix, @inbox_prefix)
 
       srv = nil
       begin
@@ -684,7 +688,7 @@ module NATS
     # new_inbox returns a unique inbox used for subscriptions.
     # @return [String]
     def new_inbox
-      "_INBOX.#{@nuid.next}"
+      "#{@inbox_prefix}.#{@nuid.next}"
     end
 
     def connected_server
@@ -1458,7 +1462,7 @@ module NATS
     # Prepares requests subscription that handles the responses
     # for the new style request response.
     def start_resp_mux_sub!
-      @resp_sub_prefix = "_INBOX.#{@nuid.next}"
+      @resp_sub_prefix = new_inbox
       @resp_map = Hash.new { |h,k| h[k] = { }}
 
       @resp_sub = Subscription.new
