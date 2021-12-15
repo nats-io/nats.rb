@@ -185,6 +185,8 @@ module NATS
 
       # Tokens
       @auth_token = nil
+
+      @inbox_prefix = "_INBOX"
     end
 
     # Establishes a connection to NATS.
@@ -270,6 +272,10 @@ module NATS
 
       # Check for TLS usage
       @tls = @options[:tls]
+
+      @inbox_prefix = opts.fetch(:custom_inbox_prefix, @inbox_prefix)
+
+      validate_settings!
 
       srv = nil
       begin
@@ -684,7 +690,7 @@ module NATS
     # new_inbox returns a unique inbox used for subscriptions.
     # @return [String]
     def new_inbox
-      "_INBOX.#{@nuid.next}"
+      "#{@inbox_prefix}.#{@nuid.next}"
     end
 
     def connected_server
@@ -742,6 +748,13 @@ module NATS
     alias_method :jsm, :jetstream
 
     private
+
+    def validate_settings!
+      raise(NATS::IO::ClientError, "custom inbox may not include '>'") if @inbox_prefix.include?(">")
+      raise(NATS::IO::ClientError, "custom inbox may not include '*'") if @inbox_prefix.include?("*")
+      raise(NATS::IO::ClientError, "custom inbox may not end in '.'") if @inbox_prefix.end_with?(".")
+      raise(NATS::IO::ClientError, "custom inbox may not begin with '.'") if @inbox_prefix.start_with?(".")
+    end
 
     def process_info(line)
       parsed_info = JSON.parse(line)
@@ -1458,7 +1471,7 @@ module NATS
     # Prepares requests subscription that handles the responses
     # for the new style request response.
     def start_resp_mux_sub!
-      @resp_sub_prefix = "_INBOX.#{@nuid.next}"
+      @resp_sub_prefix = new_inbox
       @resp_map = Hash.new { |h,k| h[k] = { }}
 
       @resp_sub = Subscription.new
