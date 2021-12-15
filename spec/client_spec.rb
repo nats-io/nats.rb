@@ -65,6 +65,20 @@ describe 'Client - Specification' do
   end
 
   it 'should support custom inbox prefixes' do
+    ["x.>", "x.*",".x.", ".x", "x."].each do |p|
+      expect do
+        nc = NATS::Client.new
+        nc.connect(:servers => [@s.uri], :custom_inbox_prefix => p)
+      end.to raise_error(NATS::IO::ClientError)
+    end
+
+    ["x.y", "x", "_X", "_X_"].each do |p|
+      expect do
+        nc = NATS::Client.new
+        nc.connect(:servers => [@s.uri], :custom_inbox_prefix => p)
+      end.to_not raise_error
+    end
+
     nc = NATS::Client.new
     nc.connect(:servers => [@s.uri])
     expect(nc.new_inbox).to start_with("_INBOX")

@@ -275,6 +275,8 @@ module NATS
 
       @inbox_prefix = opts.fetch(:custom_inbox_prefix, @inbox_prefix)
 
+      validate_settings!
+
       srv = nil
       begin
         srv = select_next_server
@@ -746,6 +748,13 @@ module NATS
     alias_method :jsm, :jetstream
 
     private
+
+    def validate_settings!
+      raise(NATS::IO::ClientError, "custom inbox may not include '>'") if @inbox_prefix.include?(">")
+      raise(NATS::IO::ClientError, "custom inbox may not include '*'") if @inbox_prefix.include?("*")
+      raise(NATS::IO::ClientError, "custom inbox may not end in '.'") if @inbox_prefix.end_with?(".")
+      raise(NATS::IO::ClientError, "custom inbox may not begin with '.'") if @inbox_prefix.start_with?(".")
+    end
 
     def process_info(line)
       parsed_info = JSON.parse(line)
