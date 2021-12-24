@@ -96,6 +96,119 @@ module NATS
       PubAck.new(result)
     end
 
+    # subscribe binds or creates a push subscription to a JetStream pull consumer.
+    #
+    # @param subject [String] Subject from which the messages will be fetched.
+    # @param params [Hash] Options to customize the PushSubscription.
+    # @option params [String] :stream Name of the Stream to which the consumer belongs.
+    # @option params [String] :consumer Name of the Consumer to which the PushSubscription will be bound.
+    # @option params [String] :durable Consumer durable name from where the messages will be fetched.
+    # @option params [Hash] :config Configuration for the consumer.
+    # @return [NATS::JetStream::PushSubscription]
+    def subscribe(subject, params={}, &cb)
+      params[:consumer] ||= params[:durable]
+      stream = params[:stream].nil? ? find_stream_name_by_subject(subject) : params[:stream]
+
+      queue = params[:queue]
+      durable = params[:durable]
+      flow_control = params[:flow_control]
+      manual_ack = params[:manual_ack]
+      idle_heartbeat = params[:idle_heartbeat]
+      flow_control = params[:flow_control]
+
+      if queue
+        if durable and durable != queue
+          raise NATS::JetStream::Error.new("nats: cannot create queue subscription '#{queue}' to consumer '#{durable}'")
+        else
+          durable = queue
+        end
+      end
+
+      cinfo = nil
+      consumer_found = false
+      should_create = false
+
+      if not durable
+        should_create = true
+      else
+        begin
+          cinfo = consumer_info(stream, durable)
+          config = cinfo.config
+          consumer_found = true
+          consumer = durable
+        rescue NATS::JetStream::Error::NotFound
+          should_create = true
+          consumer_found = false
+        end
+      end
+
+      if consumer_found
+        if not config.deliver_group
+          if queue
+            raise NATS::JetStream::Error.new("nats: cannot create a queue subscription for a consumer without a deliver group")
+          elsif cinfo.push_bound
+            raise NATS::JetStream::Error.new("nats: consumer is already bound to a subscription")
+          end
+        else
+          if not queue
+            raise NATS::JetStream::Error.new("nats: cannot create a subscription for a consumer with a deliver group #{config.deliver_group}")
+          elsif queue != config.deliver_group
+            raise NATS::JetStream::Error.new("nats: cannot create a queue subscription #{queue} for a consumer with a deliver group #{config.deliver_group}")
+          end
+        end
+      elsif should_create
+        # Auto-create consumer if none found.
+        if config.nil?
+          # Defaults
+          config = JetStream::API::ConsumerConfig.new({ack_policy: "explicit"})
+        elsif config.is_a?(Hash)
+          config = JetStream::API::ConsumerConfig.new(config)
+        elsif !config.is_a?(JetStream::API::ConsumerConfig)
+          raise NATS::JetStream::Error.new("nats: invalid ConsumerConfig")
+        end
+
+        config.durable_name = durable if not config.durable_name
+        config.deliver_group = queue if not config.deliver_group
+
+        # Create inbox for push consumer.
+        deliver = @nc.new_inbox
+        config.deliver_subject = deliver
+
+        # Auto created consumers use the filter subject.
+        config.filter_subject = subject
+
+        # Heartbeats / FlowControl
+        config.flow_control = flow_control
+        if idle_heartbeat or config.idle_heartbeat
+          idle_heartbeat = config.idle_heartbeat if config.idle_heartbeat
+          idle_heartbeat = idle_heartbeat * 1_000_000_000
+          config.idle_heartbeat = idle_heartbeat
+        end
+
+        # Auto create the consumer.
+        cinfo = add_consumer(stream, config)
+        consumer = cinfo.name
+      end
+
+      # Enable auto acking for async callbacks unless disabled.
+      if cb and not manual_ack
+        ocb = cb
+        new_cb = proc do |msg|
+          ocb.call(msg)
+          msg.ack rescue JetStream::Error::MsgAlreadyAckd
+        end
+        cb = new_cb
+      end
+      sub = @nc.subscribe(config.deliver_subject, queue: config.deliver_group, &cb)
+      sub.extend(PushSubscription)
+      sub.jsi = JS::Sub.new(
+        js: self,
+        stream: stream,
+        consumer: consumer,
+      )
+      sub
+    end
+
     # pull_subscribe binds or creates a subscription to a JetStream pull consumer.
     #
     # @param subject [String] Subject from which the messages will be fetched.
@@ -103,6 +216,7 @@ module NATS
     # @param params [Hash] Options to customize the PullSubscription.
     # @option params [String] :stream Name of the Stream to which the consumer belongs.
     # @option params [String] :consumer Name of the Consumer to which the PullSubscription will be bound.
+    # @option params [Hash] :config Configuration for the consumer.
     # @return [NATS::JetStream::PullSubscription]
     def pull_subscribe(subject, durable, params={})
       raise JetStream::Error::InvalidDurableName.new("nats: invalid durable name") if durable.empty?
@@ -292,6 +406,31 @@ module NATS
         result
       end
     end
+
+    # PushSubscription is included into NATS::Subscription so that it
+    #
+    # @example Create a push subscription using JetStream context.
+    #
+    #   require 'nats/client'
+    #
+    #   nc = NATS.connect
+    #   js = nc.jetstream
+    #   sub = js.subscribe("foo", "bar")
+    #   msg = sub.next_msg
+    #   msg.ack
+    #   sub.unsubscribe
+    #
+    # @!visibility public
+    module PushSubscription
+      # consumer_info retrieves the current status of the pull subscription consumer.
+      # @param params [Hash] Options to customize API request.
+      # @option params [Float] :timeout Time to wait for response.
+      # @return [JetStream::API::ConsumerInfo] The latest ConsumerInfo of the consumer.
+      def consumer_info(params={})
+        @jsi.js.consumer_info(@jsi.stream, @jsi.consumer, params)
+      end
+    end
+    private_constant :PushSubscription
 
     # PullSubscription is included into NATS::Subscription so that it
     # can be used to fetch messages from a pull based consumer from
@@ -617,7 +756,11 @@ module NATS
         private
 
         def ensure_is_acked_once!
-          @sub.synchronize { raise JetStream::Error::InvalidJSAck.new("nats: invalid ack") if @ackd }
+          @sub.synchronize do
+            if @ackd
+              raise JetStream::Error::MsgAlreadyAckd.new("nats: message was already acknowledged: #{self}")
+            end
+          end
         end
 
         def parse_metadata(reply)
@@ -771,8 +914,11 @@ module NATS
       # When an invalid durable or consumer name was attempted to be used.
       class InvalidDurableName < Error; end
 
-      # When an ack is no longer valid, for example when it has been acked already.
+      # When an ack not longer valid.
       class InvalidJSAck < Error; end
+
+      # When an ack has already been acked.
+      class MsgAlreadyAckd < Error; end
 
       # When the delivered message does not behave as a message delivered by JetStream,
       # for example when the ack reply has unrecognizable fields.

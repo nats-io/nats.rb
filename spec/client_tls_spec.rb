@@ -76,7 +76,6 @@ describe 'Client - TLS spec' do
     end
 
     it 'should allow to connect client with secure connection if server requires it' do
-      skip 'FIXME: regenerate certs for newer OpenSSL versions'
       errors = []
       closes = 0
       reconnects = 0
@@ -137,7 +136,6 @@ describe 'Client - TLS spec' do
     end
     
     it 'should allow custom secure connection contexts' do
-      skip 'FIXME: regenerate certs for newer OpenSSL versions'
       errors = []
       closes = 0
       reconnects = 0
@@ -201,7 +199,6 @@ describe 'Client - TLS spec' do
     end
 
     it 'should allow custom secure connection contexts' do
-      skip 'FIXME: regenerate certs for newer OpenSSL versions'
       errors = []
       closes = 0
       reconnects = 0
