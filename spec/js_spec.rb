@@ -217,7 +217,7 @@ describe 'JetStream' do
       [:ack, :ack_sync, :nak, :term].each do |method_sym|
         expect do
           msg.send(method_sym)
-        end.to raise_error(NATS::JetStream::Error::InvalidJSAck)
+        end.to raise_error(NATS::JetStream::Error::MsgAlreadyAckd)
       end
 
       # This one is ok to ack multiple times.
@@ -488,6 +488,178 @@ describe 'JetStream' do
       expect do
         sub.unsubscribe
       end.to raise_error(NATS::IO::BadSubscription)
+    end
+  end
+
+  describe 'Push Subscribe' do
+    before(:each) do
+      @tmpdir = Dir.mktmpdir("ruby-jetstream")
+      @s = NatsServerControl.new("nats://127.0.0.1:4527", "/tmp/test-nats.pid", "-js -sd=#{@tmpdir}")
+      @s.start_server(true)
+    end
+
+    after(:each) do
+      @s.kill_server
+      FileUtils.remove_entry(@tmpdir)
+    end
+
+    before(:each) do
+      nc = NATS.connect(@s.uri)
+      stream_req = {
+        name: "test",
+        subjects: ["test"]
+      }
+      resp = nc.request("$JS.API.STREAM.CREATE.test", stream_req.to_json)
+      expect(resp).to_not be_nil
+      nc.close
+    end
+
+    after(:each) do
+      nc = NATS.connect(@s.uri)
+      stream_req = {
+        name: "test",
+        subjects: ["test"]
+      }
+      resp = nc.request("$JS.API.STREAM.DELETE.test", stream_req.to_json)
+      expect(resp).to_not be_nil
+      nc.close
+    end
+
+    let(:nc) { NATS.connect(@s.uri) }
+
+    it "should create ephemeral subscription with auto and manual ack" do
+      js = nc.jetstream
+      js.add_stream(name: "hello", subjects: ["hello", "world", "hello.>"])
+
+      js.publish("hello", "1")
+      js.publish("world", "2")
+      js.publish("hello.world", "3")
+      js.publish("hello", "2")
+
+      # Auto Ack
+      future = Future.new
+      msgs = []
+      sub = js.subscribe("hello.world") do |msg|
+        # They will be auto acked
+        msgs << msg
+        future.set_result(msgs)
+      end
+      msgs = future.wait_for(1)
+      expect(msgs.count).to eql(1)
+
+      info = sub.consumer_info
+      expect(info.stream_name).to eql("hello")
+      expect(info.num_pending).to eql(0)
+      expect(info.num_ack_pending).to eql(0)
+
+      # Attempting to ack again is an error.
+      expect do
+        msgs[0].ack
+      end.to raise_error(NATS::JetStream::Error::MsgAlreadyAckd)
+
+      # Manual Ack
+      future = Future.new
+      msgs = []
+      sub = js.subscribe("hello", manual_ack: true) do |msg|
+        msgs << msg
+        future.set_result(msgs) if msgs.count == 2
+      end
+      msgs = future.wait_for(1)
+      expect(msgs.count).to eql(2)
+      expect(msgs[0].data).to eql('1')
+      expect(msgs[1].data).to eql('2')
+
+      info = sub.consumer_info
+      expect(info.stream_name).to eql("hello")
+      expect(info.num_pending).to eql(0)
+      expect(info.num_ack_pending).to eql(2)
+      msgs.each { |msg| msg.ack }
+
+      info = sub.consumer_info
+      expect(info.num_ack_pending).to eql(0)
+      sub.unsubscribe
+
+      # Without callback
+      sub = js.subscribe("hello")
+      msg = sub.next_msg
+      msg.ack
+      info = sub.consumer_info
+      expect(info.stream_name).to eql("hello")
+      expect(info.num_pending).to eql(0)
+      expect(info.num_ack_pending).to eql(1)
+      sub.unsubscribe
+    end
+
+    it "should create durable single subscribers" do 
+      js = nc.jetstream
+      js.add_stream(name: "hello", subjects: ["hello", "world", "hello.>"])
+
+      js.publish("hello", "1")
+      js.publish("world", "2")
+      js.publish("hello.world", "3")
+      js.publish("hello", "2")
+
+      # Cannot have queue and durable be different.
+      expect do
+        js.subscribe("hello", queue: "foo", durable: "hello")
+      end.to raise_error(NATS::JetStream::Error)
+
+      # Async susbcriber
+      future = Future.new
+      msgs = []
+      sub = js.subscribe("hello", durable: "first", manual_ack: true) do |msg|
+        msgs << msg
+        future.set_result(msgs) if msgs.count == 2
+      end
+      msgs = future.wait_for(1)
+      expect(msgs.count).to eql(2)
+
+      # Resubscribing should fail since already push bound
+      expect do
+        js.subscribe("hello", durable: "first")
+      end.to raise_error(NATS::JetStream::Error)
+      
+      info = sub.consumer_info
+      expect(info.num_ack_pending).to eql(2)
+      sub.unsubscribe
+
+      # Trigger a redelivery of the messages.
+      msgs.each do |msg|
+        msg.nak
+      end
+
+      info = sub.consumer_info
+      expect(info.num_pending).to eql(0)
+      expect(info.num_ack_pending).to eql(2)
+
+      # Sync subscribe to get the same messages again.
+      sub = js.subscribe("hello", durable: "first")
+      msg = sub.next_msg
+      msg.ack
+
+      info = sub.consumer_info
+      expect(info.num_pending).to eql(0)
+      expect(info.num_ack_pending).to eql(1)
+    end
+
+    it "should create subscriber with a queue" do
+      js = nc.jetstream
+
+      # Cannot have queue and durable be different.
+      qsubs = []
+      5.times do
+        qsub = js.subscribe("test", queue: "foo", manual_ack: true)
+        qsubs << qsub
+      end
+
+      50.times do |i|
+        js.publish("test", "#{i}")
+      end
+
+      # Each should get at least a couple of messages
+      qsubs.each do |qsub|
+        expect(qsub.pending_queue.size > 2).to eql(true)
+      end
     end
   end
 
