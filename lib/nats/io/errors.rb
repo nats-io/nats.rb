@@ -52,6 +52,12 @@ module NATS
 
     # When a subscription hits the pending messages limit.
     class SlowConsumer < Error; end
+
+    # When an action cannot be done because client is draining.
+    class ConnectionDrainingError < Error; end
+
+    # When drain takes too long to complete.
+    class DrainTimeoutError < Error; end
   end
 
   # Timeout is raised when the client gives up waiting for a response from a service.
