@@ -75,6 +75,10 @@ module NATS
 
     # When the client is attempting to connect to a NATS Server for the first time.
     CONNECTING = 4
+
+    # When the client is draining a connection before closing.
+    DRAINING_SUBS = 5
+    DRAINING_PUBS = 6
   end
 
   # Client creates a connection to the NATS Server.
@@ -187,6 +191,9 @@ module NATS
       @auth_token = nil
 
       @inbox_prefix = "_INBOX"
+
+      # Draining
+      @drain_t = nil
     end
 
     # Establishes a connection to NATS.
@@ -234,6 +241,7 @@ module NATS
       opts[:ping_interval] = ENV['NATS_PING_INTERVAL'].to_i unless ENV['NATS_PING_INTERVAL'].nil?
       opts[:max_outstanding_pings] = ENV['NATS_MAX_OUTSTANDING_PINGS'].to_i unless ENV['NATS_MAX_OUTSTANDING_PINGS'].nil?
       opts[:connect_timeout] ||= NATS::IO::DEFAULT_CONNECT_TIMEOUT
+      opts[:drain_timeout] ||= NATS::IO::DEFAULT_DRAIN_TIMEOUT
       @options = opts
 
       # Process servers in the NATS cluster and pick one to connect
@@ -403,6 +411,8 @@ module NATS
     # Create subscription which is dispatched asynchronously
     # messages to a callback.
     def subscribe(subject, opts={}, &callback)
+      raise NATS::IO::ConnectionDrainingError.new("nats: connection draining") if draining?
+
       sid = nil
       sub = nil
       synchronize do
@@ -656,7 +666,7 @@ module NATS
     end
 
     # Send a ping and wait for a pong back within a timeout.
-    def flush(timeout=60)
+    def flush(timeout=10)
       # Schedule sending a PING, and block until we receive PONG back,
       # or raise a timeout in case the response is past the deadline.
       pong = @pongs.new_cond
@@ -713,6 +723,19 @@ module NATS
       @status == CLOSED
     end
 
+    def draining?
+      if @status == DRAINING_PUBS or @status == DRAINING_SUBS
+        return true
+      end
+
+      is_draining = false
+      synchronize do
+        is_draining = true if @drain_t
+      end
+
+      is_draining
+    end
+
     def on_error(&callback)
       @err_cb = callback
     end
@@ -732,6 +755,19 @@ module NATS
     def last_error
       synchronize do
         @last_err
+      end
+    end
+
+    # drain will put a connection into a drain state. All subscriptions will
+    # immediately be put into a drain state. Upon completion, the publishers
+    # will be drained and can not publish any additional messages. Upon draining
+    # of the publishers, the connection will be closed. Use the `on_close`
+    # callback option to know when the connection has moved from draining to closed.
+    def drain
+      return if draining?
+
+      synchronize do
+        @drain_t ||= Thread.new { do_drain }
       end
     end
 
@@ -1018,6 +1054,83 @@ module NATS
       end
     end
 
+    def drain_sub(sub)
+      sid = nil
+      closed = nil
+      sub.synchronize do
+        sid = sub.sid
+        closed = sub.closed
+      end
+      return if closed
+
+      send_command("UNSUB #{sid}#{CR_LF}")
+      @flush_queue << :drain
+
+      synchronize { sub = @subs[sid] }
+      return unless sub
+    end
+
+    def do_drain
+      synchronize { @status = DRAINING_SUBS }
+
+      # Do unsubscribe protocol for all the susbcriptions, then have a single thread
+      # waiting until all subs are done or drain timeout error reported to async error cb.
+      subs = []
+      @subs.each do |_, sub|
+        next if sub == @resp_sub
+        drain_sub(sub)
+        subs << sub
+      end
+      force_flush!
+
+      # Wait until all subs have no pending messages.
+      drain_timeout = MonotonicTime::now + @options[:drain_timeout]
+      to_delete = []
+
+      loop do
+        break if MonotonicTime::now > drain_timeout
+        sleep 0.1
+
+        # Wait until all subs are done.
+        @subs.each do |_, sub|
+          if sub != @resp_sub and sub.pending_queue.size == 0
+            to_delete << sub
+          end
+        end
+        next if to_delete.empty?
+
+        to_delete.each do |sub|
+          @subs.delete(sub.sid)
+          # Stop messages delivery thread for async subscribers
+          if sub.wait_for_msgs_t && sub.wait_for_msgs_t.alive?
+            sub.wait_for_msgs_t.exit
+            sub.pending_queue.clear
+          end
+        end
+        to_delete.clear
+
+        # Wait until only the resp mux is remaining or there are no subscriptions.
+        if @subs.count == 1
+          sid, sub = @subs.first
+          if sub == @resp_sub
+            break
+          end
+        elsif @subs.count == 0
+          break
+        end
+      end
+
+      if MonotonicTime::now > drain_timeout
+        e = NATS::IO::DrainTimeoutError.new("nats: draining connection timed out")
+        err_cb_call(self, e, nil) if @err_cb
+      end
+      synchronize { @status = DRAINING_PUBS }
+
+      # Remove resp mux handler in case there is one.
+      unsubscribe(@resp_sub) if @resp_sub
+      close
+    end
+
     def send_flush_queue(s)
       @flush_queue << s
     end
@@ -1175,27 +1288,31 @@ module NATS
         # Skip in case nothing remains pending already.
         next if @pending_queue.empty?
 
-        # FIXME: should limit how many commands to take at once
-        # since producers could be adding as many as possible
-        # until reaching the max pending queue size.
-        cmds = []
-        cmds << @pending_queue.pop until @pending_queue.empty?
-        begin
-          @io.write(cmds.join) unless cmds.empty?
-        rescue => e
-          synchronize do
-            @last_err = e
-            err_cb_call(self, e, nil) if @err_cb
-          end
-
-          process_op_error(e)
-          return
-        end if @io
+        force_flush!
 
         synchronize do
           @pending_size = 0
         end
       end
+    end
+
+    def force_flush!
+      # FIXME: should limit how many commands to take at once
+      # since producers could be adding as many as possible
+      # until reaching the max pending queue size.
+      cmds = []
+      cmds << @pending_queue.pop until @pending_queue.empty?
+      begin
+        @io.write(cmds.join) unless cmds.empty?
+      rescue => e
+        synchronize do
+          @last_err = e
+          err_cb_call(self, e, nil) if @err_cb
+        end
+
+        process_op_error(e)
+        return
+      end if @io
     end
 
     def ping_interval_loop
@@ -1698,6 +1815,7 @@ module NATS
     # Default IO timeouts
     DEFAULT_CONNECT_TIMEOUT = 2
     DEFAULT_READ_WRITE_TIMEOUT = 2
+    DEFAULT_DRAIN_TIMEOUT = 30
 
     # Default Pending Limits
     DEFAULT_SUB_PENDING_MSGS_LIMIT  = 65536
