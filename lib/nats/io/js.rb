@@ -14,7 +14,9 @@
 require_relative 'msg'
 require_relative 'client'
 require_relative 'errors'
+require_relative 'kv'
 require 'time'
+require 'base64'
 
 module NATS
 
@@ -49,6 +51,7 @@ module NATS
 
       # Include JetStream::Manager
       extend Manager
+      extend KeyValue::Manager
     end
 
     # PubAck is the API response from a successfully published message.
@@ -389,6 +392,14 @@ module NATS
         raise JetStream::Error::NotFound unless result[:streams]
 
         result[:streams].first
+      end
+
+      def get_last_msg(stream_name, subject)
+        req_subject = "#{@prefix}.STREAM.MSG.GET.#{stream_name}"
+        req = {'last_by_subj': subject}
+        data = req.to_json
+        resp = api_request(req_subject, data)
+        JetStream::API::RawStreamMsg.new(resp[:message])
       end
 
       private
@@ -1229,6 +1240,33 @@ module NATS
           opts[:state] = StreamState.new(opts[:state])
           super(opts)
           freeze
+        end
+      end
+
+      RawStreamMsg = Struct.new(:subject, :seq, :data, :headers, keyword_init: true) do
+        def initialize(opts)
+          opts[:data] = Base64.decode64(opts[:data]) if opts[:data]
+          if opts[:hdrs]
+            header = Base64.decode64(opts[:hdrs])
+            hdr = {}
+            lines = header.lines
+            lines.slice(1, header.size).each do |line|
+              line.rstrip!
+              next if line.empty?
+              key, value = line.strip.split(/\s*:\s*/, 2)
+              hdr[key] = value
+            end
+            opts[:headers] = hdr
+          end
+
+          # Filter out members not present.
+          rem = opts.keys - members
+          opts.delete_if { |k| rem.include?(k) }
+          super(opts)
+        end
+
+        def sequence
+          self.seq
         end
       end
     end
