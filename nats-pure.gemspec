@@ -1,4 +1,4 @@
-# Copyright 2016-2021 The NATS Authors
+# Copyright 2016-2022 The NATS Authors
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -31,12 +31,13 @@ spec = Gem::Specification.new do |s|
     lib/nats.rb
     lib/nats/client.rb
     lib/nats/io/client.rb
-    lib/nats/io/parser.rb
-    lib/nats/io/version.rb
     lib/nats/io/errors.rb
-    lib/nats/io/subscription.rb
-    lib/nats/io/msg.rb
     lib/nats/io/js.rb
+    lib/nats/io/kv.rb
+    lib/nats/io/msg.rb
+    lib/nats/io/parser.rb
+    lib/nats/io/subscription.rb
+    lib/nats/io/version.rb
     lib/nats/nuid.rb
   ]
 end
