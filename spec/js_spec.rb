@@ -410,7 +410,7 @@ describe 'JetStream' do
 
       expect(errors.count > 0).to eql(true)
       e = errors.first
-      expect(e).to be_a(NATS::IO::Timeout).and having_attributes(message: "nats: fetch timeout")
+      expect(e).to be_a(NATS::IO::Timeout)
 
       # NOTE: After +2.7.1 info also resets the expired requests.
       # 
