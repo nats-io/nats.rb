@@ -507,6 +507,8 @@ module NATS
                 case msg.header["Status"]
                 when JS::Status::NoMsgs
                   msg = nil
+                when JS::Status::RequestTimeout
+                  # Skip
                 else
                   raise JS.from_msg(msg)
                 end
@@ -535,7 +537,13 @@ module NATS
             # Should have received at least a message at this point,
             # if that is not the case then error already.
             if JS.is_status_msg(msgs.first)
-              raise JS.from_msg(msgs.first)
+              msg = msgs.first
+              case msg.header[JS::Header::Status]
+              when JS::Status::RequestTimeout
+                raise NATS::Timeout.new("nats: fetch request timeout")
+              else
+                raise JS.from_msg(msgs.first)
+              end
             end
           end
         when batch > 1
@@ -546,7 +554,22 @@ module NATS
           # Check if there already enough in the pending buffer.
           synchronize do
             if batch <= @pending_queue.size
-              batch.times { msgs << @pending_queue.pop }
+              batch.times do
+                msg = @pending_queue.pop
+
+                # Check for a no msgs response status.
+                if JS.is_status_msg(msg)
+                  case msg.header[JS::Header::Status]
+                  when JS::Status::NoMsgs, JS::Status::RequestTimeout
+                    # Skip these
+                    next
+                  else
+                    raise JS.from_msg(msg)
+                  end
+                else
+                  msgs << msg
+                end
+              end
 
               return msgs
             end
@@ -574,11 +597,13 @@ module NATS
               next_req.delete(:no_wait)
 
               @nc.publish(@jsi.nms, JS.next_req_to_json(next_req), @subject)
+            when JS::Status::RequestTimeout
+              raise NATS::Timeout.new("nats: fetch request timeout")
             else
               raise JS.from_msg(msg)
             end
           else
-            msgs << msg
+            msgs << msg unless msg.nil?
           end
 
           # Check if have not received yet a single message.
@@ -607,21 +632,24 @@ module NATS
                 msg = @pending_queue.pop
 
                 if JS.is_status_msg(msg)
-                  case msg.header["Status"]
+                  case msg.header[JS::Header::Status]
                   when JS::Status::NoMsgs, JS::Status::RequestTimeout
                     duration = MonotonicTime.since(start_time)
 
-                    # Do not time out if we received at least some messages.
-                    if msgs.empty? && @pending_queue.empty? and duration > timeout
-                      raise NATS::Timeout.new("nats: fetch timeout")
+                    if duration > timeout
+                      # Only received a subset of the messages.
+                      if !msgs.empty?
+                        return msgs
+                      else
+                        raise NATS::Timeout.new("nats: fetch timeout")
+                      end
                     end
-
-                    # Likely only received a subset of the messages.
-                    return msgs
                   else
                     raise JS.from_msg(msg)
                   end
+
                 else
+                  # Add to the set of messages that will be returned.
                   msgs << msg
                   needed -= 1
                 end

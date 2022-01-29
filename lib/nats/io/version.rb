@@ -1,4 +1,4 @@
-# Copyright 2016-2021 The NATS Authors
+# Copyright 2016-2022 The NATS Authors
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -15,7 +15,7 @@
 module NATS
   module IO
     # VERSION is the version of the client announced on CONNECT to the server.
-    VERSION = "2.0.0-rc2".freeze
+    VERSION = "2.0.0".freeze
 
     # LANG is the lang runtime of the client announced on CONNECT to the server.
     LANG = "#{RUBY_ENGINE}#{RUBY_VERSION}".freeze
