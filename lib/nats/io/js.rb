@@ -284,6 +284,7 @@ module NATS
                  end
         stream = config[:name]
         raise ArgumentError.new(":name is required to create streams") unless stream
+        raise ArgumentError.new("Spaces, tabs, period (.), greater than (>) or asterisk (*) are prohibited in stream names") if stream =~ /(\s|\.|\>|\*)/
         req_subject = "#{@prefix}.STREAM.CREATE.#{stream}"
         result = api_request(req_subject, config.to_json, params)
         JetStream::API::StreamCreateResponse.new(result)
