@@ -951,6 +951,11 @@ describe 'JetStream' do
       expect do 
         nc.jsm.add_stream(foo: "foo.*")
       end.to raise_error(ArgumentError)
+
+      # Raise when stream names contain prohibited characters
+      expect do 
+        nc.jsm.add_stream(name: "foo.bar*baz")
+      end.to raise_error(ArgumentError)
       nc.close
     end
 
