@@ -256,7 +256,7 @@ module NATS
                    end
         @server_pool << {
           :uri => nats_uri,
-          :hostname => nats_uri.host
+          :hostname => nats_uri.hostname
         }
       end
 
@@ -814,10 +814,10 @@ module NATS
             u = URI.parse("#{scheme}://#{url}")
 
             # Skip in case it is the current server which we already know
-            next if @uri.host == u.host && @uri.port == u.port
+            next if @uri.hostname == u.hostname && @uri.port == u.port
 
             present = server_pool.detect do |srv|
-              srv[:uri].host == u.host && srv[:uri].port == u.port
+              srv[:uri].hostname == u.hostname && srv[:uri].port == u.port
             end
 
             if not present
@@ -832,7 +832,7 @@ module NATS
               end
 
               # NOTE: Auto discovery won't work here when TLS host verification is enabled.
-              srv = { :uri => u, :reconnect_attempts => 0, :discovered => true, :hostname => u.host }
+              srv = { :uri => u, :reconnect_attempts => 0, :discovered => true, :hostname => u.hostname }
               srvs << srv
             end
           end
@@ -1758,34 +1758,20 @@ module NATS
     end
 
     def process_uri(uris)
-      connect_uris = []
-      uris.split(',').each do |uri|
+      uris.split(',').map do |uri|
         opts = {}
 
         # Scheme
-        if uri.include?("://")
-          scheme, uri = uri.split("://")
-          opts[:scheme] = scheme
-        else
-          opts[:scheme] = 'nats'
-        end
+        uri = "nats://#{uri}" if !uri.include?("://")
 
-        # UserInfo
-        if uri.include?("@")
-          userinfo, endpoint = uri.split("@")
-          host, port = endpoint.split(":")
-          opts[:userinfo] = userinfo
-        else
-          host, port = uri.split(":")
-        end
+        uri_object = URI(uri)
 
         # Host and Port
-        opts[:host] = host || "localhost"
-        opts[:port] = port || DEFAULT_PORT
+        uri_object.hostname ||= "localhost"
+        uri_object.port ||= DEFAULT_PORT
 
-        connect_uris << URI::Generic.build(opts)
+        uri_object
       end
-      connect_uris
     end
   end
 
@@ -1834,7 +1820,7 @@ module NATS
       end
 
       def connect
-        addrinfo = ::Socket.getaddrinfo(@uri.host, nil, ::Socket::AF_UNSPEC, ::Socket::SOCK_STREAM)
+        addrinfo = ::Socket.getaddrinfo(@uri.hostname, nil, ::Socket::AF_UNSPEC, ::Socket::SOCK_STREAM)
         addrinfo.each_with_index do |ai, i|
           begin
             @socket = connect_addrinfo(ai, @uri.port, @connect_timeout)
