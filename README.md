@@ -186,6 +186,16 @@ Then in the client specify the path to the seed using the `nkeys_seed` option:
 NATS.connect("tls://connect.ngs.global", nkeys_seed: "path/to/seed.txt")
 ```
 
+### Cluster Server Discovery
+
+By default, when you connect to a NATS server that's in a cluster,
+the client will take information about servers it doesn't know about yet.
+This can be disabled at connection time:
+
+```ruby
+NATS.connect(servers: ['nats://127.0.0.1:4444'], detect_missing_announced_server: false)
+```
+
 ## License
 
 Unless otherwise noted, the NATS source files are distributed under
