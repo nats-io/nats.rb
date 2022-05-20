@@ -238,7 +238,7 @@ module NATS
       opts[:pedantic] = ENV['NATS_PEDANTIC'].downcase == 'true' unless ENV['NATS_PEDANTIC'].nil?
       opts[:reconnect] = ENV['NATS_RECONNECT'].downcase == 'true' unless ENV['NATS_RECONNECT'].nil?
       opts[:reconnect_time_wait] = ENV['NATS_RECONNECT_TIME_WAIT'].to_i unless ENV['NATS_RECONNECT_TIME_WAIT'].nil?
-      opts[:discover_missing_cluster_servers] = ENV['NATS_discover_missing_cluster_servers'].downcase == 'true' unless ENV['NATS_discover_missing_cluster_servers'].nil?
+      opts[:discover_missing_cluster_servers] = ENV['NATS_DISCOVER_MISSING_CLUSTER_SERVERS'].downcase == 'true' unless ENV['NATS_DISCOVER_MISSING_CLUSTER_SERVERS'].nil?
       opts[:max_reconnect_attempts] = ENV['NATS_MAX_RECONNECT_ATTEMPTS'].to_i unless ENV['NATS_MAX_RECONNECT_ATTEMPTS'].nil?
       opts[:ping_interval] = ENV['NATS_PING_INTERVAL'].to_i unless ENV['NATS_PING_INTERVAL'].nil?
       opts[:max_outstanding_pings] = ENV['NATS_MAX_OUTSTANDING_PINGS'].to_i unless ENV['NATS_MAX_OUTSTANDING_PINGS'].nil?
