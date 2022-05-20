@@ -18,7 +18,7 @@ require 'monitor'
 describe 'Client - Specification' do
 
   before(:each) do
-    @s = NatsServerControl.new("nats://127.0.0.1:4522")
+    @s = NatsServerControl.new("nats://127.0.0.1:4522", "/tmp/test-nats.pid", "--cluster nats://127.0.0.1:4248 --cluster_name test-cluster")
     @s.start_server(true)
   end
 
@@ -62,6 +62,32 @@ describe 'Client - Specification' do
       nc.connect("127.0.0.1:4522")
       nc.close
     end.to_not raise_error
+  end
+
+  it 'supports new server announcement discovery' do
+    s = NatsServerControl.new("nats://127.0.0.1:5223", "/tmp/test-nats-2.pid", "--cluster nats://127.0.0.1:5248 --cluster_name test-cluster --routes nats://127.0.0.1:4248")
+    s.start_server(true)
+
+    nc = NATS::Client.new
+    nc.connect(servers: [@s.uri])
+
+    expect(nc.server_pool.length).to be > 1
+
+    s.kill_server
+    nc.close
+  end
+
+  it 'supports skipping new server announcement discovery' do
+    s = NatsServerControl.new("nats://127.0.0.1:5223", "/tmp/test-nats-2.pid", "--cluster nats://127.0.0.1:5248 --cluster_name test-cluster --routes nats://127.0.0.1:4248")
+    s.start_server(true)
+
+    nc = NATS::Client.new
+    nc.connect(servers: [@s.uri], ignore_discovered_urls: true)
+
+    expect(nc.server_pool.length).to eq(1)
+
+    s.kill_server
+    nc.close
   end
 
   it 'should support custom inbox prefixes' do
