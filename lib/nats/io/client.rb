@@ -227,7 +227,7 @@ module NATS
       opts[:pedantic] = false if opts[:pedantic].nil?
       opts[:reconnect] = true if opts[:reconnect].nil?
       opts[:old_style_request] = false if opts[:old_style_request].nil?
-      opts[:discover_missing_cluster_servers] = true if opts[:discover_missing_cluster_servers].nil?
+      opts[:ignore_discovered_urls] = false if opts[:ignore_discovered_urls].nil?
       opts[:reconnect_time_wait] = NATS::IO::RECONNECT_TIME_WAIT if opts[:reconnect_time_wait].nil?
       opts[:max_reconnect_attempts] = NATS::IO::MAX_RECONNECT_ATTEMPTS if opts[:max_reconnect_attempts].nil?
       opts[:ping_interval] = NATS::IO::DEFAULT_PING_INTERVAL if opts[:ping_interval].nil?
@@ -238,7 +238,7 @@ module NATS
       opts[:pedantic] = ENV['NATS_PEDANTIC'].downcase == 'true' unless ENV['NATS_PEDANTIC'].nil?
       opts[:reconnect] = ENV['NATS_RECONNECT'].downcase == 'true' unless ENV['NATS_RECONNECT'].nil?
       opts[:reconnect_time_wait] = ENV['NATS_RECONNECT_TIME_WAIT'].to_i unless ENV['NATS_RECONNECT_TIME_WAIT'].nil?
-      opts[:discover_missing_cluster_servers] = ENV['NATS_DISCOVER_MISSING_CLUSTER_SERVERS'].downcase == 'true' unless ENV['NATS_DISCOVER_MISSING_CLUSTER_SERVERS'].nil?
+      opts[:ignore_discovered_urls] = ENV['NATS_IGNORE_DISCOVERED_URLS'].downcase == 'true' unless ENV['NATS_IGNORE_DISCOVERED_URLS'].nil?
       opts[:max_reconnect_attempts] = ENV['NATS_MAX_RECONNECT_ATTEMPTS'].to_i unless ENV['NATS_MAX_RECONNECT_ATTEMPTS'].nil?
       opts[:ping_interval] = ENV['NATS_PING_INTERVAL'].to_i unless ENV['NATS_PING_INTERVAL'].nil?
       opts[:max_outstanding_pings] = ENV['NATS_MAX_OUTSTANDING_PINGS'].to_i unless ENV['NATS_MAX_OUTSTANDING_PINGS'].nil?
@@ -809,7 +809,7 @@ module NATS
 
         # Detect any announced server that we might not be aware of...
         connect_urls = @server_info[:connect_urls]
-        if @options[:discover_missing_cluster_servers] && connect_urls
+        if !@options[:ignore_discovered_urls] && connect_urls
           srvs = []
           connect_urls.each do |url|
             scheme = client_using_secure_connection? ? "tls" : "nats"

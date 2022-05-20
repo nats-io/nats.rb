@@ -82,7 +82,7 @@ describe 'Client - Specification' do
     s.start_server(true)
 
     nc = NATS::Client.new
-    nc.connect(servers: [@s.uri], discover_missing_cluster_servers: false)
+    nc.connect(servers: [@s.uri], ignore_discovered_urls: true)
 
     expect(nc.server_pool.length).to eq(1)
 
