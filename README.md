@@ -193,7 +193,7 @@ the client will take information about servers it doesn't know about yet.
 This can be disabled at connection time:
 
 ```ruby
-NATS.connect(servers: ['nats://127.0.0.1:4444'], detect_missing_announced_server: false)
+NATS.connect(servers: ['nats://127.0.0.1:4444'], discover_missing_cluster_servers: false)
 ```
 
 ## License
