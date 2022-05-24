@@ -15,7 +15,7 @@ require 'securerandom'
 
 module NATS
   class NUID
-    DIGITS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.split('')
+    DIGITS        = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.split('')
     BASE          = 62
     PREFIX_LENGTH = 12
     SEQ_LENGTH    = 10
@@ -24,6 +24,8 @@ module NATS
     MIN_INC       = 33
     MAX_INC       = 333
     INC = MAX_INC - MIN_INC
+
+    Ractor.make_shareable(DIGITS) if defined?(Ractor)
 
     def initialize
       @prand    = Random.new

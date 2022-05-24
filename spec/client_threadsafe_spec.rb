@@ -199,4 +199,50 @@ describe 'Client - Thread safety' do
 
     expect(responses.count).to eql(5)
   end
+
+  # Using pure-nats.rb in a Ractor requires URI 0.11.0 or greater due to URI Ractor support.
+  major_version, minor_version, _ = Gem.loaded_specs['uri'].version.to_s.split('.').map(&:to_i)
+  if major_version >= 0 && minor_version >= 11
+    it 'should be able to process messages in a Ractor' do
+      nc = NATS.connect(@s.uri)
+
+      messages = []
+      nc.subscribe('foo') do |msg|
+        messages << msg
+      end
+
+      r1 = Ractor.new(@s.uri) do |uri|
+        r_nc = NATS.connect(uri)
+
+        r_nc.publish('foo', 'bar')
+        r_nc.flush
+        r_nc.close
+
+        'r1 Finished'
+      end
+      r1.take # wait for Ractor to finish sending messages
+      expect(messages.count).to eql(1)
+
+      r2 = Ractor.new(@s.uri) do |uri|
+        r_nc = NATS.connect(uri)
+
+        r_messages = []
+        r_nc.subscribe('bar') do |payload, reply|
+          r_nc.publish(reply, 'OK!')
+          r_messages << payload
+        end
+
+        Ractor.yield 'r2 Ready'
+        sleep 0.01 while r_messages.empty?
+      end
+      r2.take # wait for Ractor to finish setup
+
+      response = nil
+      expect do
+        response = nc.request('bar', 'baz', timeout: 0.5)
+      end.to_not raise_error
+
+      expect(response.data).to eql('OK!')
+    end
+  end
 end
