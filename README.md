@@ -134,6 +134,27 @@ loop do
 end
 ```
 
+## Ractor Usage
+
+Using NATS within a Ractor requires URI 0.11.0 or greater to be installed.
+
+```ruby
+Ractor.new do
+  ractor_nats = NATS.connect('demo.nats.io')
+
+  ractor_nats.subscribe('foo') do |msg, reply|
+    puts "Received on '#{msg.subject}': '#{msg.data}' with headers: #{msg.header}"
+    ractor_nats.publish(reply, 'baz')
+  end
+
+  sleep
+end
+
+nats = NATS.connect('demo.nats.io')
+response = nats.request('foo', 'bar', timeout: 0.5)
+puts response.data
+```
+
 ## TLS
 
 It is possible to setup a custom TLS connection to NATS by passing
