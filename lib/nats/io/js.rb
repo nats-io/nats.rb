@@ -346,6 +346,7 @@ module NATS
           stream_name: stream,
           config: config
         }
+
         result = api_request(req_subject, req.to_json, params)
         JetStream::API::ConsumerInfo.new(result).freeze
       end
@@ -503,6 +504,7 @@ module NATS
           synchronize do
             unless @pending_queue.empty?
               msg = @pending_queue.pop
+              @pending_size -= msg.data.size
               # Check for a no msgs response status.
               if JS.is_status_msg(msg)
                 case msg.header["Status"]
@@ -528,7 +530,12 @@ module NATS
             # Wait for result of fetch or timeout.
             synchronize { wait_for_msgs_cond.wait(timeout) }
 
-            msgs << @pending_queue.pop unless @pending_queue.empty?
+            unless @pending_queue.empty?
+              msg = @pending_queue.pop
+              @pending_size -= msg.data.size
+
+              msgs << msg
+            end
 
             duration = MonotonicTime.since(t)
             if duration > timeout
@@ -557,6 +564,7 @@ module NATS
             if batch <= @pending_queue.size
               batch.times do
                 msg = @pending_queue.pop
+                @pending_size -= msg.data.size
 
                 # Check for a no msgs response status.
                 if JS.is_status_msg(msg)
@@ -583,10 +591,15 @@ module NATS
           # Not receiving even one is a timeout.
           start_time = MonotonicTime.now
           msg = nil
-          synchronize {
+
+          synchronize do
             wait_for_msgs_cond.wait(timeout)
-            msg = @pending_queue.pop unless @pending_queue.empty?
-          }
+
+            unless @pending_queue.empty?
+              msg = @pending_queue.pop
+              @pending_size -= msg.data.size
+            end
+          end
 
           # Check if the first message was a response saying that
           # there are no messages.
@@ -631,6 +644,7 @@ module NATS
                 end
               else
                 msg = @pending_queue.pop
+                @pending_size -= msg.data.size
 
                 if JS.is_status_msg(msg)
                   case msg.header[JS::Header::Status]
