@@ -116,7 +116,7 @@ describe 'JetStream' do
       js.publish("hello", "1")
       js.publish("world", "2")
       js.publish("hello.world", "3")
-      
+
       sub = js.pull_subscribe("hello", "psub", config: { max_waiting: 30 })
       info = sub.consumer_info
       expect(info.config.max_waiting).to eql(30)
@@ -413,11 +413,11 @@ describe 'JetStream' do
       expect(e).to be_a(NATS::IO::Timeout)
 
       # NOTE: After +2.7.1 info also resets the expired requests.
-      # 
+      #
       # resp = nc.request("$JS.API.CONSUMER.INFO.test.test")
       # info = JSON.parse(resp.data, symbolize_names: true)
       # expect(info[:num_waiting]).to be_between(1, 3)
-      # 
+      #
 
       # This should not cause 408 timeout errors.
       10.times do
@@ -491,6 +491,48 @@ describe 'JetStream' do
       expect do
         sub.unsubscribe
       end.to raise_error(NATS::IO::BadSubscription)
+    end
+
+    it 'should account pending data' do
+      nc = NATS.connect(@s.uri)
+      nc2 = NATS.connect(@s.uri)
+      js = nc.jetstream
+      subject = "limits.test"
+
+      nc.on_error do |e|
+        puts e
+      end
+
+      js.add_stream(name: "limitstest", subjects: [subject])
+
+      # Continuously send messages until reaching pending bytes limit.
+      t = Thread.new do
+        payload = 'A' * 1024 * 1024
+        loop do
+          nc2.publish(subject, payload)
+          sleep 0.01
+        end
+      end
+
+      sub = js.pull_subscribe(subject, "test")
+      65.times do |i|
+        msgs = sub.fetch(1)
+        msgs.each do |msg|
+          msg.ack
+        end
+      end
+
+      sub = js.pull_subscribe(subject, "test")
+      65.times do |i|
+        msgs = sub.fetch(2)
+        msgs.each do |msg|
+          msg.ack
+        end
+      end
+
+      t.exit
+      nc.close
+      nc2.close
     end
   end
 
@@ -593,7 +635,7 @@ describe 'JetStream' do
       sub.unsubscribe
     end
 
-    it "should create durable single subscribers" do 
+    it "should create durable single subscribers" do
       js = nc.jetstream
       js.add_stream(name: "hello", subjects: ["hello", "world", "hello.>"])
 
@@ -621,7 +663,7 @@ describe 'JetStream' do
       expect do
         js.subscribe("hello", durable: "first")
       end.to raise_error(NATS::JetStream::Error)
-      
+
       info = sub.consumer_info
       expect(info.num_ack_pending).to eql(2)
       sub.unsubscribe
@@ -944,16 +986,16 @@ describe 'JetStream' do
       expect(resp.config.name).to eql('stream3')
       expect(resp.config.num_replicas).to eql(1)
 
-      expect do 
+      expect do
         nc.jsm.add_stream(foo: "foo")
       end.to raise_error(ArgumentError)
 
-      expect do 
+      expect do
         nc.jsm.add_stream(foo: "foo.*")
       end.to raise_error(ArgumentError)
 
       # Raise when stream names contain prohibited characters
-      expect do 
+      expect do
         nc.jsm.add_stream(name: "foo.bar*baz")
       end.to raise_error(ArgumentError)
       nc.close
