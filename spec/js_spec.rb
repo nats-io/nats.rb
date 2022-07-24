@@ -706,6 +706,29 @@ describe 'JetStream' do
         expect(qsub.pending_queue.size > 2).to eql(true)
       end
     end
+
+    it "should create subscribers with custom config" do
+      js = nc.jetstream
+      js.add_stream(name:"custom", subjects:["custom"])
+
+      1.upto(10).each do |i|
+        js.publish("custom", "n:#{i}")
+      end
+
+      sub = js.subscribe("custom", durable: 'example', config: { deliver_policy: 'new' })
+
+      js.publish("custom", "last")
+      msg = sub.next_msg
+
+      expect(msg.data).to eql("last")
+      expect(msg.metadata.sequence.stream).to_not eql(1)
+      expect(msg.metadata.sequence.consumer).to eql(1)
+
+      cinfo = js.consumer_info("custom", "example")
+      expect(cinfo.config[:deliver_policy]).to eql("new")
+
+      nc.close
+    end
   end
 
   describe 'Domain' do

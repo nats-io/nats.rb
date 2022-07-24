@@ -118,6 +118,7 @@ module NATS
       manual_ack = params[:manual_ack]
       idle_heartbeat = params[:idle_heartbeat]
       flow_control = params[:flow_control]
+      config = params[:config]
 
       if queue
         if durable and durable != queue
