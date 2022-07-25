@@ -26,8 +26,8 @@ nats.subscribe("foo.>") { |msg, reply, subject| puts "[Received] on '#{subject}'
 nats.publish('foo.bar.baz', 'Hello World!')
 
 # Unsubscribing
-sid = nats.subscribe('bar') { |msg| puts "Received : '#{msg}'" }
-nats.unsubscribe(sid)
+sub = nats.subscribe('bar') { |msg| puts "Received : '#{msg}'" }
+sub.unsubscribe(2)
 
 # Subscribers which reply to requests
 nats.subscribe('help') do |msg, reply, subject|
@@ -42,7 +42,7 @@ end
 
 # Requests happens asynchronously if given a callback
 nats.request('help', 'world', max: 2) do |response|
-  puts "[Response] '#{response}'"
+  puts "[Response] to '#{response.subject}': #{response.data}'"
 end
 
 # Request without a callback waits for the response or times out.
