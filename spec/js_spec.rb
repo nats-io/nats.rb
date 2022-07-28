@@ -1021,6 +1021,20 @@ describe 'JetStream' do
       expect do
         nc.jsm.add_stream(name: "foo.bar*baz")
       end.to raise_error(ArgumentError)
+
+      placement = { cluster: "foo", tags: ["a"]}
+      resp = nc.jsm.add_stream(name: "v29",
+                               subjects: ["v29"],
+                               num_replicas: 1,
+                               no_ack: true,
+                               allow_direct: true,
+                               placement: placement
+                               )
+      expect(resp).to be_a NATS::JetStream::API::StreamCreateResponse
+      expect(resp.config.allow_direct).to eql(true)
+      expect(resp.config.no_ack).to eql(true)
+      expect(resp.config.placement).to eql(placement)
+
       nc.close
     end
 
@@ -1101,6 +1115,16 @@ describe 'JetStream' do
       expect do
         sub.next_msg(timeout: 0.5)
       end.to raise_error NATS::Timeout
+
+      # Create durable consumer
+      consumer_config = {
+        durable_name: "test-create2",
+        num_replicas: 3
+      }
+      # It should fail to set replicas since not enough nodes.
+      expect do
+        nc.jsm.add_consumer(stream_name, consumer_config)
+      end.to raise_error NATS::JetStream::Error::ServerError
     end
 
     it "should support jsm.delete_consumer" do

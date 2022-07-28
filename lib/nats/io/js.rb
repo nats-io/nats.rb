@@ -1136,12 +1136,24 @@ module NATS
       #   @return [Integer]
       # @!attribute max_ack_pending
       #   @return [Integer]
-      ConsumerConfig = Struct.new(:durable_name, :description, :deliver_subject,
-                                  :deliver_group, :deliver_policy, :opt_start_seq,
-                                  :opt_start_time, :ack_policy, :ack_wait, :max_deliver,
+      ConsumerConfig = Struct.new(:durable_name, :description,
+                                  :deliver_policy, :opt_start_seq, :opt_start_time,
+                                  :ack_policy, :ack_wait, :max_deliver, :backoff,
                                   :filter_subject, :replay_policy, :rate_limit_bps,
                                   :sample_freq, :max_waiting, :max_ack_pending,
                                   :flow_control, :idle_heartbeat, :headers_only,
+
+                                  # Pull based options
+                                  :max_batch, :max_expires,
+                                  # Push based consumers
+                                  :deliver_subject, :deliver_group,
+                                  # Ephemeral inactivity threshold
+                                  :inactive_threshold,
+                                  # Generally inherited by parent stream and other markers,
+                                  # now can be configured directly.
+                                  :num_replicas,
+                                  # Force memory storage
+                                  :memory_storage,
                                   keyword_init: true) do
         def initialize(opts={})
           # Filter unrecognized fields just in case.
@@ -1195,10 +1207,11 @@ module NATS
       #   @return [Integer]
       # @!attribute duplicate_window
       #   @return [Integer]
-      StreamConfig = Struct.new(:name, :subjects, :retention, :max_consumers,
-                                :max_msgs, :max_bytes, :max_age,
+      StreamConfig = Struct.new(:name, :description, :subjects, :retention, :max_consumers,
+                                :max_msgs, :max_bytes, :discard, :max_age,
                                 :max_msgs_per_subject, :max_msg_size,
-                                :discard, :storage, :num_replicas, :duplicate_window,
+                                :storage, :num_replicas, :no_ack, :duplicate_window,
+                                :placement, :allow_direct,
                                 keyword_init: true) do
         def initialize(opts={})
           # Filter unrecognized fields just in case.
