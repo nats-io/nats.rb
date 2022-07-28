@@ -1027,11 +1027,11 @@ describe 'JetStream' do
                                subjects: ["v29"],
                                num_replicas: 1,
                                no_ack: true,
-                               allow_direct: true,
+                               # allow_direct: true,
                                placement: placement
                                )
       expect(resp).to be_a NATS::JetStream::API::StreamCreateResponse
-      expect(resp.config.allow_direct).to eql(true)
+      # expect(resp.config.allow_direct).to eql(true)
       expect(resp.config.no_ack).to eql(true)
       expect(resp.config.placement).to eql(placement)
 
