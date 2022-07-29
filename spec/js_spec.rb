@@ -228,6 +228,7 @@ describe 'JetStream' do
       msg = msgs.first
       msg.ack
       expect(msg.data).to eql("hello: 2")
+      sleep 0.5
 
       resp = nc.request("$JS.API.CONSUMER.INFO.test.test")
       info = JSON.parse(resp.data, symbolize_names: true)
@@ -592,6 +593,7 @@ describe 'JetStream' do
       msgs = future.wait_for(1)
       expect(msgs.count).to eql(1)
 
+      sleep 0.5
       info = sub.consumer_info
       expect(info.stream_name).to eql("hello")
       expect(info.num_pending).to eql(0)
@@ -619,6 +621,7 @@ describe 'JetStream' do
       expect(info.num_pending).to eql(0)
       expect(info.num_ack_pending).to eql(2)
       msgs.each { |msg| msg.ack }
+      sleep 0.5
 
       info = sub.consumer_info
       expect(info.num_ack_pending).to eql(0)
