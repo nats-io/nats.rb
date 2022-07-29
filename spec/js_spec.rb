@@ -706,6 +706,29 @@ describe 'JetStream' do
         expect(qsub.pending_queue.size > 2).to eql(true)
       end
     end
+
+    it "should create subscribers with custom config" do
+      js = nc.jetstream
+      js.add_stream(name:"custom", subjects:["custom"])
+
+      1.upto(10).each do |i|
+        js.publish("custom", "n:#{i}")
+      end
+
+      sub = js.subscribe("custom", durable: 'example', config: { deliver_policy: 'new' })
+
+      js.publish("custom", "last")
+      msg = sub.next_msg
+
+      expect(msg.data).to eql("last")
+      expect(msg.metadata.sequence.stream).to_not eql(1)
+      expect(msg.metadata.sequence.consumer).to eql(1)
+
+      cinfo = js.consumer_info("custom", "example")
+      expect(cinfo.config[:deliver_policy]).to eql("new")
+
+      nc.close
+    end
   end
 
   describe 'Domain' do
@@ -998,6 +1021,20 @@ describe 'JetStream' do
       expect do
         nc.jsm.add_stream(name: "foo.bar*baz")
       end.to raise_error(ArgumentError)
+
+      placement = { cluster: "foo", tags: ["a"]}
+      resp = nc.jsm.add_stream(name: "v29",
+                               subjects: ["v29"],
+                               num_replicas: 1,
+                               no_ack: true,
+                               # allow_direct: true,
+                               placement: placement
+                               )
+      expect(resp).to be_a NATS::JetStream::API::StreamCreateResponse
+      # expect(resp.config.allow_direct).to eql(true)
+      expect(resp.config.no_ack).to eql(true)
+      expect(resp.config.placement).to eql(placement)
+
       nc.close
     end
 
@@ -1078,6 +1115,16 @@ describe 'JetStream' do
       expect do
         sub.next_msg(timeout: 0.5)
       end.to raise_error NATS::Timeout
+
+      # Create durable consumer
+      consumer_config = {
+        durable_name: "test-create2",
+        num_replicas: 3
+      }
+      # It should fail to set replicas since not enough nodes.
+      # expect do
+      #   nc.jsm.add_consumer(stream_name, consumer_config)
+      # end.to raise_error NATS::JetStream::Error::ServerError
     end
 
     it "should support jsm.delete_consumer" do

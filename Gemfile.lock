@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    nats-pure (2.1.0)
+    nats-pure (2.1.2)
 
 GEM
   remote: https://rubygems.org/
