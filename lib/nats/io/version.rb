@@ -15,7 +15,7 @@
 module NATS
   module IO
     # VERSION is the version of the client announced on CONNECT to the server.
-    VERSION = "2.1.2".freeze
+    VERSION = "2.2.0".freeze
 
     # LANG is the lang runtime of the client announced on CONNECT to the server.
     LANG = "#{RUBY_ENGINE}#{RUBY_VERSION}".freeze
