@@ -1143,14 +1143,14 @@ describe 'JetStream' do
     it "should support jsm.find_stream_name_by_subject" do
       stream_req = {
         name: "foo",
-        subjects: ["a", "a.*", "a.>"]
+        subjects: ["a", "a.*"]
       }
       resp = nc.request("$JS.API.STREAM.CREATE.foo", stream_req.to_json)
       expect(resp).to_not be_nil
 
       stream_req = {
         name: "bar",
-        subjects: ["b", "b.*", "b.>"]
+        subjects: ["b", "b.*"]
       }
       resp = nc.request("$JS.API.STREAM.CREATE.bar", stream_req.to_json)
       expect(resp).to_not be_nil
@@ -1159,16 +1159,10 @@ describe 'JetStream' do
       stream = js.find_stream_name_by_subject("a")
       expect(stream).to eql("foo")
 
-      stream = js.find_stream_name_by_subject("a.>")
-      expect(stream).to eql("foo")
-
       stream = js.find_stream_name_by_subject("a.*")
       expect(stream).to eql("foo")
 
       stream = js.find_stream_name_by_subject("b")
-      expect(stream).to eql("bar")
-
-      stream = js.find_stream_name_by_subject("b.>")
       expect(stream).to eql("bar")
 
       stream = js.find_stream_name_by_subject("b.*")

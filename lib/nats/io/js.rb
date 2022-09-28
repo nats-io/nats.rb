@@ -1058,6 +1058,8 @@ module NATS
       # When the server responds with an error from the JetStream API.
       Error = ::NATS::JetStream::Error::APIError
 
+      NANOSECONDS = 1_000_000_000
+
       # SequenceInfo is a pair of consumer and stream sequence and last activity.
       # @!attribute consumer_seq
       #   @return [Integer] The consumer sequence.
@@ -1107,7 +1109,7 @@ module NATS
           opts[:created] = Time.parse(opts[:created])
           opts[:ack_floor] = SequenceInfo.new(opts[:ack_floor])
           opts[:delivered] = SequenceInfo.new(opts[:delivered])
-          opts[:config][:ack_wait] = opts[:config][:ack_wait] / 1_000_000_000
+          opts[:config][:ack_wait] = opts[:config][:ack_wait] / NANOSECONDS
           opts[:config] = ConsumerConfig.new(opts[:config])
           opts.delete(:cluster)
           # Filter unrecognized fields just in case.
@@ -1207,11 +1209,32 @@ module NATS
       #   @return [Integer]
       # @!attribute duplicate_window
       #   @return [Integer]
-      StreamConfig = Struct.new(:name, :description, :subjects, :retention, :max_consumers,
-                                :max_msgs, :max_bytes, :discard, :max_age,
-                                :max_msgs_per_subject, :max_msg_size,
-                                :storage, :num_replicas, :no_ack, :duplicate_window,
-                                :placement, :allow_direct,
+      StreamConfig = Struct.new(
+                                :name,
+                                :description,
+                                :subjects,
+                                :retention,
+                                :max_consumers,
+                                :max_msgs,
+                                :max_bytes,
+                                :discard,
+                                :max_age,
+                                :max_msgs_per_subject,
+                                :max_msg_size,
+                                :storage,
+                                :num_replicas,
+                                :no_ack,
+                                :duplicate_window,
+                                :placement,
+                                :mirror,
+                                :sources,
+                                :sealed,
+                                :deny_delete,
+                                :deny_purge,
+                                :allow_rollup_hdrs,
+                                :republish,
+                                :allow_direct,
+                                :mirror_direct,
                                 keyword_init: true) do
         def initialize(opts={})
           # Filter unrecognized fields just in case.
