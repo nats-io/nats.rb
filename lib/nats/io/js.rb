@@ -440,6 +440,10 @@ module NATS
         get_msg(stream_name, params)
       end
 
+      def account_info
+        api_request("#{@prefix}.INFO")
+      end
+
       private
 
       def api_request(req_subject, req="", params={})

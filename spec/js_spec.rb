@@ -823,6 +823,29 @@ describe 'JetStream' do
       resp = nc.request("$JS.#{@domain}.API.CONSUMER.INFO.#{stream_name}.#{durable_name}")
       info = JSON.parse(resp.data, symbolize_names: true)
       expect(info[:num_pending]).to eql(1)
+
+      js = nc.jetstream(domain: "estre")
+      info = js.account_info
+      expected = {
+        :type => "io.nats.jetstream.api.v1.account_info_response",
+        :memory => 0,
+        :storage => 66,
+        :streams => 1,
+        :consumers => 1,
+        :limits => {
+          :max_memory => -1,
+          :max_storage => -1,
+          :max_streams => -1,
+          :max_consumers => -1,
+          :max_ack_pending => -1,
+          :memory_max_stream_bytes => -1,
+          :storage_max_stream_bytes => -1,
+          :max_bytes_required => false
+        },
+        :domain => "estre",
+        :api => {:total => 5, :errors => 0}
+      }
+      expect(expected).to eql(info)
     end
 
     it 'should bail when stream or consumer does not exist in domain' do
