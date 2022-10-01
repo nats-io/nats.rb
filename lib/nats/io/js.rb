@@ -19,7 +19,6 @@ require 'time'
 require 'base64'
 
 module NATS
-
   # JetStream returns a context with a similar API as the NATS::Client
   # but with enhanced functions to persist and consume messages from
   # the NATS JetStream engine.
@@ -185,7 +184,7 @@ module NATS
         config.flow_control = flow_control
         if idle_heartbeat or config.idle_heartbeat
           idle_heartbeat = config.idle_heartbeat if config.idle_heartbeat
-          idle_heartbeat = idle_heartbeat * 1_000_000_000
+          idle_heartbeat = idle_heartbeat * ::NATS::NANOSECONDS
           config.idle_heartbeat = idle_heartbeat
         end
 
@@ -223,7 +222,9 @@ module NATS
     # @option params [Hash] :config Configuration for the consumer.
     # @return [NATS::JetStream::PullSubscription]
     def pull_subscribe(subject, durable, params={})
-      raise JetStream::Error::InvalidDurableName.new("nats: invalid durable name") if durable.empty?
+      if durable.empty? && !params[:consumer]
+        raise JetStream::Error::InvalidDurableName.new("nats: invalid durable name")
+      end
       params[:consumer] ||= durable
       stream = params[:stream].nil? ? find_stream_name_by_subject(subject) : params[:stream]
 
@@ -330,7 +331,16 @@ module NATS
                  else
                    config
                  end
-        req_subject = if config[:durable_name]
+
+        req_subject = case
+                      when config[:name]
+                        # NOTE: Only supported after nats-server v2.9.0
+                        if config[:filter_subject] && config[:filter_subject] != ">"
+                          "#{@prefix}.CONSUMER.CREATE.#{stream}.#{config[:name]}.#{config[:filter_subject]}"
+                        else
+                          "#{@prefix}.CONSUMER.CREATE.#{stream}.#{config[:name]}"
+                        end
+                      when config[:durable_name]
                         "#{@prefix}.CONSUMER.DURABLE.CREATE.#{stream}.#{config[:durable_name]}"
                       else
                         "#{@prefix}.CONSUMER.CREATE.#{stream}"
@@ -340,7 +350,11 @@ module NATS
         # Check if have to normalize ack wait so that it is in nanoseconds for Go compat.
         if config[:ack_wait]
           raise ArgumentError.new("nats: invalid ack wait") unless config[:ack_wait].is_a?(Integer)
-          config[:ack_wait] = config[:ack_wait] * 1_000_000_000
+          config[:ack_wait] = config[:ack_wait] * ::NATS::NANOSECONDS
+        end
+        if config[:inactive_threshold]
+          raise ArgumentError.new("nats: invalid inactive threshold") unless config[:inactive_threshold].is_a?(Integer)
+          config[:inactive_threshold] = config[:inactive_threshold] * ::NATS::NANOSECONDS
         end
 
         req = {
@@ -397,27 +411,95 @@ module NATS
         result[:streams].first
       end
 
-      def get_last_msg(stream_name, subject)
-        req_subject = "#{@prefix}.STREAM.MSG.GET.#{stream_name}"
-        req = {'last_by_subj': subject}
+      # get_msg retrieves a message from the stream.
+      # @param next [Boolean] Fetch the next message for a subject.
+      # @param seq [Integer] Sequence number of a message.
+      # @param subject [String] Subject of the message.
+      # @param direct [Boolean] Use direct mode to for faster access (requires NATS v2.9.0)
+      def get_msg(stream_name, params={})
+        req = {}
+        case
+        when params[:next]
+          req[:seq] = params[:seq]
+          req[:next_by_subj] = params[:subject]
+        when params[:seq]
+          req[:seq] = params[:seq]
+        when params[:subject]
+          req[:last_by_subj] = params[:subject]
+        end
+
         data = req.to_json
-        resp = api_request(req_subject, data)
-        JetStream::API::RawStreamMsg.new(resp[:message])
+        if params[:direct]
+          if params[:subject] and not params[:seq]
+            # last_by_subject type request requires no payload.
+            data = ''
+            req_subject = "#{@prefix}.DIRECT.GET.#{stream_name}.#{params[:subject]}"
+          else
+            req_subject = "#{@prefix}.DIRECT.GET.#{stream_name}"
+          end
+        else
+          req_subject = "#{@prefix}.STREAM.MSG.GET.#{stream_name}"
+        end
+        resp = api_request(req_subject, data, direct: params[:direct])
+        msg = if params[:direct]
+                _lift_msg_to_raw_msg(resp)
+              else
+                JetStream::API::RawStreamMsg.new(resp[:message])
+              end
+
+        msg
+      end
+
+      def get_last_msg(stream_name, subject, params={})
+        params[:subject] = subject
+        get_msg(stream_name, params)
+      end
+
+      def account_info
+        api_request("#{@prefix}.INFO")
       end
 
       private
 
       def api_request(req_subject, req="", params={})
         params[:timeout] ||= @opts[:timeout]
-        result = begin
-                   msg = @nc.request(req_subject, req, **params)
+        msg = begin
+                @nc.request(req_subject, req, **params)
+              rescue NATS::IO::NoRespondersError
+                raise JetStream::Error::ServiceUnavailable
+              end
+
+        result = if params[:direct]
+                   msg
+                 else
                    JSON.parse(msg.data, symbolize_names: true)
-                 rescue NATS::IO::NoRespondersError
-                   raise JetStream::Error::ServiceUnavailable
                  end
-        raise JS.from_error(result[:error]) if result[:error]
+        if result.is_a?(Hash) and result[:error]
+          raise JS.from_error(result[:error])
+        end
 
         result
+      end
+
+      def _lift_msg_to_raw_msg(msg)
+        if msg.header and msg.header['Status']
+          status = msg.header['Status']
+          if status == '404'
+            raise ::NATS::JetStream::Error::NotFound.new
+          else
+            raise JS.from_msg(msg)
+          end
+        end
+        subject = msg.header['Nats-Subject']
+        seq = msg.header['Nats-Sequence']
+        raw_msg = JetStream::API::RawStreamMsg.new(
+           subject: subject,
+           seq: seq,
+           headers: msg.header,
+        )
+        raw_msg.data = msg.data
+
+        raw_msg
       end
     end
 
@@ -1107,7 +1189,7 @@ module NATS
           opts[:created] = Time.parse(opts[:created])
           opts[:ack_floor] = SequenceInfo.new(opts[:ack_floor])
           opts[:delivered] = SequenceInfo.new(opts[:delivered])
-          opts[:config][:ack_wait] = opts[:config][:ack_wait] / 1_000_000_000
+          opts[:config][:ack_wait] = opts[:config][:ack_wait] / ::NATS::NANOSECONDS
           opts[:config] = ConsumerConfig.new(opts[:config])
           opts.delete(:cluster)
           # Filter unrecognized fields just in case.
@@ -1136,7 +1218,7 @@ module NATS
       #   @return [Integer]
       # @!attribute max_ack_pending
       #   @return [Integer]
-      ConsumerConfig = Struct.new(:durable_name, :description,
+      ConsumerConfig = Struct.new(:name, :durable_name, :description,
                                   :deliver_policy, :opt_start_seq, :opt_start_time,
                                   :ack_policy, :ack_wait, :max_deliver, :backoff,
                                   :filter_subject, :replay_policy, :rate_limit_bps,
@@ -1153,7 +1235,7 @@ module NATS
                                   # now can be configured directly.
                                   :num_replicas,
                                   # Force memory storage
-                                  :memory_storage,
+                                  :mem_storage,
                                   keyword_init: true) do
         def initialize(opts={})
           # Filter unrecognized fields just in case.
@@ -1207,11 +1289,32 @@ module NATS
       #   @return [Integer]
       # @!attribute duplicate_window
       #   @return [Integer]
-      StreamConfig = Struct.new(:name, :description, :subjects, :retention, :max_consumers,
-                                :max_msgs, :max_bytes, :discard, :max_age,
-                                :max_msgs_per_subject, :max_msg_size,
-                                :storage, :num_replicas, :no_ack, :duplicate_window,
-                                :placement, :allow_direct,
+      StreamConfig = Struct.new(
+                                :name,
+                                :description,
+                                :subjects,
+                                :retention,
+                                :max_consumers,
+                                :max_msgs,
+                                :max_bytes,
+                                :discard,
+                                :max_age,
+                                :max_msgs_per_subject,
+                                :max_msg_size,
+                                :storage,
+                                :num_replicas,
+                                :no_ack,
+                                :duplicate_window,
+                                :placement,
+                                :mirror,
+                                :sources,
+                                :sealed,
+                                :deny_delete,
+                                :deny_purge,
+                                :allow_rollup_hdrs,
+                                :republish,
+                                :allow_direct,
+                                :mirror_direct,
                                 keyword_init: true) do
         def initialize(opts={})
           # Filter unrecognized fields just in case.
@@ -1244,7 +1347,7 @@ module NATS
         def initialize(opts={})
           opts[:config] = StreamConfig.new(opts[:config])
           opts[:state] = StreamState.new(opts[:state])
-          opts[:created] = Time.parse(opts[:created])
+          opts[:created] = ::Time.parse(opts[:created])
 
           # Filter fields and freeze.
           rem = opts.keys - members

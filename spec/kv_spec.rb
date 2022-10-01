@@ -25,8 +25,8 @@ describe 'KeyValue' do
     expect(status.history).to eql(5)
     expect(status.ttl).to eql(3600)
 
-    ack = kv.put("hello", "world")
-    expect(ack.seq).to eql(1)
+    revision = kv.put("hello", "world")
+    expect(revision).to eql(1)
 
     entry = kv.get("hello")
     expect(entry.revision).to eql(1)
@@ -52,7 +52,7 @@ describe 'KeyValue' do
 
     expect do
       kv.get("hello")
-    end.to raise_error(NATS::KeyValue::KeyDeletedError)
+    end.to raise_error(NATS::KeyValue::KeyNotFoundError)
 
     js.delete_key_value("TEST")
 
@@ -101,5 +101,289 @@ describe 'KeyValue' do
 
     nc.close
     nc2.close
+  end
+
+  it 'should support get by revision' do
+    nc = NATS.connect(@s.uri)
+    js = nc.jetstream
+    kv = js.create_key_value(bucket: "TEST", history: 5, ttl: 3600, description: "Basic KV")
+
+    si = js.stream_info("KV_TEST")
+    config = NATS::JetStream::API::StreamConfig.new(
+        name: "KV_TEST",
+        description: "Basic KV",
+        subjects: ["$KV.TEST.>"],
+        allow_rollup_hdrs: true,
+        deny_delete: true,
+        deny_purge: false,
+        discard: "new",
+        duplicate_window: 120 * ::NATS::NANOSECONDS,
+        max_age: 3600 * ::NATS::NANOSECONDS,
+        max_bytes: -1,
+        max_consumers: -1,
+        max_msg_size: -1,
+        max_msgs: -1,
+        max_msgs_per_subject: 5,
+        mirror: nil,
+        no_ack: nil,
+        num_replicas: 1,
+        placement: nil,
+        retention: "limits",
+        sealed: false,
+        sources: nil,
+        storage: "file",
+        republish: nil,
+        allow_direct: false,
+        mirror_direct: false,
+    )
+    expect(config).to eql(si.config)
+
+    # Nothing from start
+    expect do
+      kv.get("name")
+    end.to raise_error(NATS::KeyValue::KeyNotFoundError)
+
+    # Simple put
+    revision = kv.put("name", 'alice')
+    expect(revision).to eql(1)
+
+    # Simple get
+    result = kv.get("name")
+    expect(result.revision).to eq(1)
+    expect(result.value).to eql('alice')
+
+    # Delete
+    ok = kv.delete("name")
+    expect(ok)
+
+    # Deleting then getting again should be a not found error still,
+    # although internally this is a KeyDeletedError.
+    expect do
+      kv.get("name")
+    end.to raise_error(NATS::KeyValue::KeyNotFoundError)
+
+    # Recreate with different name.
+    revision = kv.create("name", 'bob')
+    expect(revision).to eql(3)
+
+    # Expect last revision to be 4.
+    expect do
+      kv.delete('name', last: 4)
+    end.to raise_error(NATS::JetStream::Error::BadRequest)
+
+     # Correct revision should work.
+    revision = kv.delete("name", last: 3)
+    expect(revision).to eql(4)
+
+    # Conditional Updates.
+    revision = kv.update("name", "hoge", last: 4)
+    expect(revision).to eql(5)
+
+    # Should fail since revision number not the latest.
+    expect do
+      revision = kv.update("name", "hoge", last: 3)
+    end.to raise_error NATS::KeyValue::KeyWrongLastSequenceError
+
+    # Update with correct latest.
+    revision = kv.update("name", "fuga", last: revision)
+    expect(revision).to eql(6)
+
+    # Create a different key.
+    revision = kv.create("age", '2038')
+    expect(revision).to eql(7)
+
+    # Get current.
+    entry = kv.get("age")
+    expect(entry.value).to eql('2038')
+    expect(entry.revision).to eql(7)
+
+    # Update the new key.
+    revision = kv.update("age", '2039', last: revision)
+    expect(revision).to eql(8)
+
+    # Get latest.
+    entry = kv.get("age")
+    expect(entry.value).to eql('2039')
+    expect(entry.revision).to eql(8)
+
+    # Internally uses get msg API instead of get last msg.
+    entry = kv.get("age", revision: 7)
+    expect(entry.value).to eql('2038')
+    expect(entry.revision).to eql(7)
+
+    # Getting past keys with the wrong expected subject is an error.
+    expect do
+      kv.get("age", revision: 6)
+    end.to raise_error NATS::KeyValue::KeyNotFoundError
+    begin
+      kv.get("age", revision: 6)
+    rescue => e
+      expect(e.message).to eql(
+        %Q(nats: key not found: expected '$KV.TEST.age', but got '$KV.TEST.name')
+      )
+    end
+    expect do
+      kv.get("age", revision: 5)
+    end.to raise_error NATS::KeyValue::KeyNotFoundError
+    expect do
+      kv.get("age", revision: 4)
+    end.to raise_error NATS::KeyValue::KeyNotFoundError
+
+    expect do
+      entry = kv.get("name", revision=3)
+      expect(entry.value).to eql('bob')
+    end
+
+    # match="nats: wrong last sequence: 8")
+    expect do
+      kv.create("age", '1')
+    end.to raise_error NATS::KeyValue::KeyWrongLastSequenceError
+    begin
+      kv.create("age", '1')
+    rescue => e
+      expect(e.message).to eql("nats: wrong last sequence: 8")
+    end
+
+    # Now let's delete and recreate.
+    kv.delete("age", last: 8)
+    kv.create("age", "final")
+
+    expect do
+      kv.create("age", '1')
+    end.to raise_error NATS::KeyValue::KeyWrongLastSequenceError
+
+    begin
+      kv.create("age", '1')
+    rescue => e
+      expect(e.message).to eql("nats: wrong last sequence: 10")
+    end
+
+    entry = kv.get("age")
+    expect(entry.revision).to eql(10)
+
+    # Purge
+    status = kv.status()
+    expect(status.values).to eql(9)
+
+    kv.purge("age")
+    status = kv.status()
+    expect(status.values).to eql(6)
+
+    kv.purge("name")
+    status = kv.status()
+    expect(status.values).to eql(2)
+
+    expect do
+      kv.get("name")
+    end.to raise_error NATS::KeyValue::KeyNotFoundError
+
+    expect do
+      kv.get("age")
+    end.to raise_error NATS::KeyValue::KeyNotFoundError
+
+    nc.close
+  end
+
+  it 'should support direct get' do
+    nc = NATS.connect(@s.uri)
+    js = nc.jetstream
+    kv = js.create_key_value(
+           bucket: "TESTDIRECT",
+           history: 5,
+           ttl: 3600,
+           description: "KV DIRECT",
+           direct: true,
+         )
+    si = js.stream_info("KV_TESTDIRECT")
+    expect(si.config.allow_direct).to eql(true)
+    kv.create("A", '1')
+    kv.create("B", '2')
+    kv.create("C", '3')
+    kv.create("D", '4')
+    kv.create("E", '5')
+    kv.create("F", '6')
+
+    kv.put("C", '33')
+    kv.put("D", '44')
+    kv.put("C", '333')
+
+    msg = js.get_msg("KV_TESTDIRECT", seq: 1, direct: true)
+    expect(msg.data).to eql('1')
+    expect(msg.subject).to eql('$KV.TESTDIRECT.A')
+
+    entry = kv.get("A")
+    expect(entry.key).to eql("A")
+    expect(entry.value).to eql("1")
+
+    expect do
+      kv.get("Z")
+    end.to raise_error NATS::KeyValue::KeyNotFoundError
+
+    # Check with low level msg APIs.
+
+    # last by subject
+    msg = js.get_msg("KV_TESTDIRECT", subject: "$KV.TESTDIRECT.C", direct: true)
+    expect(msg.data).to eql('333')
+
+    # next by subject
+    msg = js.get_msg("KV_TESTDIRECT", subject: "$KV.TESTDIRECT.C", seq: 4, next: true, direct: true)
+    expect(msg.data).to eql('33')
+
+    # Malformed request
+    expect do
+      js.get_msg("KV_TESTDIRECT", subject: "$KV.TESTDIRECT.C", seq: -1, next: true, direct: true)
+    end.to raise_error NATS::JetStream::Error::APIError
+
+    # binding to a key value
+    kv = js.key_value("TESTDIRECT")
+    entry = kv.get("A")
+    expect(entry.key).to eql("A")
+    expect(entry.value).to eql("1")
+
+    kv = js.key_value("TESTDIRECT")
+    entry = kv.get("C", revision: 9)
+    expect(entry.key).to eql("C")
+    expect(entry.value).to eql("333")
+
+    nc.close
+  end
+
+  it 'should support republish' do
+    nc = NATS.connect(@s.uri)
+    js = nc.jetstream
+    kv = js.create_key_value(
+           bucket: "TESTRP",
+           direct: true,
+           republish: {
+             src: ">",
+             dest: "bar.>"
+           }
+         )
+
+    sub = nc.subscribe("bar.>")
+    kv.put("hello.world", 'Hello World!')
+    msg = sub.next_msg
+    expect(msg.subject).to eql("bar.$KV.TESTRP.hello.world")
+    expect(msg.data).to eql("Hello World!")
+    sub.unsubscribe
+
+    kv = js.create_key_value(
+           bucket: "TEST_RP_HEADERS",
+           direct: true,
+           republish: {
+             src: ">",
+             dest: "quux.>",
+             headers_only: true
+           }
+         )
+    sub = nc.subscribe("quux.>")
+    kv.put("hello.world", 'Hello World!')
+    msg = sub.next_msg
+    expect(msg.subject).to eql("quux.$KV.TEST_RP_HEADERS.hello.world")
+    expect(msg.data).to eql("")
+    expect(msg.header['Nats-Msg-Size']).to eql('12')
+    sub.unsubscribe
+
+    nc.close
   end
 end

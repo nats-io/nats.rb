@@ -272,11 +272,6 @@ describe 'JetStream' do
       # Nothing pending.
       resp = nc.request("$JS.API.CONSUMER.INFO.test.test")
       info = JSON.parse(resp.data, symbolize_names: true)
-      expect(info).to include({
-          num_waiting: 0,
-          num_ack_pending: 0,
-          num_pending: 0,
-        })
       expect(info[:delivered]).to include({
           consumer_seq: 10,
           stream_seq: 10
@@ -289,11 +284,6 @@ describe 'JetStream' do
 
       resp = nc.request("$JS.API.CONSUMER.INFO.test.test")
       info = JSON.parse(resp.data, symbolize_names: true)
-      expect(info).to include({
-          num_waiting: 0,
-          num_ack_pending: 0,
-          num_pending: 5,
-        })
       expect(info[:delivered]).to include({
           consumer_seq: 10,
           stream_seq: 10
@@ -315,11 +305,6 @@ describe 'JetStream' do
 
       resp = nc.request("$JS.API.CONSUMER.INFO.test.test")
       info = JSON.parse(resp.data, symbolize_names: true)
-      expect(info).to include({
-          num_waiting: 0,
-          num_ack_pending: 0,
-          num_pending: 0,
-        })
       expect(info[:delivered]).to include({
           consumer_seq: 15,
           stream_seq: 15
@@ -335,11 +320,6 @@ describe 'JetStream' do
 
       resp = nc.request("$JS.API.CONSUMER.INFO.test.test")
       info = JSON.parse(resp.data, symbolize_names: true)
-      expect(info).to include({
-          num_waiting: 0,
-          num_ack_pending: 0,
-          num_pending: 10,
-        })
       expect(info[:delivered]).to include({
           consumer_seq: 15,
           stream_seq: 15
@@ -535,6 +515,124 @@ describe 'JetStream' do
       nc.close
       nc2.close
     end
+
+    it 'should create and bind to consumer with name' do
+      nc = NATS.connect(@s.uri)
+      js = nc.jetstream
+
+      js.add_stream(name: "ctests", subjects: ['a', 'b', 'c.>'])
+      js.publish('a', 'hello world!')
+      js.publish('b', 'hello world!!')
+      js.publish('c.d', 'hello world!!!')
+      js.publish('c.d.e', 'hello world!!!!')
+
+      tsub = nc.subscribe("$JS.API.CONSUMER.>")
+
+      # ephemeral consumer
+      consumer_name = 'ephemeral'
+      cinfo = js.add_consumer("ctests", name: consumer_name, ack_policy: "explicit")
+      expect(cinfo.config.name).to eql(consumer_name)
+
+      msg = tsub.next_msg
+      expect(msg.subject).to eql('$JS.API.CONSUMER.CREATE.ctests.ephemeral')
+
+      sub = js.pull_subscribe("", "", stream: 'ctests', consumer: 'ephemeral')
+      cinfo = sub.consumer_info
+      expect(cinfo.config.name).to eql(consumer_name)
+      msgs = sub.fetch(1)
+      expect(msgs.first.data).to eql('hello world!')
+      msgs.first.ack_sync
+      msg = tsub.next_msg()
+      expect(msg.subject).to eql('$JS.API.CONSUMER.INFO.ctests.ephemeral')
+      tsub.unsubscribe
+
+      # Create durable pull consumer with a name.
+      tsub = nc.subscribe("$JS.API.CONSUMER.>")
+      consumer_name = 'durable'
+      cinfo = js.add_consumer("ctests",
+                              name: consumer_name,
+                              durable_name: consumer_name,
+                              ack_policy: "explicit",
+                              )
+      expect(cinfo.config.name).to eql(consumer_name)
+      msg = tsub.next_msg()
+      expect(msg.subject).to eql('$JS.API.CONSUMER.CREATE.ctests.durable')
+      sub = js.pull_subscribe("", "durable", stream: 'ctests')
+      cinfo = sub.consumer_info
+      expect(cinfo.config.name).to eql(consumer_name)
+      msgs = sub.fetch(1)
+      expect(msgs.first.data).to eql('hello world!')
+      msgs.first.ack_sync
+      msg = tsub.next_msg()
+      expect(msg.subject).to eql('$JS.API.CONSUMER.INFO.ctests.durable')
+      tsub.unsubscribe
+
+      # Create durable pull consumer with a name and a filter_subject
+      tsub = nc.subscribe("$JS.API.CONSUMER.>")
+      consumer_name = 'durable2'
+      cinfo = js.add_consumer("ctests",
+                              name: consumer_name,
+                              durable_name: consumer_name,
+                              filter_subject: 'b',
+                              ack_policy: "explicit",
+                              )
+      expect(cinfo.config.name).to eql(consumer_name)
+      msg = tsub.next_msg()
+      expect(msg.subject).to eql('$JS.API.CONSUMER.CREATE.ctests.durable2.b')
+      sub = js.pull_subscribe("", "durable2", stream: 'ctests')
+      msgs = sub.fetch(1)
+      expect(msgs.first.data).to eql('hello world!!')
+      msgs.first.ack_sync
+      tsub.unsubscribe
+
+      # Create durable pull consumer with a name and a filter_subject
+      tsub = nc.subscribe("$JS.API.CONSUMER.>")
+      consumer_name = 'durable3'
+      cinfo = js.add_consumer("ctests",
+                              name: consumer_name,
+                              durable_name: consumer_name,
+                              filter_subject: '>',
+                              ack_policy: "explicit",
+                              )
+      expect(cinfo.config.name).to eql(consumer_name)
+      msg = tsub.next_msg()
+      expect(msg.subject).to eql('$JS.API.CONSUMER.CREATE.ctests.durable3')
+      sub = js.pull_subscribe("", "durable3", stream: 'ctests')
+      msgs = sub.fetch(1)
+      expect(msgs.first.data).to eql('hello world!')
+      msgs.first.ack_sync
+      tsub.unsubscribe
+
+      # name and durable must match if both present.
+      expect do
+        js.add_consumer("ctests",
+                        name: "foo",
+                        durable_name: "bar",
+                        ack_policy: "explicit",
+                        )
+      end.to raise_error NATS::JetStream::Error::BadRequest
+      begin
+        js.add_consumer("ctests",
+                        name: "foo",
+                        durable_name: "bar",
+                        ack_policy: "explicit",
+                        )
+      rescue => e
+        expect(e.description).to eql(%Q(consumer name in subject does not match durable name in request))
+      end
+
+      # consumer name and inactive
+      consumer_name = 'inactive'
+      cinfo = js.add_consumer("ctests",
+                              name: consumer_name,
+                              durable_name: consumer_name,
+                              inactive_threshold: 2,
+                              ack_policy: "explicit",
+                              mem_storage: true
+                              )
+      expect(cinfo.config.inactive_threshold).to eql(2000000000)
+      expect(cinfo.config.mem_storage).to eql(true)
+    end
   end
 
   describe 'Push Subscribe' do
@@ -620,8 +718,8 @@ describe 'JetStream' do
       expect(info.stream_name).to eql("hello")
       expect(info.num_pending).to eql(0)
       expect(info.num_ack_pending).to eql(2)
-      msgs.each { |msg| msg.ack }
-      sleep 0.5
+      msgs.each { |msg| msg.ack_sync }
+      sleep 1
 
       info = sub.consumer_info
       expect(info.num_ack_pending).to eql(0)
@@ -630,7 +728,7 @@ describe 'JetStream' do
       # Without callback
       sub = js.subscribe("hello")
       msg = sub.next_msg
-      msg.ack
+      msg.ack_sync
       info = sub.consumer_info
       expect(info.stream_name).to eql("hello")
       expect(info.num_pending).to eql(0)
@@ -683,7 +781,7 @@ describe 'JetStream' do
       # Sync subscribe to get the same messages again.
       sub = js.subscribe("hello", durable: "first")
       msg = sub.next_msg
-      msg.ack
+      msg.ack_sync
 
       info = sub.consumer_info
       expect(info.num_pending).to eql(0)
@@ -823,6 +921,29 @@ describe 'JetStream' do
       resp = nc.request("$JS.#{@domain}.API.CONSUMER.INFO.#{stream_name}.#{durable_name}")
       info = JSON.parse(resp.data, symbolize_names: true)
       expect(info[:num_pending]).to eql(1)
+
+      js = nc.jetstream(domain: "estre")
+      info = js.account_info
+      expected = {
+        :type => "io.nats.jetstream.api.v1.account_info_response",
+        :memory => 0,
+        :storage => 66,
+        :streams => 1,
+        :consumers => 1,
+        :limits => {
+          :max_memory => -1,
+          :max_storage => -1,
+          :max_streams => -1,
+          :max_consumers => -1,
+          :max_ack_pending => -1,
+          :memory_max_stream_bytes => -1,
+          :storage_max_stream_bytes => -1,
+          :max_bytes_required => false
+        },
+        :domain => "estre",
+        :api => {:total => 5, :errors => 0}
+      }
+      expect(expected).to eql(info)
     end
 
     it 'should bail when stream or consumer does not exist in domain' do
@@ -1143,14 +1264,14 @@ describe 'JetStream' do
     it "should support jsm.find_stream_name_by_subject" do
       stream_req = {
         name: "foo",
-        subjects: ["a", "a.*", "a.>"]
+        subjects: ["a", "a.*"]
       }
       resp = nc.request("$JS.API.STREAM.CREATE.foo", stream_req.to_json)
       expect(resp).to_not be_nil
 
       stream_req = {
         name: "bar",
-        subjects: ["b", "b.*", "b.>"]
+        subjects: ["b", "b.*"]
       }
       resp = nc.request("$JS.API.STREAM.CREATE.bar", stream_req.to_json)
       expect(resp).to_not be_nil
@@ -1159,16 +1280,10 @@ describe 'JetStream' do
       stream = js.find_stream_name_by_subject("a")
       expect(stream).to eql("foo")
 
-      stream = js.find_stream_name_by_subject("a.>")
-      expect(stream).to eql("foo")
-
       stream = js.find_stream_name_by_subject("a.*")
       expect(stream).to eql("foo")
 
       stream = js.find_stream_name_by_subject("b")
-      expect(stream).to eql("bar")
-
-      stream = js.find_stream_name_by_subject("b.>")
       expect(stream).to eql("bar")
 
       stream = js.find_stream_name_by_subject("b.*")
