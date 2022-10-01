@@ -19,7 +19,6 @@ require 'time'
 require 'base64'
 
 module NATS
-
   # JetStream returns a context with a similar API as the NATS::Client
   # but with enhanced functions to persist and consume messages from
   # the NATS JetStream engine.
@@ -185,7 +184,7 @@ module NATS
         config.flow_control = flow_control
         if idle_heartbeat or config.idle_heartbeat
           idle_heartbeat = config.idle_heartbeat if config.idle_heartbeat
-          idle_heartbeat = idle_heartbeat * 1_000_000_000
+          idle_heartbeat = idle_heartbeat * ::NATS::NANOSECONDS
           config.idle_heartbeat = idle_heartbeat
         end
 
@@ -340,7 +339,7 @@ module NATS
         # Check if have to normalize ack wait so that it is in nanoseconds for Go compat.
         if config[:ack_wait]
           raise ArgumentError.new("nats: invalid ack wait") unless config[:ack_wait].is_a?(Integer)
-          config[:ack_wait] = config[:ack_wait] * 1_000_000_000
+          config[:ack_wait] = config[:ack_wait] * ::NATS::NANOSECONDS
         end
 
         req = {
@@ -397,12 +396,36 @@ module NATS
         result[:streams].first
       end
 
-      def get_last_msg(stream_name, subject)
-        req_subject = "#{@prefix}.STREAM.MSG.GET.#{stream_name}"
-        req = {'last_by_subj': subject}
+      # get_msg retrieves a message from the stream.
+      # @param next [Boolean] Fetch the next message for a subject.
+      # @param seq [Integer] Sequence number of a message.
+      # @param subject [String] Subject of the message.
+      # @param direct [Boolean] Use direct mode to for faster access (requires NATS v2.9.0)
+      def get_msg(stream_name, params={})
+        req = {}
+        case
+        when params[:next]
+          req[:seq] = params[:seq]
+          req[:next_by_subj] = params[:subject]
+        when params[:seq]
+          req[:seq] = params[:seq]
+        when params[:subject]
+          req[:last_by_subj] = params[:subject]
+        end
+
         data = req.to_json
+        if params[:direct]
+          raise "TODO: Handle Direct mode"
+        end
+
+        req_subject = "#{@prefix}.STREAM.MSG.GET.#{stream_name}"
         resp = api_request(req_subject, data)
         JetStream::API::RawStreamMsg.new(resp[:message])
+      end
+
+      def get_last_msg(stream_name, subject, params={})
+        params[:subject] = subject
+        get_msg(stream_name, params)
       end
 
       private
@@ -1058,8 +1081,6 @@ module NATS
       # When the server responds with an error from the JetStream API.
       Error = ::NATS::JetStream::Error::APIError
 
-      NANOSECONDS = 1_000_000_000
-
       # SequenceInfo is a pair of consumer and stream sequence and last activity.
       # @!attribute consumer_seq
       #   @return [Integer] The consumer sequence.
@@ -1109,7 +1130,7 @@ module NATS
           opts[:created] = Time.parse(opts[:created])
           opts[:ack_floor] = SequenceInfo.new(opts[:ack_floor])
           opts[:delivered] = SequenceInfo.new(opts[:delivered])
-          opts[:config][:ack_wait] = opts[:config][:ack_wait] / NANOSECONDS
+          opts[:config][:ack_wait] = opts[:config][:ack_wait] / ::NATS::NANOSECONDS
           opts[:config] = ConsumerConfig.new(opts[:config])
           opts.delete(:cluster)
           # Filter unrecognized fields just in case.
@@ -1267,7 +1288,7 @@ module NATS
         def initialize(opts={})
           opts[:config] = StreamConfig.new(opts[:config])
           opts[:state] = StreamState.new(opts[:state])
-          opts[:created] = Time.parse(opts[:created])
+          opts[:created] = ::Time.parse(opts[:created])
 
           # Filter fields and freeze.
           rem = opts.keys - members

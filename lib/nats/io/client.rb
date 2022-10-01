@@ -1936,6 +1936,8 @@ module NATS
     end
   end
 
+  NANOSECONDS = 1_000_000_000
+
   class MonotonicTime
     # Implementation of MonotonicTime adapted from
     # https://github.com/ruby-concurrency/concurrent-ruby/
