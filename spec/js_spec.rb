@@ -620,8 +620,8 @@ describe 'JetStream' do
       expect(info.stream_name).to eql("hello")
       expect(info.num_pending).to eql(0)
       expect(info.num_ack_pending).to eql(2)
-      msgs.each { |msg| msg.ack }
-      sleep 0.5
+      msgs.each { |msg| msg.ack_sync }
+      sleep 1
 
       info = sub.consumer_info
       expect(info.num_ack_pending).to eql(0)
