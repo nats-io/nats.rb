@@ -17,7 +17,7 @@ require_relative 'version'
 require_relative 'errors'
 require_relative 'msg'
 require_relative 'subscription'
-require_relative 'js'
+require_relative 'jetstream'
 
 require 'nats/nuid'
 require 'thread'
