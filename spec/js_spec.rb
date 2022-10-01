@@ -630,7 +630,7 @@ describe 'JetStream' do
       # Without callback
       sub = js.subscribe("hello")
       msg = sub.next_msg
-      msg.ack
+      msg.ack_sync
       info = sub.consumer_info
       expect(info.stream_name).to eql("hello")
       expect(info.num_pending).to eql(0)

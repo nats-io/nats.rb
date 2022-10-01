@@ -347,4 +347,43 @@ describe 'KeyValue' do
 
     nc.close
   end
+
+  it 'should support republish' do
+    nc = NATS.connect(@s.uri)
+    js = nc.jetstream
+    kv = js.create_key_value(
+           bucket: "TESTRP",
+           direct: true,
+           republish: {
+             src: ">",
+             dest: "bar.>"
+           }
+         )
+
+    sub = nc.subscribe("bar.>")
+    kv.put("hello.world", 'Hello World!')
+    msg = sub.next_msg
+    expect(msg.subject).to eql("bar.$KV.TESTRP.hello.world")
+    expect(msg.data).to eql("Hello World!")
+    sub.unsubscribe
+
+    kv = js.create_key_value(
+           bucket: "TEST_RP_HEADERS",
+           direct: true,
+           republish: {
+             src: ">",
+             dest: "quux.>",
+             headers_only: true
+           }
+         )
+    sub = nc.subscribe("quux.>")
+    kv.put("hello.world", 'Hello World!')
+    msg = sub.next_msg
+    expect(msg.subject).to eql("quux.$KV.TEST_RP_HEADERS.hello.world")
+    expect(msg.data).to eql("")
+    expect(msg.header['Nats-Msg-Size']).to eql('12')
+    sub.unsubscribe
+
+    nc.close
+  end
 end
