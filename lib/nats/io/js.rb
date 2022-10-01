@@ -415,12 +415,24 @@ module NATS
 
         data = req.to_json
         if params[:direct]
-          raise "TODO: Handle Direct mode"
+          if params[:subject] and not params[:seq]
+            # last_by_subject type request requires no payload.
+            data = ''
+            req_subject = "#{@prefix}.DIRECT.GET.#{stream_name}.#{params[:subject]}"
+          else
+            req_subject = "#{@prefix}.DIRECT.GET.#{stream_name}"
+          end
+        else
+          req_subject = "#{@prefix}.STREAM.MSG.GET.#{stream_name}"
         end
+        resp = api_request(req_subject, data, direct: params[:direct])
+        msg = if params[:direct]
+                _lift_msg_to_raw_msg(resp)
+              else
+                JetStream::API::RawStreamMsg.new(resp[:message])
+              end
 
-        req_subject = "#{@prefix}.STREAM.MSG.GET.#{stream_name}"
-        resp = api_request(req_subject, data)
-        JetStream::API::RawStreamMsg.new(resp[:message])
+        msg
       end
 
       def get_last_msg(stream_name, subject, params={})
@@ -432,15 +444,43 @@ module NATS
 
       def api_request(req_subject, req="", params={})
         params[:timeout] ||= @opts[:timeout]
-        result = begin
-                   msg = @nc.request(req_subject, req, **params)
+        msg = begin
+                @nc.request(req_subject, req, **params)
+              rescue NATS::IO::NoRespondersError
+                raise JetStream::Error::ServiceUnavailable
+              end
+
+        result = if params[:direct]
+                   msg
+                 else
                    JSON.parse(msg.data, symbolize_names: true)
-                 rescue NATS::IO::NoRespondersError
-                   raise JetStream::Error::ServiceUnavailable
                  end
-        raise JS.from_error(result[:error]) if result[:error]
+        if result.is_a?(Hash) and result[:error]
+          raise JS.from_error(result[:error])
+        end
 
         result
+      end
+
+      def _lift_msg_to_raw_msg(msg)
+        if msg.header and msg.header['Status']
+          status = msg.header['Status']
+          if status == '404'
+            raise ::NATS::JetStream::Error::NotFound.new
+          else
+            raise JS.from_msg(msg)
+          end
+        end
+        subject = msg.header['Nats-Subject']
+        seq = msg.header['Nats-Sequence']
+        raw_msg = JetStream::API::RawStreamMsg.new(
+           subject: subject,
+           seq: seq,
+           headers: msg.header,
+        )
+        raw_msg.data = msg.data
+
+        raw_msg
       end
     end
 

@@ -283,4 +283,68 @@ describe 'KeyValue' do
 
     nc.close
   end
+
+  it 'should support direct get' do
+    nc = NATS.connect(@s.uri)
+    js = nc.jetstream
+    kv = js.create_key_value(
+           bucket: "TESTDIRECT",
+           history: 5,
+           ttl: 3600,
+           description: "KV DIRECT",
+           direct: true,
+         )
+    si = js.stream_info("KV_TESTDIRECT")
+    expect(si.config.allow_direct).to eql(true)
+    kv.create("A", '1')
+    kv.create("B", '2')
+    kv.create("C", '3')
+    kv.create("D", '4')
+    kv.create("E", '5')
+    kv.create("F", '6')
+
+    kv.put("C", '33')
+    kv.put("D", '44')
+    kv.put("C", '333')
+
+    msg = js.get_msg("KV_TESTDIRECT", seq: 1, direct: true)
+    expect(msg.data).to eql('1')
+    expect(msg.subject).to eql('$KV.TESTDIRECT.A')
+
+    entry = kv.get("A")
+    expect(entry.key).to eql("A")
+    expect(entry.value).to eql("1")
+
+    expect do
+      kv.get("Z")
+    end.to raise_error NATS::KeyValue::KeyNotFoundError
+
+    # Check with low level msg APIs.
+
+    # last by subject
+    msg = js.get_msg("KV_TESTDIRECT", subject: "$KV.TESTDIRECT.C", direct: true)
+    expect(msg.data).to eql('333')
+
+    # next by subject
+    msg = js.get_msg("KV_TESTDIRECT", subject: "$KV.TESTDIRECT.C", seq: 4, next: true, direct: true)
+    expect(msg.data).to eql('33')
+
+    # Malformed request
+    expect do
+      js.get_msg("KV_TESTDIRECT", subject: "$KV.TESTDIRECT.C", seq: -1, next: true, direct: true)
+    end.to raise_error NATS::JetStream::Error::APIError
+
+    # binding to a key value
+    kv = js.key_value("TESTDIRECT")
+    entry = kv.get("A")
+    expect(entry.key).to eql("A")
+    expect(entry.value).to eql("1")
+
+    kv = js.key_value("TESTDIRECT")
+    entry = kv.get("C", revision: 9)
+    expect(entry.key).to eql("C")
+    expect(entry.value).to eql("333")
+
+    nc.close
+  end
 end

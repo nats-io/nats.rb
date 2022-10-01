@@ -90,12 +90,12 @@ module NATS
       if params[:revision]
         msg = @js.get_msg(@stream,
                           seq: params[:revision],
-                          direct: params[:direct])
+                          direct: @direct)
       else
         msg = @js.get_msg(@stream,
                           subject: subject,
                           seq: params[:revision],
-                          direct: params[:direct])
+                          direct: @direct)
       end
 
       entry = Entry.new(bucket: @name, key: key, value: msg.data, revision: msg.seq)
@@ -229,7 +229,7 @@ module NATS
       end
 
       def ttl
-        @nfo.config.max_age / 1_000_000_000
+        @nfo.config.max_age / ::NATS::NANOSECONDS
       end
     end
 
