@@ -535,6 +535,124 @@ describe 'JetStream' do
       nc.close
       nc2.close
     end
+
+    it 'should create and bind to consumer with name' do
+      nc = NATS.connect(@s.uri)
+      js = nc.jetstream
+
+      js.add_stream(name: "ctests", subjects: ['a', 'b', 'c.>'])
+      js.publish('a', 'hello world!')
+      js.publish('b', 'hello world!!')
+      js.publish('c.d', 'hello world!!!')
+      js.publish('c.d.e', 'hello world!!!!')
+
+      tsub = nc.subscribe("$JS.API.CONSUMER.>")
+
+      # ephemeral consumer
+      consumer_name = 'ephemeral'
+      cinfo = js.add_consumer("ctests", name: consumer_name, ack_policy: "explicit")
+      expect(cinfo.config.name).to eql(consumer_name)
+
+      msg = tsub.next_msg
+      expect(msg.subject).to eql('$JS.API.CONSUMER.CREATE.ctests.ephemeral')
+
+      sub = js.pull_subscribe("", "", stream: 'ctests', consumer: 'ephemeral')
+      cinfo = sub.consumer_info
+      expect(cinfo.config.name).to eql(consumer_name)
+      msgs = sub.fetch(1)
+      expect(msgs.first.data).to eql('hello world!')
+      msgs.first.ack_sync
+      msg = tsub.next_msg()
+      expect(msg.subject).to eql('$JS.API.CONSUMER.INFO.ctests.ephemeral')
+      tsub.unsubscribe
+
+      # Create durable pull consumer with a name.
+      tsub = nc.subscribe("$JS.API.CONSUMER.>")
+      consumer_name = 'durable'
+      cinfo = js.add_consumer("ctests",
+                              name: consumer_name,
+                              durable_name: consumer_name,
+                              ack_policy: "explicit",
+                              )
+      expect(cinfo.config.name).to eql(consumer_name)
+      msg = tsub.next_msg()
+      expect(msg.subject).to eql('$JS.API.CONSUMER.CREATE.ctests.durable')
+      sub = js.pull_subscribe("", "durable", stream: 'ctests')
+      cinfo = sub.consumer_info
+      expect(cinfo.config.name).to eql(consumer_name)
+      msgs = sub.fetch(1)
+      expect(msgs.first.data).to eql('hello world!')
+      msgs.first.ack_sync
+      msg = tsub.next_msg()
+      expect(msg.subject).to eql('$JS.API.CONSUMER.INFO.ctests.durable')
+      tsub.unsubscribe
+
+      # Create durable pull consumer with a name and a filter_subject
+      tsub = nc.subscribe("$JS.API.CONSUMER.>")
+      consumer_name = 'durable2'
+      cinfo = js.add_consumer("ctests",
+                              name: consumer_name,
+                              durable_name: consumer_name,
+                              filter_subject: 'b',
+                              ack_policy: "explicit",
+                              )
+      expect(cinfo.config.name).to eql(consumer_name)
+      msg = tsub.next_msg()
+      expect(msg.subject).to eql('$JS.API.CONSUMER.CREATE.ctests.durable2.b')
+      sub = js.pull_subscribe("", "durable2", stream: 'ctests')
+      msgs = sub.fetch(1)
+      expect(msgs.first.data).to eql('hello world!!')
+      msgs.first.ack_sync
+      tsub.unsubscribe
+
+      # Create durable pull consumer with a name and a filter_subject
+      tsub = nc.subscribe("$JS.API.CONSUMER.>")
+      consumer_name = 'durable3'
+      cinfo = js.add_consumer("ctests",
+                              name: consumer_name,
+                              durable_name: consumer_name,
+                              filter_subject: '>',
+                              ack_policy: "explicit",
+                              )
+      expect(cinfo.config.name).to eql(consumer_name)
+      msg = tsub.next_msg()
+      expect(msg.subject).to eql('$JS.API.CONSUMER.CREATE.ctests.durable3')
+      sub = js.pull_subscribe("", "durable3", stream: 'ctests')
+      msgs = sub.fetch(1)
+      expect(msgs.first.data).to eql('hello world!')
+      msgs.first.ack_sync
+      tsub.unsubscribe
+
+      # name and durable must match if both present.
+      expect do
+        js.add_consumer("ctests",
+                        name: "foo",
+                        durable_name: "bar",
+                        ack_policy: "explicit",
+                        )
+      end.to raise_error NATS::JetStream::Error::BadRequest
+      begin
+        js.add_consumer("ctests",
+                        name: "foo",
+                        durable_name: "bar",
+                        ack_policy: "explicit",
+                        )
+      rescue => e
+        expect(e.description).to eql(%Q(consumer name in subject does not match durable name in request))
+      end
+
+      # consumer name and inactive
+      consumer_name = 'inactive'
+      cinfo = js.add_consumer("ctests",
+                              name: consumer_name,
+                              durable_name: consumer_name,
+                              inactive_threshold: 2,
+                              ack_policy: "explicit",
+                              mem_storage: true
+                              )
+      expect(cinfo.config.inactive_threshold).to eql(2000000000)
+      expect(cinfo.config.mem_storage).to eql(true)
+    end
   end
 
   describe 'Push Subscribe' do

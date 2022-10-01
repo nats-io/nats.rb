@@ -222,7 +222,9 @@ module NATS
     # @option params [Hash] :config Configuration for the consumer.
     # @return [NATS::JetStream::PullSubscription]
     def pull_subscribe(subject, durable, params={})
-      raise JetStream::Error::InvalidDurableName.new("nats: invalid durable name") if durable.empty?
+      if durable.empty? && !params[:consumer]
+        raise JetStream::Error::InvalidDurableName.new("nats: invalid durable name")
+      end
       params[:consumer] ||= durable
       stream = params[:stream].nil? ? find_stream_name_by_subject(subject) : params[:stream]
 
@@ -329,7 +331,16 @@ module NATS
                  else
                    config
                  end
-        req_subject = if config[:durable_name]
+
+        req_subject = case
+                      when config[:name]
+                        # NOTE: Only supported after nats-server v2.9.0
+                        if config[:filter_subject] && config[:filter_subject] != ">"
+                          "#{@prefix}.CONSUMER.CREATE.#{stream}.#{config[:name]}.#{config[:filter_subject]}"
+                        else
+                          "#{@prefix}.CONSUMER.CREATE.#{stream}.#{config[:name]}"
+                        end
+                      when config[:durable_name]
                         "#{@prefix}.CONSUMER.DURABLE.CREATE.#{stream}.#{config[:durable_name]}"
                       else
                         "#{@prefix}.CONSUMER.CREATE.#{stream}"
@@ -340,6 +351,10 @@ module NATS
         if config[:ack_wait]
           raise ArgumentError.new("nats: invalid ack wait") unless config[:ack_wait].is_a?(Integer)
           config[:ack_wait] = config[:ack_wait] * ::NATS::NANOSECONDS
+        end
+        if config[:inactive_threshold]
+          raise ArgumentError.new("nats: invalid inactive threshold") unless config[:inactive_threshold].is_a?(Integer)
+          config[:inactive_threshold] = config[:inactive_threshold] * ::NATS::NANOSECONDS
         end
 
         req = {
@@ -1203,7 +1218,7 @@ module NATS
       #   @return [Integer]
       # @!attribute max_ack_pending
       #   @return [Integer]
-      ConsumerConfig = Struct.new(:durable_name, :description,
+      ConsumerConfig = Struct.new(:name, :durable_name, :description,
                                   :deliver_policy, :opt_start_seq, :opt_start_time,
                                   :ack_policy, :ack_wait, :max_deliver, :backoff,
                                   :filter_subject, :replay_policy, :rate_limit_bps,
@@ -1220,7 +1235,7 @@ module NATS
                                   # now can be configured directly.
                                   :num_replicas,
                                   # Force memory storage
-                                  :memory_storage,
+                                  :mem_storage,
                                   keyword_init: true) do
         def initialize(opts={})
           # Filter unrecognized fields just in case.
