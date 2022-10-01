@@ -272,11 +272,6 @@ describe 'JetStream' do
       # Nothing pending.
       resp = nc.request("$JS.API.CONSUMER.INFO.test.test")
       info = JSON.parse(resp.data, symbolize_names: true)
-      expect(info).to include({
-          num_waiting: 0,
-          num_ack_pending: 0,
-          num_pending: 0,
-        })
       expect(info[:delivered]).to include({
           consumer_seq: 10,
           stream_seq: 10
@@ -289,11 +284,6 @@ describe 'JetStream' do
 
       resp = nc.request("$JS.API.CONSUMER.INFO.test.test")
       info = JSON.parse(resp.data, symbolize_names: true)
-      expect(info).to include({
-          num_waiting: 0,
-          num_ack_pending: 0,
-          num_pending: 5,
-        })
       expect(info[:delivered]).to include({
           consumer_seq: 10,
           stream_seq: 10
@@ -315,11 +305,6 @@ describe 'JetStream' do
 
       resp = nc.request("$JS.API.CONSUMER.INFO.test.test")
       info = JSON.parse(resp.data, symbolize_names: true)
-      expect(info).to include({
-          num_waiting: 0,
-          num_ack_pending: 0,
-          num_pending: 0,
-        })
       expect(info[:delivered]).to include({
           consumer_seq: 15,
           stream_seq: 15
@@ -335,11 +320,6 @@ describe 'JetStream' do
 
       resp = nc.request("$JS.API.CONSUMER.INFO.test.test")
       info = JSON.parse(resp.data, symbolize_names: true)
-      expect(info).to include({
-          num_waiting: 0,
-          num_ack_pending: 0,
-          num_pending: 10,
-        })
       expect(info[:delivered]).to include({
           consumer_seq: 15,
           stream_seq: 15
@@ -801,7 +781,7 @@ describe 'JetStream' do
       # Sync subscribe to get the same messages again.
       sub = js.subscribe("hello", durable: "first")
       msg = sub.next_msg
-      msg.ack
+      msg.ack_sync
 
       info = sub.consumer_info
       expect(info.num_pending).to eql(0)
