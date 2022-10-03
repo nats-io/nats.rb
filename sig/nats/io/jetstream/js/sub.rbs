@@ -1,0 +1,14 @@
+module NATS
+  class JetStream
+    module JS
+      module Sub
+        attr_reader js: NATS::JetStream
+        attr_reader stream: String
+        attr_reader consumer: String
+        attr_reader nms: String
+
+        def initialize: (Hash[Symbol, untyped]) -> void
+      end
+    end
+  end
+end

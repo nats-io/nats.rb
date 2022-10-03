@@ -1,0 +1,35 @@
+module NATS
+  class JetStream
+    module API
+      class Error < NATS::JetStream::Error::APIError
+      end
+
+      class SequenceInfo < Struct[Integer]
+      end
+
+      class ConsumerInfo < Struct[String | NATS::JetStream::API::ConsumerConfig | NATS::JetStream::API::SequenceInfo | Integer | Hash[Symbol, untyped]]
+      end
+
+      class ConsumerConfig < Struct[String | Integer]
+        def to_json: (*Hash[untyped, untyped]) -> String
+      end
+
+      class StreamConfig < Struct[String | Hash[Symbol, untyped] | NATS::JetStream::API::StreamState | bool | Integer]
+        def to_json: (*Hash[untyped, untyped]) -> String
+      end
+
+      class StreamInfo < Struct[String | Hash[Symbol, untyped]]
+      end
+
+      class StreamState < Struct[Integer]
+      end
+
+      class StreamCreateResponse < Struct[String | NATS::JetStream::API::StreamConfig | NATS::JetStream::API::StreamState | bool]
+      end
+
+      class RawStreamMsg < Struct[String | Integer | Hash[Symbol, untyped]]
+        def sequence: () -> Integer
+      end
+    end
+  end
+end

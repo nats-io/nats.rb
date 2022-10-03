@@ -1,0 +1,295 @@
+module NATS
+  # class << self
+  def self.connect: (String?, Hash[Symbol, untyped]) -> NATS::Client
+  # end class << self
+
+  module Status
+    DISCONNECTED: Integer
+    CONNECTED: Integer
+    CLOSED: Integer
+    RECONNECTING: Integer
+    CONNECTING: Integer
+    DRAINING_SUBS: Integer
+    DRAINING_PUBS: Integer
+  end
+
+  class Client
+    include MonitorMixin
+    include Status
+
+    attr_reader status: Integer
+    attr_reader server_info: Hash[Symbol, untyped]
+    attr_reader server_pool: Array[untyped]
+    attr_reader options: Hash[Symbol, untyped]?
+    attr_reader connected_server: String?
+    attr_reader stats: Hash[Symbol, Integer]
+    attr_reader uri: String?
+
+    DEFAULT_PORT: 4222
+    DEFAULT_URI: String
+
+    CR_LF: '\r\n'
+    CR_LF_SIZE: Integer
+
+    PING_REQUEST: String
+    PONG_RESPONSE: String
+
+    NATS_HDR_LINE: String
+    STATUS_MSG_LEN: 3
+    STATUS_HDR: 'Status'
+    DESC_HDR: 'Description'
+    NATS_HDR_LINE_SIZE: Integer
+
+    SUB_OP: 'SUB'
+    EMPTY_MSG: ''
+
+    @options: Hash[Symbol, untyped]
+
+    @io: NATS::IO::Socket?
+
+    @flush_queue: Thread::SizedQueue?
+    @pending_queue: Thread::SizedQueue?
+
+    @parser: NATS::Protocol::Parser
+
+    @flusher_thread: Thread?
+    @read_loop_thread: Thread?
+    @ping_interval_thread: Thread?
+
+    @subs: Hash[Symbol, untyped]
+    @ssid: Integer
+
+    @pings_outstanding: Integer
+    @pongs_received: Integer
+    @pongs: Array[MonitorMixin::ConditionVariable]
+
+    @pending_size: Integer
+
+    @last_err: untyped
+
+    @err_cb: Proc
+    @close_cp: Proc
+    @disconnect_cb: Proc
+    @reconnect_cb: Proc
+
+    @tls: bool?
+
+    @hostname: String?
+    @single_url_connect_used: bool
+
+    @connect_called: bool
+
+    @resp_sub: NATS::Subscription?
+    @resp_map: Hash[String | Symbol, untyped]?
+    @resp_sub_prefix: String?
+    @nuid: NATS::NUID
+
+    @user_credentials: String?
+    @nkeys_seed: String?
+    @user_nkey_cb: Proc?
+    @user_jwt_cb: Proc?
+    @signature_cb: Proc?
+
+    @auth_token: String?
+
+    @inbox_prefix: String
+
+    @drain_t: Thread?
+
+    def connect: ((String | Hash[Symbol, untyped])?, Hash[Symbol, untyped]) -> self
+
+    def publish: (String, String, String?, **Hash[Symbol, untyped]) -> void
+
+    def publish_msg: (NATS::Msg) -> void
+
+    def subscribe: (String, Hash[Symbol, untyped]) ?{ (?(NATS::Msg | String), ?String, ?String, ?Hash[Symbol, untyped]) -> void } -> NATS::Subscription
+
+    def request: (String, ?String, **Hash[Symbol, untyped]) ?{ (?(NATS::Msg | String), ?String, ?String, ?Hash[Symbol, untyped]) -> void } -> NATS::Msg
+
+    def request_msg: (NATS::Msg, **Hash[Symbol, untyped]) -> NATS::Msg
+
+    def old_request: (String, ?String, **Hash[Symbol, untyped]) ?{ (?(NATS::Msg | String), ?String, ?String, ?Hash[Symbol, untyped]) -> void } -> NATS::Msg
+
+    def flush: (?Integer) -> void
+
+    alias servers server_pool
+
+    def discovered_servers: () -> Array[String]
+
+    def close: () -> void
+
+    def new_inbox: () -> String
+
+    def connected?: () -> bool
+
+    def connecting?: () -> bool
+
+    def reconnecting?: () -> bool
+
+    def closed?: () -> bool
+
+    def draining?: () -> bool
+
+    def on_error: () { (?self, ?untyped, ?NATS::Subscription) -> void } -> void
+
+    def on_disconnect: () { (?untyped) -> void } -> void
+
+    def on_reconnect: () { () -> void } -> void
+
+    def on_close: () { () -> void } -> void
+
+    def last_error: () -> untyped
+
+    def drain: () -> void
+
+    def jetstream: (**Hash[Symbol, untyped]) -> NATS::JetStream
+    alias JetStream jetstream
+    alias jsm jetstream
+
+    private
+
+    def validate_settings!: () -> void
+
+    def process_info: (String) -> Hash[Symbol, untyped]
+
+    def process_hdr: (String) -> Hash[String, untyped]?
+
+    def process_pong: () -> void
+
+    def process_ping: () -> void
+
+    def process_err: (String) -> void
+
+    def process_msg: (String, String, String, String, String) -> void
+
+    def select_next_error: () -> untyped
+
+    def server_using_secure_connection?: () -> bool
+
+    def client_using_secure_connection?: () -> bool
+
+    def single_url_connect_used?: () -> bool
+
+    def send_command: (String) -> void
+
+    def unsubscribe: (NATS::Subscription, Integer?) -> void
+
+    def drain_sub: (NATS::Subscription) -> void
+
+    def do_drain: () -> void
+
+    def send_flush_queue: (Symbol) -> void
+
+    def delete_sid: (Symbol) -> void
+
+    def err_cb_call: (self, untyped, NATS::Subscription) -> void
+
+    def auth_connection?: () -> bool
+
+    def connect_command: () -> String
+
+    def process_op_error: (untyped) -> void
+
+    def read_loop: () -> void
+
+    def flusher_loop: () -> void
+
+    def force_flush!: () -> void
+
+    def ping_interval_loop: () -> void
+
+    def process_connect_init: () -> void
+
+    def attempt_reconnect: () -> void
+
+    def close_connection: (Integer, bool) -> void
+
+    def start_threads!: () -> void
+
+    def start_resp_mux_sub!: () -> void
+
+    def can_reuse_server?: (Hash[Symbol, untyped]) -> bool
+
+    def should_delay_connect?: () -> bool
+
+    def should_not_reconnect?: () -> bool
+
+    def should_reconnect?: () -> bool
+
+    def create_socket: () -> NATS::IO::Socket
+
+    def setup_nkeys_connect: () -> void
+
+    def signature_cb_for_nkey_file: (String) -> Proc
+
+    def nkey_cb_for_nkey_file: (String) -> Proc
+
+    def jwt_cb_for_creds_file: (String) -> Proc
+
+    def signature_cb_for_creds_file: (String) -> Proc
+
+    def process_uri: (String) -> Array[URI::Generic]
+  end
+
+  module IO
+    include Status
+
+    Client: NATS::Client
+
+    MAX_RECONNECT_ATTEMPTS: 10
+    RECONNECT_TIME_WAIT: 2
+
+    MAX_PENDING_SIZE: 32768
+
+    MAX_FLUSH_KICK_SIZE: 1024
+
+    MAX_SOCKET_READ_BYTES: 32768
+
+    DEFAULT_PING_INTERVAL: 120
+    DEFAULT_PING_MAX: 2
+
+    DEFAULT_CONNECT_TIMEOUT: 2
+    DEFAULT_READ_WRITE_TIMEOUT: 2
+    DEFAULT_DRAIN_TIMEOUT: 30
+
+    DEFAULT_SUB_PENDING_MSGS_LIMIT: 65536
+    DEFAULT_SUB_PENDING_BYTES_LIMIT: Integer
+
+    class Socket
+      attr_accessor socket: ::Socket?
+
+      @uri: URI::Generic
+      @connect_timeout: Numeric
+      @write_timeout: Numeric
+      @read_timeout: Numeric
+
+      def connect: () -> void
+
+      def read_line: (Numeric?) -> untyped
+
+      def read: (Integer, Numeric?) -> untyped
+
+      def write: (String, Numeric?) -> void
+
+      def close: () -> void
+
+      def closed?: () -> bool
+
+      private
+
+      def connect_addrinfo: (String | Integer, Integer, Numeric) -> ::Socket
+    end
+  end
+
+  NANOSECONDS: 1_000_000_000
+
+  class MonotonicTime
+    # class << self
+    def self.now: () -> Float
+
+    def self.with_nats_timeout: (Float) -> Float
+
+    def self.since: (Float) -> Float
+    # end class << self
+  end
+end

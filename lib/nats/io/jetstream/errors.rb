@@ -15,7 +15,7 @@
 module NATS
   class JetStream
     # Error is any error that may arise when interacting with JetStream.
-    class Error < Error
+    class Error < NATS::IO::Error
 
       # When there is a NATS::IO::NoResponders error after making a publish request.
       class NoStreamResponse < Error; end

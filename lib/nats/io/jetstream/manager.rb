@@ -165,10 +165,12 @@ module NATS
       end
 
       # get_msg retrieves a message from the stream.
-      # @param next [Boolean] Fetch the next message for a subject.
-      # @param seq [Integer] Sequence number of a message.
-      # @param subject [String] Subject of the message.
-      # @param direct [Boolean] Use direct mode to for faster access (requires NATS v2.9.0)
+      # @param stream_name [String] The stream_name.
+      # @param params [Hash] Options to customize API request.
+      # @option next [Boolean] Fetch the next message for a subject.
+      # @option seq [Integer] Sequence number of a message.
+      # @option subject [String] Subject of the message.
+      # @option direct [Boolean] Use direct mode to for faster access (requires NATS v2.9.0)
       def get_msg(stream_name, params={})
         req = {}
         case

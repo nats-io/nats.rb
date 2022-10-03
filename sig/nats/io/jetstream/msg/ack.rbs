@@ -1,0 +1,35 @@
+module NATS
+  class JetStream
+    module Msg
+      module Ack
+        Ack: '+ACK'
+        Nak: '-NAK'
+        Progress: '+WPI'
+        Term: '+TERM'
+
+        Empty: ''
+        DotSep: '.'
+        NoDomainName: '_'
+
+        Prefix0: '$JS'
+        Prefix1: 'ACK'
+        Domain: 2
+        AccHash: 3
+        Stream: 4
+        Consumer: 5
+        NumDelivered: 6
+        StreamSeq: 7
+        ConsumerSeq: 8
+        Timestamp: 9
+        NumPending: 10
+
+        V1TokenCounts: 9
+
+        V2TokenCounts: 12
+
+        class SequencePair < Struct[untyped]
+        end
+      end
+    end
+  end
+end

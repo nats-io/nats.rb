@@ -1,0 +1,15 @@
+module NATS
+  class JetStream
+    module Msg
+      module Metadata
+        attr_reader sequence: Ack::SequencePair
+        attr_reader num_delivered: Integer
+        attr_reader num_pending: Integer
+        attr_reader timestamp: Time
+        attr_reader stream: String
+        attr_reader consumer: String
+        attr_reader domain: String
+      end
+    end
+  end
+end

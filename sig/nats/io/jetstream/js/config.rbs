@@ -1,0 +1,11 @@
+module NATS
+  class JetStream
+    module JS
+      module Config
+        AckExplicit: 'explicit'
+        AckAll: 'all'
+        AckNone: 'none'
+      end
+    end
+  end
+end

@@ -1,0 +1,25 @@
+module NATS
+  class JetStream
+    module Msg
+      module AckMethods
+        def ack: (**Hash[Symbol, untyped]) -> NATS::JetStream::PubAck
+
+        def ack_sync: (**Hash[Symbol, untyped]) -> NATS::JetStream::PubAck
+
+        def nak: (**Hash[Symbol, untyped]) -> NATS::JetStream::PubAck
+
+        def term: (**Hash[Symbol, untyped]) -> NATS::JetStream::PubAck
+
+        def in_progress: (**Hash[Symbol, untyped]) -> NATS::JetStream::PubAck
+
+        def metadata: () -> NATS::JetStream::Msg::Metadata
+
+        private
+
+        def ensure_is_acked_once!: () -> void
+
+        def parse_metadata: (String) -> NATS::JetStream::Msg::Metadata
+      end
+    end
+  end
+end

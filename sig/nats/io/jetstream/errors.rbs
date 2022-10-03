@@ -1,0 +1,54 @@
+module NATS
+  class JetStream
+    class Error < NATS::IO::Error
+      class NoStreamResponse < NATS::JetStream::Error
+      end
+
+      class InvalidDurableName < NATS::JetStream::Error
+      end
+
+      class InvalidJSAck < NATS::JetStream::Error
+      end
+
+      class MsgAlreadyAckd < NATS::JetStream::Error
+      end
+
+      class NotJSMessage < NATS::JetStream::Error
+      end
+
+      class InvalidStreamName < NATS::JetStream::Error
+      end
+
+      class InvalidConsumerName < NATS::JetStream::Error
+      end
+
+      class APIError < NATS::JetStream::Error
+        attr_reader code: Integer
+        attr_reader err_code: Integer
+        attr_reader description: String
+        attr_reader stream: String
+        attr_reader seq: Integer
+
+        def initialize: (Hash[Symbol, untyped]) -> void
+      end
+
+      class ServiceUnavailable < NATS::JetStream::Error::APIError
+      end
+
+      class ServerError < NATS::JetStream::Error::APIError
+      end
+
+      class NotFound < NATS::JetStream::Error::APIError
+      end
+
+      class StreamNotFound < NATS::JetStream::Error::NotFound
+      end
+
+      class ConsumerNotFound < NATS::JetStream::Error::NotFound
+      end
+
+      class BadRequest < NATS::JetStream::Error::APIError
+      end
+    end
+  end
+end

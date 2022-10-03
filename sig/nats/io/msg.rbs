@@ -1,0 +1,14 @@
+module NATS
+  class Msg
+    attr_reader subject: String
+    attr_reader reply: String?
+    attr_reader data: String
+    attr_reader header: String
+
+    include NATS::JetStream::Msg::AckMethods
+
+    def respond: (?String) -> void
+
+    def respond_msg: (NATS::Msg) -> void
+  end
+end

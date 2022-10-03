@@ -1,0 +1,8 @@
+module NATS
+  class KeyValue
+    module API
+      class KeyValueConfig < Struct[untyped]
+      end
+    end
+  end
+end

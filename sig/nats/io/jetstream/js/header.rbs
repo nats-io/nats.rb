@@ -1,0 +1,17 @@
+module NATS
+  class JetStream
+    module JS
+      module Header
+        Status: 'Status'
+        Desc: 'Description'
+        MsgID: 'Nats-Msg-Id'
+        ExpectedStream: 'Nats-Expected-Stream'
+        ExpectedLastSeq: 'Nats-Expected-Last-Sequence'
+        ExpectedLastSubjSeq: 'Nats-Expected-Last-Subject-Sequence'
+        ExpectedLastMsgID: 'Nats-Expected-Last-Msg-Id'
+        LastConsumerSeq: 'Nats-Last-Consumer'
+        LastStreamSeq: 'Nats-Last-Stream'
+      end
+    end
+  end
+end

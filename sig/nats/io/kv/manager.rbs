@@ -1,0 +1,11 @@
+module NATS
+  class KeyValue
+    module Manager
+      def key_value: (String) -> NATS::KeyValue
+
+      def create_key_value: (NATS::KeyValue::API::KeyValueConfig) -> NATS::KeyValue
+
+      def delete_key_value: (String) -> bool
+    end
+  end
+end

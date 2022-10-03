@@ -1,0 +1,54 @@
+module NATS
+  module IO
+    class Error < StandardError
+    end
+
+    class ServerError < NATS::IO::Error
+    end
+    
+    class ClientError < NATS::IO::Error
+    end
+
+    class ConnectError < NATS::IO::Error
+    end
+
+    class AuthError < NATS::IO::ConnectError
+    end
+
+    class NoServersError < NATS::IO::ConnectError
+    end
+
+    class NoRespondersError < NATS::IO::ConnectError
+    end
+
+    class StaleConnectionError < NATS::IO::Error
+    end
+
+    class Timeout < NATS::IO::Error
+    end
+
+    class SocketTimeoutError < NATS::IO::Timeout
+    end
+
+    class BadSubject < NATS::IO::Error
+    end
+
+    class BadSubscription < NATS::IO::Error
+    end
+
+    class SlowConsumer < NATS::IO::Error
+    end
+
+    class ConnectionDrainingError < NATS::IO::Error
+    end
+
+    class DrainTimeoutError < NATS::IO::Error
+    end
+  end
+
+  class Timeout < NATS::IO::Timeout
+  end
+
+  class Error < NATS::IO::Error
+  end
+end

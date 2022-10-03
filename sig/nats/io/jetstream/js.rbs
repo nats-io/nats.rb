@@ -1,0 +1,27 @@
+module NATS
+  class JetStream
+    module JS
+      DefaultAPIPrefix: '$JS.API'
+
+      # class << self
+      def self.next_req_to_json: (Hash[Symbol, untyped]) -> String
+
+      def self.is_status_msg: (NATS::Msg) -> bool
+
+      def self.check_503_error: (NATS::Msg) -> void
+
+      def self.from_msg: (NATS::Msg) -> NATS::JetStream::API::Error
+
+      def self.from_error: (Hash[Symbol, untyped]) -> (
+          NATS::JetStream::Error::ServiceUnavailable |
+          NATS::JetStream::Error::ServerError |
+          NATS::JetStream::Error::StreamNotFound |
+          NATS::JetStream::Error::ConsumerNotFound |
+          NATS::JetStream::Error::NotFound |
+          NATS::JetStream::Error::BadRequest |
+          NATS::JetStream::API::Error
+        )
+      # end class << self
+    end
+  end
+end
