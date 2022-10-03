@@ -11,7 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-require_relative 'errors'
+
+require_relative 'kv/api'
+require_relative 'kv/bucket_status'
+require_relative 'kv/errors'
+require_relative 'kv/manager'
 
 module NATS
   class KeyValue
@@ -28,47 +32,6 @@ module NATS
       @pre = opts[:pre]
       @js = opts[:js]
       @direct = opts[:direct]
-    end
-
-    class Error < NATS::Error; end
-
-    # When a key is not found.
-    class KeyNotFoundError < Error
-      attr_reader :entry, :op
-      def initialize(params={})
-        @entry = params[:entry]
-        @op = params[:op]
-        @message = params[:message]
-      end
-
-      def to_s
-        msg = "nats: key not found"
-        msg = "#{msg}: #{@message}" if @message
-        msg
-      end
-    end
-
-    # When a key is not found because it was deleted.
-    class KeyDeletedError < KeyNotFoundError
-      def to_s
-        "nats: key was deleted"
-      end
-    end
-
-    # When there was no bucket present.
-    class BucketNotFoundError < Error; end
-
-    # When it is an invalid bucket.
-    class BadBucketError < Error; end
-
-    # When the result is an unexpected sequence.
-    class KeyWrongLastSequenceError < Error
-      def initialize(msg)
-        @msg = msg
-      end
-      def to_s
-        "nats: #{@msg}"
-      end
     end
 
     # get returns the latest value for the key.
@@ -209,121 +172,6 @@ module NATS
         rem = opts.keys - members
         opts.delete_if { |k| rem.include?(k) }
         super(opts)
-      end
-    end
-
-    class BucketStatus
-      attr_reader :bucket
-
-      def initialize(info, bucket)
-        @nfo = info
-        @bucket = bucket
-      end
-
-      def values
-        @nfo.state.messages
-      end
-
-      def history
-        @nfo.config.max_msgs_per_subject
-      end
-
-      def ttl
-        @nfo.config.max_age / ::NATS::NANOSECONDS
-      end
-    end
-
-    module API
-      KeyValueConfig = Struct.new(
-          :bucket,
-          :description,
-          :max_value_size,
-          :history,
-          :ttl,
-          :max_bytes,
-          :storage,
-          :replicas,
-          :placement,
-          :republish,
-          :direct,
-          keyword_init: true) do
-        def initialize(opts={})
-          rem = opts.keys - members
-          opts.delete_if { |k| rem.include?(k) }
-          super(opts)
-        end
-      end
-    end
-
-    module Manager
-      def key_value(bucket)
-        stream = "KV_#{bucket}"
-        begin
-          si = stream_info(stream)
-        rescue NATS::JetStream::Error::NotFound
-          raise BucketNotFoundError.new("nats: bucket not found")
-        end
-        if si.config.max_msgs_per_subject < 1
-          raise BadBucketError.new("nats: bad bucket")
-        end
-
-        KeyValue.new(
-          name: bucket,
-          stream: stream,
-          pre: "$KV.#{bucket}.",
-          js: self,
-          direct: si.config.allow_direct
-        )
-      end
-
-      def create_key_value(config)
-        config = if not config.is_a?(KeyValue::API::KeyValueConfig)
-                   KeyValue::API::KeyValueConfig.new(config)
-                 else
-                   config
-                 end
-        config.history ||= 1
-        config.replicas ||= 1
-        duplicate_window = 2 * 60 # 2 minutes
-        if config.ttl
-          if config.ttl < duplicate_window
-            duplicate_window = config.ttl
-          end
-          config.ttl = config.ttl * ::NATS::NANOSECONDS
-        end
-
-        stream = JetStream::API::StreamConfig.new(
-          name: "KV_#{config.bucket}",
-          description: config.description,
-          subjects: ["$KV.#{config.bucket}.>"],
-          allow_direct: config.direct,
-          allow_rollup_hdrs: true,
-          deny_delete: true,
-          discard: "new",
-          duplicate_window: duplicate_window * ::NATS::NANOSECONDS,
-          max_age: config.ttl,
-          max_bytes: config.max_bytes,
-          max_consumers: -1,
-          max_msg_size: config.max_value_size,
-          max_msgs: -1,
-          max_msgs_per_subject: config.history,
-          num_replicas: config.replicas,
-          storage: config.storage,
-          republish: config.republish,
-        )
-
-        si = add_stream(stream)
-        KeyValue.new(
-          name: config.bucket,
-          stream: stream.name,
-          pre: "$KV.#{config.bucket}.",
-          js: self,
-          direct: si.config.allow_direct
-        )
-      end
-
-      def delete_key_value(bucket)
-        delete_stream("KV_#{bucket}")
       end
     end
   end
