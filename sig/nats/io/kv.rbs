@@ -1,0 +1,39 @@
+module NATS
+  class KeyValue
+    KV_OP: 'KV-Operation'
+    KV_DEL: 'DEL'
+    KV_PURGE: 'PURGE'
+    MSG_ROLLUP_SUBJECT: 'sub'
+    MSG_ROLLUP_ALL: 'all'
+    ROLLUP: 'Nats-Rollup'
+
+    @name: String
+    @stream: String
+    @pre: String
+    @js: NATS::JetStream
+    @direct: bool
+
+    def initialize: (Hash[Symbol, untyped]) -> void
+
+    def get: (String, ?Hash[Symbol, untyped]) -> NATS::KeyValue::Entry
+
+    private def _get: (String, ?Hash[Symbol, untyped]) -> NATS::KeyValue::Entry
+
+    def put: (String, untyped) -> Integer
+
+    def create: (String, untyped) -> Integer
+
+    EXPECTED_LAST_SUBJECT_SEQUENCE: 'Nats-Expected-Last-Subject-Sequence'
+
+    def update: (String, untyped, ?Hash[Symbol, untyped]) -> Integer
+
+    def delete: (String, ?Hash[Symbol, untyped]) -> Integer
+
+    def purge: (String) -> NATS::JetStream::PubAck
+
+    def status: () -> NATS::KeyValue::BucketStatus
+
+    class Entry < Struct[untyped]
+    end
+  end
+end

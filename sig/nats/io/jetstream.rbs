@@ -1,0 +1,15 @@
+module NATS
+  class JetStream
+    extend Manager
+    extend KeyValue::Manager
+
+    class PubAck < Struct[String | Numeric | bool]
+    end
+
+    def publish: (String, String, Hash[Symbol, untyped]) -> NATS::JetStream::PubAck
+
+    def subscribe: (String, Hash[Symbol, untyped]) { (?(NATS::Msg | String), ?String, ?String, ?Hash[Symbol, untyped]) -> void } -> NATS::JetStream::PushSubscription
+
+    def pull_subscribe: (String, String, Hash[Symbol, untyped]) -> NATS::JetStream::PullSubscription
+  end
+end

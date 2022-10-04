@@ -1,0 +1,9 @@
+module NATS
+  module IO
+    VERSION: String
+
+    LANG: String
+
+    Protocol: Integer
+  end
+end

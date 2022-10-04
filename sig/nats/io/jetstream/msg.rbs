@@ -1,0 +1,6 @@
+module NATS
+  class JetStream
+    module Msg
+    end
+  end
+end

@@ -1,0 +1,32 @@
+module NATS
+  class Subscription
+    include MonitorMixin
+
+    attr_accessor subject: String
+    attr_accessor queue: untyped
+    attr_accessor future: MonitorMixin::ConditionVariable?
+    attr_accessor callback: Proc?
+    attr_accessor response: NATS::Msg?
+    attr_accessor received: Integer
+    attr_accessor max: Integer?
+    attr_accessor pending: untyped
+    attr_accessor sid: Integer?
+
+    attr_accessor pending_queue: Thread::SizedQueue?
+    attr_accessor pending_size: Integer
+    attr_accessor wait_for_msgs_t: Thread?
+    attr_accessor wait_for_msgs_cond: MonitorMixin::ConditionVariable?
+    attr_accessor is_slow_consumer: bool
+
+    attr_accessor pending_msgs_limit: Integer?
+    attr_accessor pending_bytes_limit: Integer?
+
+    attr_accessor nc: NATS::Client?
+    attr_accessor jsi: NATS::JetStream::JS::Sub
+    attr_accessor closed: bool?
+
+    def unsubscribe: (?Integer?) -> void
+
+    def next_msg: (Hash[Symbol, untyped]?) -> NATS::Msg
+  end
+end

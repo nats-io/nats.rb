@@ -1,0 +1,32 @@
+module NATS
+  class NUID
+    DIGITS: Array[String]
+    BASE: Integer
+    PREFIX_LENGTH: Integer
+    SEQ_LENGTH: Integer
+    TOTAL_LENGTH: Integer
+    MAX_SEQ: Integer
+    MIN_INC: Integer
+    MAX_INC: Integer
+    INC: Integer
+
+    @prand: Random
+    @seq: Integer
+    @inc: Integer
+    @prefix: String
+
+    def next: () -> String
+
+    def randomize_prefix!: () -> String
+
+    private
+
+    def reset_sequential!: () -> Integer
+
+    # class << self
+    @@nuid: NUID
+
+    def self.next: () -> String
+    # end class << self
+  end
+end

@@ -1,0 +1,30 @@
+module NATS
+  class KeyValue
+    class Error < NATS::Error
+    end
+
+    class KeyNotFoundError < NATS::KeyValue::Error
+      attr_reader entry: NATS::KeyValue::Entry
+      attr_reader op: String
+
+      @message: String
+
+      def initialize: (Hash[Symbol, untyped]) -> void
+    end
+
+    class KeyDeletedError < NATS::KeyValue::KeyNotFoundError
+    end
+
+    class BucketNotFoundError < NATS::KeyValue::Error
+    end
+
+    class BadBucketError < NATS::KeyValue::Error
+    end
+
+    class KeyWrongLastSequenceError < NATS::KeyValue::Error
+      @msg: String
+
+      def initialize: (String) -> void
+    end
+  end
+end

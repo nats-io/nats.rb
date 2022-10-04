@@ -1,0 +1,32 @@
+module NATS
+  module Protocol
+    MSG: Regexp
+    HMSG: Regexp
+    OK: Regexp
+    ERR: Regexp
+    PING: Regexp
+    PONG: Regexp
+    INFO: Regexp
+    UNKNOWN: Regexp
+
+    AWAITING_CONTROL_LINE: 1
+    AWAITING_MSG_PAYLOAD: 2
+
+    CR_LF: '\r\n'
+    CR_LF_SIZE: Integer
+
+    PING_REQUEST: String
+    PONG_RESPONSE: String
+
+    SUB_OP: 'SUB'
+    EMPTY_MSG: ''
+
+    class Parser
+      def initialize: (NATS::Client) -> void
+
+      def reset!: () -> void
+
+      def parse: (String) -> void
+    end
+  end
+end
