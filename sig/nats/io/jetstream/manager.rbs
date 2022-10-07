@@ -1,29 +1,31 @@
 module NATS
   class JetStream
     module Manager
-      def add_stream: (JetStream::API::StreamConfig, Hash[Symbol, untyped]) -> JetStream::API::StreamCreateResponse
+      def add_stream: (JetStream::API::StreamConfig, ?Hash[Symbol, untyped]) -> JetStream::API::StreamCreateResponse
 
-      def stream_info: (String, Hash[Symbol, untyped]) -> JetStream::API::StreamInfo
+      def stream_info: (String, ?Hash[Symbol, untyped]) -> JetStream::API::StreamInfo
 
-      def delete_stream: (String, Hash[Symbol, untyped]) -> bool
+      def update_stream: (JetStream::API::StreamConfig, ?Hash[Symbol, untyped]) -> JetStream::API::StreamCreateResponse
 
-      def add_consumer: (String, JetStream::API::ConsumerConfig, Hash[Symbol, untyped]) -> JetStream::API::ConsumerInfo
+      def delete_stream: (String, ?Hash[Symbol, untyped]) -> bool
 
-      def consumer_info: (String, String, Hash[Symbol, untyped]) -> JetStream::API::ConsumerInfo
+      def add_consumer: (String, JetStream::API::ConsumerConfig, ?Hash[Symbol, untyped]) -> JetStream::API::ConsumerInfo
 
-      def delete_consumer: (String, String, Hash[Symbol, untyped]) -> bool
+      def consumer_info: (String, String, ?Hash[Symbol, untyped]) -> JetStream::API::ConsumerInfo
 
-      def find_stream_name_by_subject: (String, Hash[Symbol, untyped]) -> String
+      def delete_consumer: (String, String, ?Hash[Symbol, untyped]) -> bool
 
-      def get_msg: (String, Hash[Symbol, untyped]) -> JetStream::API::RawStreamMsg
+      def find_stream_name_by_subject: (String, ?Hash[Symbol, untyped]) -> String
 
-      def get_last_msg: (String, String, Hash[Symbol, untyped]) -> JetStream::API::RawStreamMsg
+      def get_msg: (String, ?Hash[Symbol, untyped]) -> JetStream::API::RawStreamMsg
+
+      def get_last_msg: (String, String, ?Hash[Symbol, untyped]) -> JetStream::API::RawStreamMsg
 
       def account_info: () -> Hash[Symbol, untyped]
 
       private
 
-      def api_request: (String, String, Hash[Symbol, untyped]) -> Hash[Symbol, untyped]
+      def api_request: (String, String, ?Hash[Symbol, untyped]) -> Hash[Symbol, untyped]
 
       def _lift_msg_to_raw_msg: (NATS::Msg) -> JetStream::API::RawStreamMsg
     end

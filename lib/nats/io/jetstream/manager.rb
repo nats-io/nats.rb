@@ -58,6 +58,25 @@ module NATS
         JetStream::API::StreamInfo.new(result)
       end
 
+      # update_stream edits an existed stream with a given config.
+      # @param config [JetStream::API::StreamConfig] Configuration of the stream to create.
+      # @param params [Hash] Options to customize API request.
+      # @option params [Float] :timeout Time to wait for response.
+      # @return [JetStream::API::StreamCreateResponse] The result of creating a Stream.
+      def update_stream(config, params={})
+        config = if not config.is_a?(JetStream::API::StreamConfig)
+                   JetStream::API::StreamConfig.new(config)
+                 else
+                   config
+                 end
+        stream = config[:name]
+        raise ArgumentError.new(":name is required to create streams") unless stream
+        raise ArgumentError.new("Spaces, tabs, period (.), greater than (>) or asterisk (*) are prohibited in stream names") if stream =~ /(\s|\.|\>|\*)/
+        req_subject = "#{@prefix}.STREAM.UPDATE.#{stream}"
+        result = api_request(req_subject, config.to_json, params)
+        JetStream::API::StreamCreateResponse.new(result)
+      end
+
       # delete_stream deletes a stream.
       # @param stream [String] Name of the stream.
       # @param params [Hash] Options to customize API request.

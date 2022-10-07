@@ -1172,6 +1172,21 @@ describe 'JetStream' do
       nc.close
     end
 
+    it "should support jsm.update_stream" do
+      nc.jsm.add_stream(name: "a", subjects: ["foo"])
+      nc.jsm.update_stream(name: "a", subjects: ["foo", "bar"])
+      info = nc.jsm.stream_info("a")
+      expect(info.config.subjects).to eql(["foo", "bar"])
+      nc.close
+    end
+
+    it "should fail jsm.update_stream when stream does not exist" do
+      expect do
+        nc.jsm.update_stream(name: "a", subjects: ["foo", "bar"])
+      end.to raise_error(NATS::JetStream::Error::StreamNotFound)
+      nc.close
+    end
+
     it "should support jsm.delete_stream" do
       stream_name = "stream-to-delete"
       info = nc.jsm.add_stream(name: stream_name)
