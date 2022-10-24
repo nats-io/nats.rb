@@ -94,7 +94,16 @@ end
 ```ruby
 require 'nats/client'
 
-nats = NATS.connect
+cluster_opts = {
+  servers: ["nats://127.0.0.1:4222", "nats://127.0.0.1:4223"],
+  dont_randomize_servers: true,
+  reconnect_time_wait: 0.5,
+  max_reconnect_attempts: 2
+}
+
+nats = NATS.connect(cluster_opts)
+puts "Connected to #{nats.connected_server}"
+
 
 nats.on_error do |e|
   puts "Error: #{e}"
@@ -111,16 +120,6 @@ end
 nats.on_close do
   puts "Connection to NATS closed"
 end
-
-cluster_opts = {
-  servers: ["nats://127.0.0.1:4222", "nats://127.0.0.1:4223"],
-  dont_randomize_servers: true,
-  reconnect_time_wait: 0.5,
-  max_reconnect_attempts: 2
-}
-
-NATS.connect(cluster_opts)
-puts "Connected to #{nats.connected_server}"
 
 nats.subscribe("hello") do |msg|
   puts "#{Time.now} - Received: #{msg.data}"
