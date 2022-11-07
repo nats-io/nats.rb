@@ -854,14 +854,18 @@ module NATS
         hdr = {}
         lines = header.lines
 
-        # Check if it is an inline status and description.
-        if lines.count <= 2
+        # Check if the first line has an inline status and description.
+        if lines.count > 0
           status_hdr = lines.first.rstrip
-          hdr[STATUS_HDR] = status_hdr.slice(NATS_HDR_LINE_SIZE-1, STATUS_MSG_LEN)
+          status = status_hdr.slice(NATS_HDR_LINE_SIZE-1, STATUS_MSG_LEN)
 
-          if NATS_HDR_LINE_SIZE+2 < status_hdr.bytesize
-            desc = status_hdr.slice(NATS_HDR_LINE_SIZE+STATUS_MSG_LEN, status_hdr.bytesize)
-            hdr[DESC_HDR] = desc unless desc.empty?
+          if status and !status.empty?
+            hdr[STATUS_HDR] = status
+
+            if NATS_HDR_LINE_SIZE+2 < status_hdr.bytesize
+              desc = status_hdr.slice(NATS_HDR_LINE_SIZE+STATUS_MSG_LEN, status_hdr.bytesize)
+              hdr[DESC_HDR] = desc unless desc.empty?
+            end
           end
         end
         begin
