@@ -72,19 +72,29 @@ Introduced in v2.0.0 series, the client can now publish and receive messages fro
 ```ruby
 require 'nats/client'
 
-nc = NATS.connect
+nc = NATS.connect("nats://demo.nats.io:4222")
 js = nc.jetstream
 
 js.add_stream(name: "mystream", subjects: ["foo"])
 
-js.publish("foo", "Hello JetStream!")
+Thread.new do
+  loop do
+    # Periodically publish messages
+    js.publish("foo", "Hello JetStream!")
+    sleep 0.1
+  end
+end
 
 psub = js.pull_subscribe("foo", "bar")
 
 loop do
-  msgs = psub.fetch(5)
-  msgs.each do |msg|
-    msg.ack
+  begin
+    msgs = psub.fetch(5)
+    msgs.each do |msg|
+      msg.ack
+    end
+  rescue NATS::IO::Timeout
+    puts "Retry later..."
   end
 end
 ```

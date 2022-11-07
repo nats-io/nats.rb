@@ -418,4 +418,29 @@ describe 'Client - v2.2 features' do
 
     nc.close
   end
+
+  it "should process inline status messages with headers" do
+    nc = NATS::IO::Client.new
+    tests = [
+             {input: %Q(NATS/1.0\r\nfoo: bar\r\nhello: hello-1\r\n\r\n), expected: {"foo"=>"bar", "hello"=>"hello-1"}},
+             {input: %Q(NATS/1.0\r\nfoo: bar\r\nhello: hello-1\r\n\r\n), expected: {"foo"=>"bar", "hello"=>"hello-1"}},
+             {input: %Q(NATS/1.0\r\nfoo: bar\r\nhello: hello-2\r\n\r\n), expected: {"foo"=>"bar", "hello"=>"hello-2"}},
+             {input: %Q(NATS/1.0\r\nfoo: bar\r\nhello: hello-2\r\n\r\n), expected: {"foo"=>"bar", "hello"=>"hello-2"}},
+             {input: %Q(NATS/1.0\r\nfoo: bar\r\nhello: hello-3\r\n\r\n), expected: {"foo"=>"bar", "hello"=>"hello-3"}},
+             {input: %Q(NATS/1.0\r\nfoo: bar\r\nhello: hello-3\r\n\r\n), expected: {"foo"=>"bar", "hello"=>"hello-3"}},
+             {input: %Q(NATS/1.0\r\nfoo: bar\r\nhello: hello-4\r\n\r\n), expected: {"foo"=>"bar", "hello"=>"hello-4"}},
+             {input: %Q(NATS/1.0\r\nfoo: bar\r\nhello: hello-4\r\n\r\n), expected: {"foo"=>"bar", "hello"=>"hello-4"}},
+             {input: %Q(NATS/1.0\r\nfoo: bar\r\nhello: hello-5\r\n\r\n), expected: {"foo"=>"bar", "hello"=>"hello-5"}},
+             {input: %Q(NATS/1.0\r\nfoo: bar\r\nhello: hello-5\r\n\r\n), expected: {"foo"=>"bar", "hello"=>"hello-5"}},
+             {input: %Q(NATS/1.0 408 Request Timeout\r\nNats-Pending-Messages: 1\r\nNats-Pending-Bytes: 0\r\n\r\n),
+                expected: { "Status" => "408", "Nats-Pending-Messages" => "1", "Nats-Pending-Bytes" => "0", "Description" => "Request Timeout"}
+             },
+             {input: %Q(NATS/1.0 404 No Messages\r\n\r\n),
+                expected: {"Status" => "404", "Description" => "No Messages"}}
+            ]
+    tests.each do |test|
+      result = nc.send(:process_hdr, test[:input])
+      expect(result).to eql(test[:expected])
+    end
+  end
 end

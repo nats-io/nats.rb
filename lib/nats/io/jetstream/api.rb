@@ -126,12 +126,6 @@ module NATS
           opts.delete_if { |k| rem.include?(k) }
           super(opts)
         end
-
-        def to_json(*args)
-          config = self.to_h
-          config.delete_if { |_k, v| v.nil? }
-          config.to_json(*args)
-        end
       end
 
       # StreamConfig represents the configuration of a stream from JetStream.
@@ -204,12 +198,6 @@ module NATS
           rem = opts.keys - members
           opts.delete_if { |k| rem.include?(k) }
           super(opts)
-        end
-
-        def to_json(*args)
-          config = self.to_h
-          config.delete_if { |_k, v| v.nil? }
-          config.to_json(*args)
         end
       end
 

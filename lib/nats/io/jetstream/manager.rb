@@ -41,7 +41,9 @@ module NATS
         raise ArgumentError.new(":name is required to create streams") unless stream
         raise ArgumentError.new("Spaces, tabs, period (.), greater than (>) or asterisk (*) are prohibited in stream names") if stream =~ /(\s|\.|\>|\*)/
         req_subject = "#{@prefix}.STREAM.CREATE.#{stream}"
-        result = api_request(req_subject, config.to_json, params)
+
+        cfg = config.to_h.compact
+        result = api_request(req_subject, cfg.to_json, params)
         JetStream::API::StreamCreateResponse.new(result)
       end
 
@@ -73,7 +75,8 @@ module NATS
         raise ArgumentError.new(":name is required to create streams") unless stream
         raise ArgumentError.new("Spaces, tabs, period (.), greater than (>) or asterisk (*) are prohibited in stream names") if stream =~ /(\s|\.|\>|\*)/
         req_subject = "#{@prefix}.STREAM.UPDATE.#{stream}"
-        result = api_request(req_subject, config.to_json, params)
+        cfg = config.to_h.compact
+        result = api_request(req_subject, cfg.to_json, params)
         JetStream::API::StreamCreateResponse.new(result)
       end
 
@@ -129,9 +132,10 @@ module NATS
           config[:inactive_threshold] = config[:inactive_threshold] * ::NATS::NANOSECONDS
         end
 
+        cfg = config.to_h.compact
         req = {
           stream_name: stream,
-          config: config
+          config: cfg
         }
 
         result = api_request(req_subject, req.to_json, params)
