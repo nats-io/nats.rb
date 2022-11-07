@@ -32,8 +32,26 @@ spec = Gem::Specification.new do |s|
     lib/nats/client.rb
     lib/nats/io/client.rb
     lib/nats/io/errors.rb
-    lib/nats/io/js.rb
+    lib/nats/io/jetstream.rb
+    lib/nats/io/jetstream/api.rb
+    lib/nats/io/jetstream/errors.rb
+    lib/nats/io/jetstream/js.rb
+    lib/nats/io/jetstream/js/config.rb
+    lib/nats/io/jetstream/js/header.rb
+    lib/nats/io/jetstream/js/status.rb
+    lib/nats/io/jetstream/js/sub.rb
+    lib/nats/io/jetstream/manager.rb
+    lib/nats/io/jetstream/msg.rb
+    lib/nats/io/jetstream/msg/ack.rb
+    lib/nats/io/jetstream/msg/ack_methods.rb
+    lib/nats/io/jetstream/msg/metadata.rb
+    lib/nats/io/jetstream/pull_subscription.rb
+    lib/nats/io/jetstream/push_subscription.rb
     lib/nats/io/kv.rb
+    lib/nats/io/kv/api.rb
+    lib/nats/io/kv/bucket_status.rb
+    lib/nats/io/kv/errors.rb
+    lib/nats/io/kv/manager.rb
     lib/nats/io/msg.rb
     lib/nats/io/parser.rb
     lib/nats/io/subscription.rb
