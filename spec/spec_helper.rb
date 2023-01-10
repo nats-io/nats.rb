@@ -101,7 +101,7 @@ class NatsServerControl
   end
 
   def kill_server
-    if File.exists? @pid_file
+    if FileTest.exist? @pid_file
       %x[kill -9 #{server_pid} 2> /dev/null]
       %x[rm #{@pid_file} 2> /dev/null]
       sleep(0.1)

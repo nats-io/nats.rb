@@ -4,6 +4,7 @@ rvm:
   - 2.7
   - 3.0.2
   - 3.1.0
+  - 3.2.0
 
 cache:
   directories:
