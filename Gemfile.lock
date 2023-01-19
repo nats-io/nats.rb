@@ -16,7 +16,7 @@ GEM
     nkeys (0.1.0)
       base32 (~> 0.3)
       ed25519 (~> 1.2)
-    rack (2.2.3.1)
+    rack (2.2.6.2)
     rake (13.0.1)
     rspec (3.8.0)
       rspec-core (~> 3.8.0)
