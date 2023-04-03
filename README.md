@@ -3,7 +3,9 @@
 A [Ruby](http://ruby-lang.org) client for the [NATS messaging system](https://nats.io).
 
 [![License Apache 2.0](https://img.shields.io/badge/License-Apache2-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![Build Status](https://travis-ci.org/nats-io/nats.rb.svg)](http://travis-ci.org/nats-io/nats.rb) [![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.11.0)](https://rubygems.org/gems/nats/versions/0.11.0) [![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](https://www.rubydoc.info/gems/nats)
+[![Build Status](https://app.travis-ci.com/nats-io/nats.rb.svg?branch=master)](https://app.travis-ci.com/nats-io/nats.rb)
+[![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=0.11.0)](https://rubygems.org/gems/nats/versions/0.11.0)
+[![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](https://www.rubydoc.info/gems/nats)
 
 ## Getting Started
 
