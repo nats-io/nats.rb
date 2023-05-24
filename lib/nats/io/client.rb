@@ -204,7 +204,10 @@ module NATS
         @connect_called = true
       end
 
+      @ruby_pid = Process.pid # For fork detection
+
       # Convert URI to string if needed.
+      @uri = uri
       uri = uri.to_s if uri.is_a?(URI)
 
       case uri
@@ -1021,10 +1024,24 @@ module NATS
     end
 
     def send_command(command)
+      ensure_connected!
+
       @pending_size += command.bytesize
       @pending_queue << command
 
       # TODO: kick flusher here in case pending_size growing large
+    end
+
+    def ensure_connected!
+      return if Process.pid == @ruby_pid
+
+      unless @options[:reconnect]
+        raise NATS::IO::ForkDetectedError, "nats: fork detected, re-connection is required." \
+          "Initialize client with reconnect: true to allow for automatic reconnects."
+      end
+
+      @connect_called = false
+      connect(@uri, @options)
     end
 
     # Auto unsubscribes the server by sending UNSUB command and throws away
