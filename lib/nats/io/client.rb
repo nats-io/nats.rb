@@ -83,6 +83,58 @@ module NATS
 
   # Client creates a connection to the NATS Server.
   class Client
+    ##################################################################
+    #                                                                #
+    #   Fork Detection handling                                      #
+    #                                                                #
+    #     Based from similar approach as mperham/connection_pool:    #
+    #     https://github.com/mperham/connection_pool/pull/166/files  #
+    #                                                                #
+    ##################################################################
+    if Process.respond_to?(:fork)
+      INSTANCES = ObjectSpace::WeakMap.new
+      private_constant :INSTANCES
+
+      def self.after_fork
+        INSTANCES.values.each do |nc|
+          # We're on after fork, so we know all other threads are dead.
+          # Need to close the current connection and replace the instance.
+          begin
+            if nc.options[:reconnect]
+              nc.close
+              nc.connect(nc.uri, nc.options)
+            else
+              nc.send(:err_cb_call, nc, NATS::IO::ForkDetectedError, nil)
+              nc.close
+            end
+          rescue => e
+            # TODO: Report as async error via error callback?
+          end
+        end
+        nil
+      end
+
+      if ::Process.respond_to?(:_fork) # MRI 3.1+
+        module ForkTracker
+          def _fork
+            pid = super
+            if pid == 0
+              Client.after_fork
+            end
+            pid
+          end
+        end
+        Process.singleton_class.prepend(ForkTracker)
+      end
+    else
+      INSTANCES = nil
+      private_constant :INSTANCES
+
+      def self.after_fork
+        # noop
+      end
+    end
+
     include MonitorMixin
     include Status
 
@@ -194,6 +246,9 @@ module NATS
 
       # Draining
       @drain_t = nil
+
+      # Detect forking in newer Rubies.
+      INSTANCES[self] = self if INSTANCES
     end
 
     # Establishes a connection to NATS.
@@ -205,6 +260,12 @@ module NATS
       end
 
       @ruby_pid = Process.pid # For fork detection
+
+      # Reset these in case we have reconnected via fork.
+      @resp_sub = nil
+      @resp_map = nil
+      @resp_sub_prefix = nil
+      @nuid = NATS::NUID.new
 
       # Convert URI to string if needed.
       @uri = uri
@@ -1024,8 +1085,6 @@ module NATS
     end
 
     def send_command(command)
-      ensure_connected!
-
       @pending_size += command.bytesize
       @pending_queue << command
 
@@ -1522,6 +1581,7 @@ module NATS
 
     def close_connection(conn_status, do_cbs=true)
       synchronize do
+        @connect_called = false
         if @status == CLOSED
           @status = conn_status
           return
