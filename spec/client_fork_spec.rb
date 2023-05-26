@@ -20,12 +20,14 @@ require 'spec_helper'
 describe 'Client - Fork detection' do
 
   before(:all) do
-    @s = NatsServerControl.new
+    @tmpdir = Dir.mktmpdir("ruby-jetstream-fork")
+    @s = NatsServerControl.new("nats://127.0.0.1:4524", "/tmp/test-nats.pid", "-js -sd=#{@tmpdir}")
     @s.start_server(true)
   end
 
   after(:all) do
     @s.kill_server
+    FileUtils.remove_entry(@tmpdir)
   end
 
   class Component
@@ -33,18 +35,13 @@ describe 'Client - Fork detection' do
     attr_accessor :msgs
 
     def initialize(options={})
-      @nats = NATS::IO::Client.new
+      @nats = NATS.connect("nats://127.0.0.1:4524", options)
       @msgs = []
-      @options = options
-    end
-
-    def connect!
-      @nats.connect(@options)
     end
   end
 
   let(:options) { {} }
-  let!(:component) { Component.new(options).tap(&:connect!) }
+  let!(:component) { Component.new(options) }
 
   it 'should be able to publish messages from child process after forking' do
     received = nil
@@ -111,6 +108,32 @@ describe 'Client - Fork detection' do
     expect(result).to eq("hey from the parent process")
 
     to_child.close; from_child.close
+    Process.wait(pid)
+  end
+
+  it "should be able to use jetstreams from child process after forking" do
+    js = component.nats.jetstream
+    js.add_stream(name: "forked-stream", subjects: ["foo"])
+
+    from_child, to_parent = IO.pipe
+
+    pid = fork do # child process
+      from_child.close # close unused ends
+
+      psub = js.pull_subscribe("foo", "bar")
+      msgs = psub.fetch(1)
+      msgs.each(&:ack)
+
+      to_parent.write(msgs.first.data)
+    end
+    to_parent.close
+
+    js.publish("foo", "Hey JetStream!")
+
+    result = from_child.read
+    expect(result).to eq("Hey JetStream!")
+
+    from_child.close
     Process.wait(pid)
   end
 

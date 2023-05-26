@@ -17,8 +17,6 @@ module NATS
     include MonitorMixin
     include Status
 
-    @ruby_pid: Integer
-
     attr_reader status: Integer
     attr_reader server_info: Hash[Symbol, untyped]
     attr_reader server_pool: Array[untyped]
@@ -44,6 +42,8 @@ module NATS
 
     SUB_OP: 'SUB'
     EMPTY_MSG: ''
+
+    INSTANCES: ObjectSpace::WeakMap
 
     @options: Hash[Symbol, untyped]
 
