@@ -12,7 +12,8 @@
 # limitations under the License.
 #
 
-return unless Process.respond_to?(:fork) # Skip if fork is not supported
+return unless Process.respond_to?(:fork) # Skip if fork is not supported (Windows, JRuby, etc)
+return unless Process.respond_to?(:_fork) # Skip if around fork callbacks are not supported (before Ruby 3.1)
 
 require 'spec_helper'
 

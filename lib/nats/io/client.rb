@@ -81,60 +81,25 @@ module NATS
     DRAINING_PUBS = 6
   end
 
-  # Client creates a connection to the NATS Server.
-  class Client
-    ##################################################################
-    #                                                                #
-    #   Fork Detection handling                                      #
-    #                                                                #
-    #     Based from similar approach as mperham/connection_pool:    #
-    #     https://github.com/mperham/connection_pool/pull/166/files  #
-    #                                                                #
-    ##################################################################
-    if Process.respond_to?(:fork)
-      INSTANCES = ObjectSpace::WeakMap.new
-      private_constant :INSTANCES
-
-      def self.after_fork
-        INSTANCES.values.each do |nc|
-          # We're on after fork, so we know all other threads are dead.
-          # Need to close the current connection and replace the instance.
-          begin
-            if nc.options[:reconnect]
-              nc.close
-              nc.connect(nc.uri, nc.options)
-            else
-              nc.send(:err_cb_call, nc, NATS::IO::ForkDetectedError, nil)
-              nc.close
-            end
-          rescue => e
-            # TODO: Report as async error via error callback?
+  # Fork Detection handling
+  # Based from similar approach as mperham/connection_pool: https://github.com/mperham/connection_pool/pull/166
+  if Process.respond_to?(:fork) && Process.respond_to?(:_fork) # MRI 3.1+
+    module ForkTracker
+      def _fork
+        pid = super
+        if pid == 0
+          Client::INSTANCES.values.each do |nc|
+            nc.send(:after_fork)
           end
         end
-        nil
-      end
-
-      if ::Process.respond_to?(:_fork) # MRI 3.1+
-        module ForkTracker
-          def _fork
-            pid = super
-            if pid == 0
-              Client.after_fork
-            end
-            pid
-          end
-        end
-        Process.singleton_class.prepend(ForkTracker)
-      end
-    else
-      INSTANCES = nil
-      private_constant :INSTANCES
-
-      def self.after_fork
-        # noop
+        pid
       end
     end
+    Process.singleton_class.prepend(ForkTracker)
+  end
 
+  # Client creates a connection to the NATS Server.
+  class Client
     include MonitorMixin
     include Status
 
@@ -157,6 +122,8 @@ module NATS
 
     SUB_OP = ('SUB'.freeze)
     EMPTY_MSG = (''.freeze)
+
+    INSTANCES = ObjectSpace::WeakMap.new # tracks all alive client instances
 
     def initialize
       super # required to initialize monitor
@@ -247,8 +214,8 @@ module NATS
       # Draining
       @drain_t = nil
 
-      # Detect forking in newer Rubies.
-      INSTANCES[self] = self if INSTANCES
+      # Keep track of all client instances to handle them after process forking in Ruby 3.1+
+      INSTANCES[self] = self
     end
 
     # Establishes a connection to NATS.
@@ -1091,16 +1058,17 @@ module NATS
       # TODO: kick flusher here in case pending_size growing large
     end
 
-    def ensure_connected!
-      return if Process.pid == @ruby_pid
-
-      unless @options[:reconnect]
-        raise NATS::IO::ForkDetectedError, "nats: fork detected, re-connection is required." \
-          "Initialize client with reconnect: true to allow for automatic reconnects."
+    # Re-establish connection in a new process after forking to start new threads.
+    def after_fork
+      if options[:reconnect]
+        close
+        connect(uri, options)
+      else
+        err_cb_call(self, NATS::IO::ForkDetectedError, nil)
+        close
       end
-
-      @connect_called = false
-      connect(@uri, @options)
+    rescue => e
+      # TODO: Report as async error via error callback?
     end
 
     # Auto unsubscribes the server by sending UNSUB command and throws away
