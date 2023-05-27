@@ -30,51 +30,41 @@ describe 'Client - Fork detection' do
     FileUtils.remove_entry(@tmpdir)
   end
 
-  class Component
-    attr_reader  :nats, :options
-    attr_accessor :msgs
-
-    def initialize(options={})
-      @nats = NATS.connect("nats://127.0.0.1:4524", options)
-      @msgs = []
-    end
-  end
-
   let(:options) { {} }
-  let!(:component) { Component.new(options) }
+  let!(:nats) { NATS.connect("nats://127.0.0.1:4524", options) }
 
   it 'should be able to publish messages from child process after forking' do
     received = nil
-    component.nats.subscribe("forked-topic") do |msg|
+    nats.subscribe("forked-topic") do |msg|
       received = msg.data
     end
 
     pid = fork do
-      component.nats.publish("forked-topic", "hey from the child process")
-      component.nats.flush
+      nats.publish("forked-topic", "hey from the child process")
+      nats.flush
     end
     Process.wait(pid)
     expect($?.exitstatus).to be_zero
     expect(received).to eq("hey from the child process")
-    component.nats.close
+    nats.close
   end
 
   it 'should be able to make requests messages from child process after forking' do
     received = nil
-    component.nats.subscribe("service") do |msg|
+    nats.subscribe("service") do |msg|
       msg.respond("pong")
     end
 
-    resp = component.nats.request("service", "ping")
+    resp = nats.request("service", "ping")
     expect(resp.data).to eq("pong")
 
     pid = fork do
-      resp = component.nats.request("service", "ping")
+      resp = nats.request("service", "ping")
       expect(resp.data).to eq("pong")
     end
     Process.wait(pid)
     expect($?.exitstatus).to be_zero
-    component.nats.close
+    nats.close
   end
 
   it 'should be able to receive messages from child process after forking' do
@@ -84,14 +74,15 @@ describe 'Client - Fork detection' do
     pid = fork do # child process
       to_child.close; from_child.close # close unused ends
 
-      component.nats.subscribe("forked-topic") do |msg|
+      nats.subscribe("forked-topic") do |msg|
         to_parent.write(msg.data)
       end
-      component.nats.flush
+      nats.flush
 
       to_parent.puts("proceed")
+      from_parent.gets # Wait for parent to publish message
+      Thread.pass # give a chance for subscription thread to catch and handle message (flaky test)
 
-      from_parent.gets
       to_parent.close; from_parent.close
     end
 
@@ -99,8 +90,8 @@ describe 'Client - Fork detection' do
     to_parent.close; from_parent.close # close unused ends
 
     from_child.gets
-    component.nats.publish("forked-topic", "hey from the parent process")
-    component.nats.flush
+    nats.publish("forked-topic", "hey from the parent process")
+    nats.flush
 
     to_child.puts("proceed")
 
@@ -112,7 +103,7 @@ describe 'Client - Fork detection' do
   end
 
   it "should be able to use jetstreams from child process after forking" do
-    js = component.nats.jetstream
+    js = nats.jetstream
     js.add_stream(name: "forked-stream", subjects: ["foo"])
 
     from_child, to_parent = IO.pipe
@@ -145,21 +136,21 @@ describe 'Client - Fork detection' do
       # but using a timeout instead for now for the assertion.
       expect do
         pid = fork do
-          expect(component.nats.closed?).to eql(true)
+          expect(nats.closed?).to eql(true)
           # FIXME: Raise ConnectionClosed when appropriate.
-          # component.nats.publish("topic", "whatever")
-          component.nats.flush(2)
+          # nats.publish("topic", "whatever")
+          nats.flush(2)
         end
         Process.wait(pid)
         expect($?.exitstatus).to be_nonzero # child process should exit with error
       end.to output(/NATS::IO::Timeout/).to_stderr_from_any_process
-      expect(component.nats.closed?).to eql(false)
-      component.nats.close
+      expect(nats.closed?).to eql(false)
+      nats.close
 
       # expect do
       #   pid = fork do
-      #     component.nats.publish("topic", "whatever")
-      #     component.nats.flush
+      #     nats.publish("topic", "whatever")
+      #     nats.flush
       #   end
       #   Process.wait(pid)
       #   expect($?.exitstatus).to be_nonzero # child process should exit with error

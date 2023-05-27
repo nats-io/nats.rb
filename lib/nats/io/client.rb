@@ -86,13 +86,9 @@ module NATS
   if Process.respond_to?(:fork) && Process.respond_to?(:_fork) # MRI 3.1+
     module ForkTracker
       def _fork
-        pid = super
-        if pid == 0
-          Client::INSTANCES.values.each do |nc|
-            nc.send(:after_fork)
-          end
+        super.tap do |pid|
+          Client.after_fork if pid.zero? # in the child process
         end
-        pid
       end
     end
     Process.singleton_class.prepend(ForkTracker)
@@ -124,6 +120,24 @@ module NATS
     EMPTY_MSG = (''.freeze)
 
     INSTANCES = ObjectSpace::WeakMap.new # tracks all alive client instances
+    private_constant :INSTANCES
+
+    class << self
+      # Re-establish connection in a new process after forking to start new threads.
+      def after_fork
+        INSTANCES.each do |client|
+          if client.options[:reconnect]
+            client.close
+            client.connect(client.uri, client.options)
+          else
+            client.send(:err_cb_call, self, NATS::IO::ForkDetectedError, nil)
+            client.close
+          end
+        rescue => e
+          warn "nats: Error during handling after_fork callback: #{e}" # TODO: Report as async error via error callback?
+        end
+      end
+    end
 
     def initialize
       super # required to initialize monitor
@@ -1056,19 +1070,6 @@ module NATS
       @pending_queue << command
 
       # TODO: kick flusher here in case pending_size growing large
-    end
-
-    # Re-establish connection in a new process after forking to start new threads.
-    def after_fork
-      if options[:reconnect]
-        close
-        connect(uri, options)
-      else
-        err_cb_call(self, NATS::IO::ForkDetectedError, nil)
-        close
-      end
-    rescue => e
-      # TODO: Report as async error via error callback?
     end
 
     # Auto unsubscribes the server by sending UNSUB command and throws away
