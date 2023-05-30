@@ -303,11 +303,11 @@ describe 'Client - Specification' do
 
     pub_thread = Thread.new do
       1.upto(10000).each do |n|
-        nats.publish("bar.#{n}", "A" * 10)
+        nats.publish("bar.#{n}", "A" * 10) unless nats.closed?
       end
       sleep 0.01
       10001.upto(20000).each do |n|
-        nats.publish("bar.#{n}", "B" * 10)
+        nats.publish("bar.#{n}", "B" * 10) unless nats.closed?
       end
     end
     pub_thread.abort_on_exception = true
