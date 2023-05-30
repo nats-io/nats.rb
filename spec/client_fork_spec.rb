@@ -132,29 +132,20 @@ describe 'Client - Fork detection' do
     let(:options) { { reconnect: false } }
 
     it "raises an error in child process after fork is detected" do
-      # FIXME: These commands should have raise NATS::IO::ConnectionClosed error,
-      # but using a timeout instead for now for the assertion.
-      expect do
-        pid = fork do
-          expect(nats.closed?).to eql(true)
-          # FIXME: Raise ConnectionClosed when appropriate.
-          # nats.publish("topic", "whatever")
-          nats.flush(2)
-        end
-        Process.wait(pid)
-        expect($?.exitstatus).to be_nonzero # child process should exit with error
-      end.to output(/NATS::IO::Timeout/).to_stderr_from_any_process
+      callback_error = nil
+      nats.on_error do |e|
+        callback_error = e
+      end
+      pid = fork do
+        expect(nats.closed?).to eql(true)
+        expect(callback_error).to be(NATS::IO::ForkDetectedError)
+        expect { nats.publish("topic", "whatever") }.to raise_error(NATS::IO::ConnectionClosedError)
+      end
+      expect(callback_error).to be_nil
       expect(nats.closed?).to eql(false)
       nats.close
-
-      # expect do
-      #   pid = fork do
-      #     nats.publish("topic", "whatever")
-      #     nats.flush
-      #   end
-      #   Process.wait(pid)
-      #   expect($?.exitstatus).to be_nonzero # child process should exit with error
-      # end.to output(/NATS::IO::ForkDetectedError/).to_stderr_from_any_process
+      Process.wait(pid)
+      expect($?.exitstatus).to be_zero # Make test fail if any expectations in forked process wasn't met
     end
   end
 end

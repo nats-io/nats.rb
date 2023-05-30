@@ -1066,6 +1066,8 @@ module NATS
     end
 
     def send_command(command)
+      raise NATS::IO::ConnectionClosedError if closed?
+
       @pending_size += command.bytesize
       @pending_queue << command
 
