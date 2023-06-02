@@ -24,6 +24,7 @@ module NATS
     attr_reader connected_server: String?
     attr_reader stats: Hash[Symbol, Integer]
     attr_reader uri: String?
+    attr_reader subscription_executor: Concurrent::ThreadPoolExecutor?
 
     DEFAULT_PORT: 4222
     DEFAULT_URI: String
@@ -57,6 +58,7 @@ module NATS
     @flusher_thread: Thread?
     @read_loop_thread: Thread?
     @ping_interval_thread: Thread?
+    @subscription_executor: Concurrent::ThreadPoolExecutor?
 
     @subs: Hash[Symbol, untyped]
     @ssid: Integer
