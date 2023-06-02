@@ -229,7 +229,7 @@ module NATS
       @drain_t = nil
 
       # Keep track of all client instances to handle them after process forking in Ruby 3.1+
-      INSTANCES[self] = self
+      INSTANCES[self] = self if !defined?(Ractor) || Ractor.current == Ractor.main # Ractors doesn't work in forked processes
     end
 
     # Establishes a connection to NATS.
