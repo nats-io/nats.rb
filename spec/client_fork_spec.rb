@@ -42,6 +42,7 @@ describe 'Client - Fork detection' do
     pid = fork do
       nats.publish("forked-topic", "hey from the child process")
       nats.flush
+      nats.close
     end
     Process.wait(pid)
     expect($?.exitstatus).to be_zero
@@ -101,6 +102,7 @@ describe 'Client - Fork detection' do
       Thread.pass # give a chance for subscription thread to catch and handle message (flaky test)
 
       to_parent.close; from_parent.close
+      nats.close
     end
 
     # parent process
@@ -133,6 +135,7 @@ describe 'Client - Fork detection' do
       msgs.each(&:ack)
 
       to_parent.write(msgs.first.data)
+      nats.close
     end
     to_parent.close
 
