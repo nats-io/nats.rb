@@ -43,6 +43,8 @@ module NATS
     SUB_OP: 'SUB'
     EMPTY_MSG: ''
 
+    INSTANCES: ObjectSpace::WeakMap
+
     @options: Hash[Symbol, untyped]
 
     @io: NATS::IO::Socket?

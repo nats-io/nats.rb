@@ -58,6 +58,12 @@ module NATS
 
     # When drain takes too long to complete.
     class DrainTimeoutError < Error; end
+
+    # When a fork is detected, but the client is not configured to re-connect automatically.
+    class ForkDetectedError < Error; end
+
+    # When tried to send command after connection has been closed.
+    class ConnectionClosedError < Error; end
   end
 
   # Timeout is raised when the client gives up waiting for a response from a service.

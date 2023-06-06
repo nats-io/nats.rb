@@ -81,6 +81,19 @@ module NATS
     DRAINING_PUBS = 6
   end
 
+  # Fork Detection handling
+  # Based from similar approach as mperham/connection_pool: https://github.com/mperham/connection_pool/pull/166
+  if Process.respond_to?(:fork) && Process.respond_to?(:_fork) # MRI 3.1+
+    module ForkTracker
+      def _fork
+        super.tap do |pid|
+          Client.after_fork if pid.zero? # in the child process
+        end
+      end
+    end
+    Process.singleton_class.prepend(ForkTracker)
+  end
+
   # Client creates a connection to the NATS Server.
   class Client
     include MonitorMixin
@@ -105,6 +118,26 @@ module NATS
 
     SUB_OP = ('SUB'.freeze)
     EMPTY_MSG = (''.freeze)
+
+    INSTANCES = ObjectSpace::WeakMap.new # tracks all alive client instances
+    private_constant :INSTANCES
+
+    class << self
+      # Re-establish connection in a new process after forking to start new threads.
+      def after_fork
+        INSTANCES.each do |client|
+          if client.options[:reconnect]
+            client.close
+            client.connect(client.uri, client.options)
+          else
+            client.send(:err_cb_call, self, NATS::IO::ForkDetectedError, nil)
+            client.close
+          end
+        rescue => e
+          warn "nats: Error during handling after_fork callback: #{e}" # TODO: Report as async error via error callback?
+        end
+      end
+    end
 
     def initialize
       super # required to initialize monitor
@@ -194,6 +227,9 @@ module NATS
 
       # Draining
       @drain_t = nil
+
+      # Keep track of all client instances to handle them after process forking in Ruby 3.1+
+      INSTANCES[self] = self if !defined?(Ractor) || Ractor.current == Ractor.main # Ractors doesn't work in forked processes
     end
 
     # Establishes a connection to NATS.
@@ -204,7 +240,16 @@ module NATS
         @connect_called = true
       end
 
+      @ruby_pid = Process.pid # For fork detection
+
+      # Reset these in case we have reconnected via fork.
+      @resp_sub = nil
+      @resp_map = nil
+      @resp_sub_prefix = nil
+      @nuid = NATS::NUID.new
+
       # Convert URI to string if needed.
+      @uri = uri
       uri = uri.to_s if uri.is_a?(URI)
 
       case uri
@@ -1021,6 +1066,8 @@ module NATS
     end
 
     def send_command(command)
+      raise NATS::IO::ConnectionClosedError if closed?
+
       @pending_size += command.bytesize
       @pending_queue << command
 
@@ -1505,6 +1552,7 @@ module NATS
 
     def close_connection(conn_status, do_cbs=true)
       synchronize do
+        @connect_called = false
         if @status == CLOSED
           @status = conn_status
           return
