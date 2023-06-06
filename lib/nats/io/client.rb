@@ -243,10 +243,18 @@ module NATS
       @ruby_pid = Process.pid # For fork detection
 
       # Reset these in case we have reconnected via fork.
+      @server_pool = []
       @resp_sub = nil
       @resp_map = nil
       @resp_sub_prefix = nil
       @nuid = NATS::NUID.new
+      @stats = {
+        in_msgs: 0,
+        out_msgs: 0,
+        in_bytes: 0,
+        out_bytes: 0,
+        reconnects: 0
+      }
 
       # Convert URI to string if needed.
       @uri = uri
@@ -386,8 +394,8 @@ module NATS
         # triggering the disconnection/closed callbacks.
         close_connection(DISCONNECTED, false)
 
-        # always sleep here to safe guard against errors before current[:was_connected]
-        # is set for the first time
+        # Always sleep here to safe guard against errors before current[:was_connected]
+        # is set for the first time.
         sleep @options[:reconnect_time_wait] if @options[:reconnect_time_wait]
 
         # Continue retrying until there are no options left in the server pool
@@ -1677,6 +1685,7 @@ module NATS
       end
 
       sid = (@ssid += 1)
+      @resp_sub.sid = sid
       @subs[sid] = @resp_sub
       send_command("SUB #{@resp_sub.subject} #{sid}#{CR_LF}")
       @flush_queue << :sub

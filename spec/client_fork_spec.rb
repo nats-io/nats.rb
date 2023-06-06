@@ -1,4 +1,4 @@
-# Copyright 2016-2018 The NATS Authors
+# Copyright 2016-2023 The NATS Authors
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -19,18 +19,18 @@ require 'spec_helper'
 
 describe 'Client - Fork detection' do
 
-  before(:all) do
+  before(:each) do
     @tmpdir = Dir.mktmpdir("ruby-jetstream-fork")
     @s = NatsServerControl.new("nats://127.0.0.1:4524", "/tmp/test-nats.pid", "-js -sd=#{@tmpdir}")
     @s.start_server(true)
   end
 
-  after(:all) do
+  after(:each) do
     @s.kill_server
     FileUtils.remove_entry(@tmpdir)
   end
 
-  let(:options) { {} }
+  let(:options) { { } }
   let!(:nats) { NATS.connect("nats://127.0.0.1:4524", options) }
 
   it 'should be able to publish messages from child process after forking' do
@@ -57,13 +57,30 @@ describe 'Client - Fork detection' do
 
     resp = nats.request("service", "ping")
     expect(resp.data).to eq("pong")
+    expect(nats.stats).to eq({:in_msgs=>2, :out_msgs=>2, :in_bytes=>8, :out_bytes=>8, :reconnects=>0})
 
     pid = fork do
+      expect(nats.stats).to eq({:in_msgs=>0, :out_msgs=>0, :in_bytes=>0, :out_bytes=>0, :reconnects=>0})
       resp = nats.request("service", "ping")
+
       expect(resp.data).to eq("pong")
+      expect(nats.stats).to eq({:in_msgs=>1, :out_msgs=>1, :in_bytes=>4, :out_bytes=>4, :reconnects=>0})
+
+      nats.publish("dev.null")
+      expect(nats.stats).to eq({:in_msgs=>1, :out_msgs=>2, :in_bytes=>4, :out_bytes=>4, :reconnects=>0})
+      subs = nats.instance_variable_get('@subs')
+      expect(subs.count).to eq(1)
+      spool = nats.instance_variable_get('@server_pool')
+      expect(spool.count).to eql(1)
+      nats.close
     end
     Process.wait(pid)
     expect($?.exitstatus).to be_zero
+    expect(nats.stats).to eq({:in_msgs=>3, :out_msgs=>3, :in_bytes=>12, :out_bytes=>12, :reconnects=>0})
+    subs = nats.instance_variable_get('@subs')
+    expect(subs.count).to eq(2)
+    spool = nats.instance_variable_get('@server_pool')
+    expect(spool.count).to eql(1)
     nats.close
   end
 

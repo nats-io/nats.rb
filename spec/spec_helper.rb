@@ -1,4 +1,4 @@
-# Copyright 2016-2018 The NATS Authors
+# Copyright 2016-2023 The NATS Authors
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -102,9 +102,9 @@ class NatsServerControl
 
   def kill_server
     if FileTest.exist? @pid_file
-      %x[kill -9 #{server_pid} 2> /dev/null]
+      %x[kill -TERM #{server_pid} 2> /dev/null]
       %x[rm #{@pid_file} 2> /dev/null]
-      sleep(0.1)
+      sleep(0.2)
       @pid = nil
     end
   end
