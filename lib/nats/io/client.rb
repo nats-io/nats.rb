@@ -127,8 +127,9 @@ module NATS
       def after_fork
         INSTANCES.each do |client|
           if client.options[:reconnect]
-            client.close
-            client.connect(client.uri, client.options)
+            was_connected = !client.disconnected?
+            client.send(:close_connection, Status::DISCONNECTED, true)
+            client.connect if was_connected
           else
             client.send(:err_cb_call, self, NATS::IO::ForkDetectedError, nil)
             client.close
@@ -139,9 +140,10 @@ module NATS
       end
     end
 
-    def initialize
-      super # required to initialize monitor
-      @options = nil
+    def initialize(uri = nil, opts = {})
+      super() # required to initialize monitor
+      @initial_uri = uri
+      @initial_options = opts
 
       # Read/Write IO
       @io = nil
@@ -165,7 +167,7 @@ module NATS
       @uri = nil
       @server_pool = []
 
-      @status = DISCONNECTED
+      @status = nil
 
       # Subscriptions
       @subs = { }
@@ -228,20 +230,33 @@ module NATS
       # Draining
       @drain_t = nil
 
+      # Prepare for calling connect or automatic delayed connection
+      parse_and_validate_options if uri || opts.any?
+
       # Keep track of all client instances to handle them after process forking in Ruby 3.1+
       INSTANCES[self] = self if !defined?(Ractor) || Ractor.current == Ractor.main # Ractors doesn't work in forked processes
     end
 
-    # Establishes a connection to NATS.
+    # Prepare connecting to NATS, but postpone real connection until first usage.
     def connect(uri=nil, opts={})
+      if uri || opts.any?
+        @initial_uri = uri
+        @initial_options = opts
+      end
+
       synchronize do
         # In case it has been connected already, then do not need to call this again.
         return if @connect_called
         @connect_called = true
       end
 
-      @ruby_pid = Process.pid # For fork detection
+      parse_and_validate_options
+      establish_connection!
 
+      self
+    end
+
+    private def parse_and_validate_options
       # Reset these in case we have reconnected via fork.
       @server_pool = []
       @resp_sub = nil
@@ -255,10 +270,13 @@ module NATS
         out_bytes: 0,
         reconnects: 0
       }
+      @status = DISCONNECTED
 
       # Convert URI to string if needed.
-      @uri = uri
+      uri = @initial_uri.dup
       uri = uri.to_s if uri.is_a?(URI)
+
+      opts = @initial_options.dup
 
       case uri
       when String
@@ -339,6 +357,12 @@ module NATS
       @inbox_prefix = opts.fetch(:custom_inbox_prefix, @inbox_prefix)
 
       validate_settings!
+
+      self
+    end
+
+    private def establish_connection!
+      @ruby_pid = Process.pid # For fork detection
 
       srv = nil
       begin
@@ -762,6 +786,10 @@ module NATS
       connected? ? @uri : nil
     end
 
+    def disconnected?
+      !@status or @status == DISCONNECTED
+    end
+
     def connected?
       @status == CONNECTED
     end
@@ -1075,6 +1103,8 @@ module NATS
 
     def send_command(command)
       raise NATS::IO::ConnectionClosedError if closed?
+
+      establish_connection! unless status
 
       @pending_size += command.bytesize
       @pending_queue << command
