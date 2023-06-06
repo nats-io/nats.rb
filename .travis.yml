@@ -1,9 +1,7 @@
 language: ruby
 
 rvm:
-  - 2.7
-  - 3.0.2
-  - 3.1.0
+  - 3.1.2
   - 3.2.0
 
 cache:
@@ -17,7 +15,7 @@ before_script:
   - export PATH=$HOME/nats-server:$PATH
 
 sudo: required
-dist: focal
+dist: jammy
 
 addons:
   hosts:
@@ -25,3 +23,10 @@ addons:
     - server-A.clients.fake-nats-service.localhost
     - server-A.routes.nats-service.localhost
     - server-A.routes.fake-nats-service.localhost
+
+jobs:
+  include:
+  - name: "Ruby: 3.3.0"
+    rvm: "3.3.0-preview1"
+  allow_failures:
+    - name: "Ruby: 3.3.0"
