@@ -15,7 +15,7 @@
 require 'spec_helper'
 require 'monitor'
 
-describe 'Client - Connection' do
+describe 'Client - Delayed Connection' do
   let(:server) do
     NatsServerControl.new("nats://127.0.0.1:4522", "/tmp/test-nats.pid", "--cluster nats://127.0.0.1:4248 --cluster_name test-cluster")
   end

@@ -61,9 +61,6 @@ module NATS
   # the connection is manually closed then it will reach the CLOSED
   # connection state after which it will not reconnect again.
   module Status
-    # When client was just initialized.
-    NOT_YET_CONNECTED = -1
-
     # When the client is not actively connected.
     DISCONNECTED = 0
 
@@ -170,7 +167,7 @@ module NATS
       @uri = nil
       @server_pool = []
 
-      @status = NOT_YET_CONNECTED
+      @status = nil
 
       # Subscriptions
       @subs = { }
@@ -273,6 +270,7 @@ module NATS
         out_bytes: 0,
         reconnects: 0
       }
+      @status = DISCONNECTED
 
       # Convert URI to string if needed.
       uri = @initial_uri.dup
@@ -789,7 +787,7 @@ module NATS
     end
 
     def disconnected?
-      @status == DISCONNECTED
+      !@status or @status == DISCONNECTED
     end
 
     def connected?
@@ -1106,7 +1104,7 @@ module NATS
     def send_command(command)
       raise NATS::IO::ConnectionClosedError if closed?
 
-      establish_connection! if status == NOT_YET_CONNECTED
+      establish_connection! unless status
 
       @pending_size += command.bytesize
       @pending_queue << command
