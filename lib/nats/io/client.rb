@@ -1323,7 +1323,7 @@ module NATS
         @flush_queue.pop
 
         should_bail = synchronize do
-          @status != CONNECTED || @status == CONNECTING
+          (@status != CONNECTED && !draining? ) || @status == CONNECTING
         end
         return if should_bail
 
