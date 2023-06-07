@@ -512,6 +512,7 @@ module NATS
       sub.pending_msgs_limit  = opts[:pending_msgs_limit]
       sub.pending_bytes_limit = opts[:pending_bytes_limit]
       sub.pending_queue = SizedQueue.new(sub.pending_msgs_limit)
+      sub.processing_concurrency = opts[:processing_concurrency] if opts.key?(:processing_concurrency)
 
       send_command("SUB #{subject} #{opts[:queue]} #{sid}#{CR_LF}")
       @flush_queue << :sub
@@ -1161,6 +1162,9 @@ module NATS
           break
         end
       end
+
+      subscription_executor.shutdown
+      subscription_executor.wait_for_termination(@options[:drain_timeout])
 
       if MonotonicTime::now > drain_timeout
         e = NATS::IO::DrainTimeoutError.new("nats: draining connection timed out")

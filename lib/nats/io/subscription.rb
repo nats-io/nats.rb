@@ -148,10 +148,8 @@ module NATS
         concurrency_semaphore.release
       ensure
         concurrency_semaphore.release
-        synchronize do
-          [concurrency_semaphore.available_permits, pending_queue.size].min.times do
-            enqueue_processing(executor)
-          end
+        [concurrency_semaphore.available_permits, pending_queue.size].min.times do
+          enqueue_processing(executor)
         end
       end
     end

@@ -11,3 +11,7 @@ end
 group :v2 do
   gem 'nkeys'
 end
+
+group :development do
+  gem 'ruby-progressbar'
+end
