@@ -50,7 +50,9 @@ module NATS
 
     def inspect
       hdr = ", header=#{@header}" if @header
-      "#<NATS::Msg(subject: \"#{@subject}\", reply: \"#{@reply}\", data: #{@data.slice(0, 10).inspect}#{hdr})>"
+      dot = '...' if @data.length > 10
+      dat = "#{data.slice(0, 10)}#{dot}"
+      "#<NATS::Msg(subject: \"#{@subject}\", reply: \"#{@reply}\", data: #{dat.inspect}#{hdr})>"
     end
   end
 end
