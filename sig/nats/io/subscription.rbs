@@ -14,9 +14,7 @@ module NATS
 
     attr_accessor pending_queue: Thread::SizedQueue?
     attr_accessor pending_size: Integer
-    attr_accessor wait_for_msgs_t: Thread?
     attr_accessor wait_for_msgs_cond: MonitorMixin::ConditionVariable?
-    attr_accessor is_slow_consumer: bool
 
     attr_accessor pending_msgs_limit: Integer?
     attr_accessor pending_bytes_limit: Integer?
@@ -24,6 +22,9 @@ module NATS
     attr_accessor nc: NATS::Client?
     attr_accessor jsi: NATS::JetStream::JS::Sub
     attr_accessor closed: bool?
+
+    attr_accessor processing_concurrency: Integer
+    attr_reader concurrency_semaphore: Concurrent::Semaphore
 
     def unsubscribe: (?Integer?) -> void
 

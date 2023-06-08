@@ -28,14 +28,14 @@ module NATS
     include MonitorMixin
 
     attr_accessor :subject, :queue, :future, :callback, :response, :received, :max, :pending, :sid
-    attr_accessor :pending_queue, :pending_size, :wait_for_msgs_t, :wait_for_msgs_cond, :is_slow_consumer
+    attr_accessor :pending_queue, :pending_size, :wait_for_msgs_cond, :concurrency_semaphore
     attr_accessor :pending_msgs_limit, :pending_bytes_limit
     attr_accessor :nc
     attr_accessor :jsi
     attr_accessor :closed
 
-    def initialize
-      super # required to initialize monitor
+    def initialize(**opts)
+      super() # required to initialize monitor
       @subject  = ''
       @queue    = nil
       @future   = nil
@@ -53,11 +53,27 @@ module NATS
       @pending_size        = 0
       @pending_msgs_limit  = nil
       @pending_bytes_limit = nil
-      @wait_for_msgs_t     = nil
-      @is_slow_consumer    = false
 
       # Sync subscriber
       @wait_for_msgs_cond = nil
+
+      # To limit number of concurrent messages being processed (1 to only allow sequential processing)
+      @processing_concurrency = opts.fetch(:processing_concurrency, NATS::IO::DEFAULT_SINGLE_SUB_CONCURRENCY)
+    end
+
+    # Concurrency of message processing for a single subscription.
+    # 1 means sequential processing
+    # 2+ allow processed concurrently and possibly out of order.
+    def processing_concurrency=(value)
+      raise ArgumentError, "nats: subscription processing concurrency must be positive integer" unless value.positive?
+      return if @processing_concurrency == value
+
+      @processing_concurrency = value
+      @concurrency_semaphore = Concurrent::Semaphore.new(value)
+    end
+
+    def concurrency_semaphore
+      @concurrency_semaphore ||= Concurrent::Semaphore.new(@processing_concurrency)
     end
 
     # Auto unsubscribes the server by sending UNSUB command and throws away
@@ -87,6 +103,55 @@ module NATS
 
     def inspect
       "#<NATS::Subscription(subject: \"#{@subject}\", queue: \"#{@queue}\", sid: #{@sid})>"
+    end
+
+    def dispatch(msg)
+      pending_queue << msg
+      synchronize { self.pending_size += msg.data.size }
+
+      # For async subscribers, send message for processing to the thread pool.
+      enqueue_processing(@nc.subscription_executor) if callback
+
+      # For sync subscribers, signal that there is a new message.
+      wait_for_msgs_cond&.signal
+    end
+
+    def process(msg)
+      return unless callback
+
+      # Decrease pending size since consumed already
+      synchronize { self.pending_size -= msg.data.size }
+
+      begin
+        # Note: Keep some of the alternative arity versions to slightly
+        # improve backwards compatibility.  Eventually fine to deprecate
+        # since recommended version would be arity of 1 to get a NATS::Msg.
+        case callback.arity
+        when 0 then callback.call
+        when 1 then callback.call(msg)
+        when 2 then callback.call(msg.data, msg.reply)
+        when 3 then callback.call(msg.data, msg.reply, msg.subject)
+        else callback.call(msg.data, msg.reply, msg.subject, msg.header)
+        end
+      rescue => e
+        synchronize { nc.send(:err_cb_call, nc, e, self) }
+      end
+    end
+
+    # Send a message for its processing to a separate thread
+    def enqueue_processing(executor)
+      concurrency_semaphore.try_acquire || return # Previous message is being executed, let it finish and enqueue next one.
+      executor.post do
+        msg = pending_queue.pop(true)
+        process(msg)
+      rescue ThreadError # queue is empty
+        concurrency_semaphore.release
+      ensure
+        concurrency_semaphore.release
+        [concurrency_semaphore.available_permits, pending_queue.size].min.times do
+          enqueue_processing(executor)
+        end
+      end
     end
   end
 end

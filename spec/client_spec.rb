@@ -124,12 +124,13 @@ describe 'Client - Specification' do
     nc.subscribe("hello") do |msg|
       msgs << msg
     end
-    sleep 0.5
+    nc.flush
 
     1.upto(5) do |n|
       nc.publish("hello", "world-#{n}")
     end
-    sleep 0.5
+    nc.flush
+    sleep 0.1 # Let other threads to process messages.
 
     expect(msgs.count).to eql(5)
     expect(msgs.first.data).to eql('world-1')
@@ -224,10 +225,10 @@ describe 'Client - Specification' do
   end
 
   it 'should be able to create many subscriptions' do
-    # NOTE: After v0.4.0 this means a lot of threads.
     nc = NATS::IO::Client.new
     nc.connect(:servers => [@s.uri])
     max_subs = 50
+    max_messages = 50
 
     msgs = { }
     1.upto(max_subs).each do |n|
@@ -242,14 +243,16 @@ describe 'Client - Specification' do
 
     expect(msgs.keys.count).to eql(max_subs)
     1.upto(max_subs).each do |n|
-      nc.publish("quux.#{n}")
+      1.upto(max_messages).each do |m|
+        nc.publish("quux.#{n}", m.to_s)
+      end
     end
     nc.flush(1)
 
     # Wait a bit for each sub to receive the message.
     sleep 0.5
     1.upto(max_subs).each do |n|
-      expect(msgs["quux.#{n}"].count).to eql(1)
+      expect(msgs["quux.#{n}"].count).to eql(max_messages)
     end
 
     nc.close

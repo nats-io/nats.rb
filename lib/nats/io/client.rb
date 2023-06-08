@@ -26,6 +26,7 @@ require 'json'
 require 'monitor'
 require 'uri'
 require 'securerandom'
+require 'concurrent'
 
 begin
   require "openssl"
@@ -99,7 +100,7 @@ module NATS
     include MonitorMixin
     include Status
 
-    attr_reader :status, :server_info, :server_pool, :options, :connected_server, :stats, :uri
+    attr_reader :status, :server_info, :server_pool, :options, :connected_server, :stats, :uri, :subscription_executor
 
     DEFAULT_PORT = 4222
     DEFAULT_URI = ("nats://localhost:#{DEFAULT_PORT}".freeze)
@@ -511,6 +512,7 @@ module NATS
       sub.pending_msgs_limit  = opts[:pending_msgs_limit]
       sub.pending_bytes_limit = opts[:pending_bytes_limit]
       sub.pending_queue = SizedQueue.new(sub.pending_msgs_limit)
+      sub.processing_concurrency = opts[:processing_concurrency] if opts.key?(:processing_concurrency)
 
       send_command("SUB #{subject} #{opts[:queue]} #{sid}#{CR_LF}")
       @flush_queue << :sub
@@ -522,41 +524,6 @@ module NATS
         cond = sub.new_cond
         sub.wait_for_msgs_cond = cond
       end
-
-      # Async subscriptions each own a single thread for the
-      # delivery of messages.
-      # FIXME: Support shared thread pool with configurable limits
-      # to better support case of having a lot of subscriptions.
-      sub.wait_for_msgs_t = Thread.new do
-        loop do
-          msg = sub.pending_queue.pop
-
-          cb = nil
-          sub.synchronize do
-
-            # Decrease pending size since consumed already
-            sub.pending_size -= msg.data.size
-            cb = sub.callback
-          end
-
-          begin
-            # Note: Keep some of the alternative arity versions to slightly
-            # improve backwards compatibility.  Eventually fine to deprecate
-            # since recommended version would be arity of 1 to get a NATS::Msg.
-            case cb.arity
-            when 0 then cb.call
-            when 1 then cb.call(msg)
-            when 2 then cb.call(msg.data, msg.reply)
-            when 3 then cb.call(msg.data, msg.reply, msg.subject)
-            else cb.call(msg.data, msg.reply, msg.subject, msg.header)
-            end
-          rescue => e
-            synchronize do
-              err_cb_call(self, e, sub) if @err_cb
-            end
-          end
-        end
-      end if callback
 
       sub
     end
@@ -1052,12 +1019,8 @@ module NATS
             # Only dispatch message when sure that it would not block
             # the main read loop from the parser.
             msg = Msg.new(subject: subject, reply: reply, data: data, header: hdr, nc: self, sub: sub)
-            sub.pending_queue << msg
 
-            # For sync subscribers, signal that there is a new message.
-            sub.wait_for_msgs_cond.signal if sub.wait_for_msgs_cond
-
-            sub.pending_size += data.size
+            sub.dispatch(msg)
           end
         end
       end
@@ -1132,12 +1095,6 @@ module NATS
       synchronize do
         sub.max = opt_max
         @subs.delete(sid) unless (sub.max && (sub.received < sub.max))
-
-        # Stop messages delivery thread for async subscribers
-        if sub.wait_for_msgs_t && sub.wait_for_msgs_t.alive?
-          sub.wait_for_msgs_t.exit
-          sub.pending_queue.clear
-        end
       end
 
       sub.synchronize do
@@ -1192,11 +1149,6 @@ module NATS
 
         to_delete.each do |sub|
           @subs.delete(sub.sid)
-          # Stop messages delivery thread for async subscribers
-          if sub.wait_for_msgs_t && sub.wait_for_msgs_t.alive?
-            sub.wait_for_msgs_t.exit
-            sub.pending_queue.clear
-          end
         end
         to_delete.clear
 
@@ -1210,6 +1162,9 @@ module NATS
           break
         end
       end
+
+      subscription_executor.shutdown
+      subscription_executor.wait_for_termination(@options[:drain_timeout])
 
       if MonotonicTime::now > drain_timeout
         e = NATS::IO::DrainTimeoutError.new("nats: draining connection timed out")
@@ -1372,7 +1327,7 @@ module NATS
         @flush_queue.pop
 
         should_bail = synchronize do
-          @status != CONNECTED || @status == CONNECTING
+          (@status != CONNECTED && !draining? ) || @status == CONNECTING
         end
         return if should_bail
 
@@ -1639,12 +1594,6 @@ module NATS
         end if should_flush
 
         # Destroy any remaining subscriptions.
-        @subs.each do |_, sub|
-          if sub.wait_for_msgs_t && sub.wait_for_msgs_t.alive?
-            sub.wait_for_msgs_t.exit
-            sub.pending_queue.clear
-          end
-        end
         @subs.clear
 
         if do_cbs
@@ -1666,15 +1615,24 @@ module NATS
     def start_threads!
       # Reading loop for gathering data
       @read_loop_thread = Thread.new { read_loop }
+      @read_loop_thread.name = "nats:read_loop"
       @read_loop_thread.abort_on_exception = true
 
       # Flusher loop for sending commands
       @flusher_thread = Thread.new { flusher_loop }
+      @flusher_thread.name = "nats:flusher_loop"
       @flusher_thread.abort_on_exception = true
 
       # Ping interval handling for keeping alive the connection
       @ping_interval_thread = Thread.new { ping_interval_loop }
+      @ping_interval_thread.name = "nats:ping_loop"
       @ping_interval_thread.abort_on_exception = true
+
+      # Subscription handling thread pool
+      @subscription_executor = Concurrent::ThreadPoolExecutor.new(
+        name: 'nats:subscription', # threads will be given names like nats:subscription-worker-1
+        max_threads: NATS::IO::DEFAULT_TOTAL_SUB_CONCURRENCY,
+      )
     end
 
     # Prepares requests subscription that handles the responses
@@ -1692,25 +1650,20 @@ module NATS
       @resp_sub.pending_msgs_limit = NATS::IO::DEFAULT_SUB_PENDING_MSGS_LIMIT
       @resp_sub.pending_bytes_limit = NATS::IO::DEFAULT_SUB_PENDING_BYTES_LIMIT
       @resp_sub.pending_queue = SizedQueue.new(@resp_sub.pending_msgs_limit)
-      @resp_sub.wait_for_msgs_t = Thread.new do
-        loop do
-          msg = @resp_sub.pending_queue.pop
-          @resp_sub.pending_size -= msg.data.size
+      @resp_sub.callback = proc do |msg|
+        # Pick the token and signal the request under the mutex
+        # from the subscription itself.
+        token = msg.subject.split('.').last
+        future = nil
+        synchronize do
+          future = @resp_map[token][:future]
+          @resp_map[token][:response] = msg
+        end
 
-          # Pick the token and signal the request under the mutex
-          # from the subscription itself.
-          token = msg.subject.split('.').last
-          future = nil
-          synchronize do
-            future = @resp_map[token][:future]
-            @resp_map[token][:response] = msg
-          end
-
-          # Signal back that the response has arrived
-          # in case the future has not been yet delete.
-          @resp_sub.synchronize do
-            future.signal if future
-          end
+        # Signal back that the response has arrived
+        # in case the future has not been yet delete.
+        @resp_sub.synchronize do
+          future.signal if future
         end
       end
 
@@ -1899,6 +1852,9 @@ module NATS
     # Default Pending Limits
     DEFAULT_SUB_PENDING_MSGS_LIMIT  = 65536
     DEFAULT_SUB_PENDING_BYTES_LIMIT = 65536 * 1024
+
+    DEFAULT_TOTAL_SUB_CONCURRENCY = 24
+    DEFAULT_SINGLE_SUB_CONCURRENCY = 1
 
     # Implementation adapted from https://github.com/redis/redis-rb
     class Socket
