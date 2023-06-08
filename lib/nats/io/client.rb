@@ -18,6 +18,7 @@ require_relative 'errors'
 require_relative 'msg'
 require_relative 'subscription'
 require_relative 'jetstream'
+require_relative "rails" if defined?(::Rails::Engine)
 
 require 'nats/nuid'
 require 'thread'
@@ -100,7 +101,7 @@ module NATS
     include MonitorMixin
     include Status
 
-    attr_reader :status, :server_info, :server_pool, :options, :connected_server, :stats, :uri, :subscription_executor
+    attr_reader :status, :server_info, :server_pool, :options, :connected_server, :stats, :uri, :subscription_executor, :reloader
 
     DEFAULT_PORT = 4222
     DEFAULT_URI = ("nats://localhost:#{DEFAULT_PORT}".freeze)
@@ -124,6 +125,14 @@ module NATS
     private_constant :INSTANCES
 
     class << self
+      # Reloader should free resources managed by external framework
+      # that were implicitly acquired in subscription callbacks.
+      attr_writer :default_reloader
+
+      def default_reloader
+        @default_reloader ||= proc { |&block| block.call }.tap { |r| Ractor.make_shareable(r) if defined? Ractor }
+      end
+
       # Re-establish connection in a new process after forking to start new threads.
       def after_fork
         INSTANCES.each do |client|
@@ -236,6 +245,8 @@ module NATS
 
       # Keep track of all client instances to handle them after process forking in Ruby 3.1+
       INSTANCES[self] = self if !defined?(Ractor) || Ractor.current == Ractor.main # Ractors doesn't work in forked processes
+
+      @reloader = opts.fetch(:reloader, self.class.default_reloader)
     end
 
     # Prepare connecting to NATS, but postpone real connection until first usage.

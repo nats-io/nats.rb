@@ -204,6 +204,8 @@ describe 'Client - Thread safety' do
   major_version, minor_version, _ = Gem.loaded_specs['uri'].version.to_s.split('.').map(&:to_i)
   if major_version >= 0 && minor_version >= 11
     it 'should be able to process messages in a Ractor' do
+      pending "As of Rails 7.0 known to fail with errors about unshareable objects" if defined? Rails
+
       nc = NATS.connect(@s.uri)
 
       messages = []
@@ -221,6 +223,7 @@ describe 'Client - Thread safety' do
         'r1 Finished'
       end
       r1.take # wait for Ractor to finish sending messages
+      Thread.pass # allow subscription thread to process messages
       expect(messages.count).to eql(1)
 
       r2 = Ractor.new(@s.uri) do |uri|

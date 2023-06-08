@@ -25,6 +25,7 @@ module NATS
     attr_reader stats: Hash[Symbol, Integer]
     attr_reader uri: String?
     attr_reader subscription_executor: Concurrent::ThreadPoolExecutor?
+    attr_reader reloader: Proc
 
     DEFAULT_PORT: 4222
     DEFAULT_URI: String
@@ -99,6 +100,10 @@ module NATS
     @inbox_prefix: String
 
     @drain_t: Thread?
+
+    @reloader: Proc
+
+    def self.default_reloader: -> Proc
 
     def connect: ((String | Hash[Symbol, untyped])?, Hash[Symbol, untyped]) -> self
 

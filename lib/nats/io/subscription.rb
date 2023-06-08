@@ -122,7 +122,7 @@ module NATS
       # Decrease pending size since consumed already
       synchronize { self.pending_size -= msg.data.size }
 
-      begin
+      nc.reloader.call do
         # Note: Keep some of the alternative arity versions to slightly
         # improve backwards compatibility.  Eventually fine to deprecate
         # since recommended version would be arity of 1 to get a NATS::Msg.
