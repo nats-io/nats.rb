@@ -21,6 +21,10 @@ $loop = 10000
 $hash = 250
 $sub  = 'test'
 
+$subscriptions = 1
+$concurrency = 1
+$queue = nil
+
 $stdout.sync = true
 
 parser = OptionParser.new do |opts|
@@ -31,6 +35,9 @@ parser = OptionParser.new do |opts|
 
   opts.on("-s SUBJECT", "Send subject (default: #{$sub})")             { |sub| $sub = sub }
   opts.on("-n ITERATIONS", "iterations to expect (default: #{$loop})") { |iter| $loop = iter.to_i }
+  opts.on("-c SUBSCRIPTIONS", "Subscription number (default: (#{$subscriptions})") { |subscriptions| $subscriptions = subscriptions.to_i }
+  opts.on("-t CONCURRENCY", "Subscription processing concurrency (default: (#{$concurrency})") { |concurrency| $concurrency = concurrency.to_i }
+  opts.on("-q QUEUE", "Queue Subscription group") { |queue| $queue = queue }
 end
 
 parser.parse(ARGV)
@@ -56,8 +63,20 @@ end
 
 nats.connect(:max_reconnect => 10)
 
-nats.subscribe($sub) do |msg, reply|
-  nats.publish(reply)
+if $queue
+  $subscriptions.times do
+    sub = nats.subscribe($sub, queue: $queue) do |msg|
+      msg.respond("OK:"+msg.data)
+    end
+    sub.processing_concurrency = $concurrency
+  end
+else
+  $subscriptions.times do
+    sub = nats.subscribe($sub) do |msg|
+      msg.respond("OKOK:"+msg.data)
+    end
+    sub.processing_concurrency = $concurrency
+  end
 end
 nats.flush(5)
 

@@ -1,4 +1,4 @@
-# Copyright 2016-2021 The NATS Authors
+# Copyright 2016-2023 The NATS Authors
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -944,6 +944,66 @@ describe 'JetStream' do
         :api => {:total => 5, :errors => 0}
       }
       expect(expected).to eql(info)
+    end
+
+    it 'should nack messages with a delay' do
+      nc = NATS.connect(@s.uri)
+
+      # Create stream in the domain.
+      subject = "foo"
+      stream_name = "test"
+      stream_req = {
+        name: stream_name,
+        subjects: [subject]
+      }
+      resp = nc.jsm(domain: @domain).add_stream(stream_req)
+      expect(resp).to_not be_nil
+
+      # Now create a consumer in the domain.
+      durable_name = "test"
+      consumer_req = {
+        stream_name: stream_name,
+        config: {
+          durable_name: "test",
+          ack_policy: "explicit",
+          max_ack_pending: 20,
+          max_waiting: 3,
+          ack_wait: 5 * 1_000_000_000 # 5 seconds
+        }
+      }
+      resp = nc.jsm(domain: @domain).add_consumer(stream_name, consumer_req[:config])
+      expect(resp).to_not be_nil
+
+      # Create producer with custom domain.
+      producer = nc.JetStream(domain: @domain)
+      ack = producer.publish(subject)
+      expect(ack[:stream]).to eql(stream_name)
+      expect(ack[:domain]).to eql(@domain)
+      expect(ack[:seq]).to eql(1)
+
+      # Pull subscriber
+      js = nc.JetStream(domain: @domain)
+      sub = js.pull_subscribe(subject, durable_name, stream: stream_name)
+      msgs = sub.fetch(1)
+      msg = msgs.first
+      msg.nak(delay: 2)
+
+      expect do 
+        msg.nak(delay: 2, timeout: 2)
+      end.to raise_error(NATS::JetStream::Error::MsgAlreadyAckd)
+
+      msgs = sub.fetch(1)
+      msg = msgs.first
+      resp = msg.nak(delay: 2, timeout: 2)
+      expect(resp).to be_a(NATS::Msg)
+
+      msgs = sub.fetch(1)
+      msg = msgs.first
+      msg.nak
+
+      msgs = sub.fetch(1)
+      msg = msgs.first
+      expect(msg.nak(timeout: 2)).to be_a(NATS::Msg)
     end
 
     it 'should bail when stream or consumer does not exist in domain' do

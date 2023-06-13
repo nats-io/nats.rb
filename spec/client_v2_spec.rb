@@ -334,6 +334,8 @@ describe 'Client - v2.2 features' do
     end
     1.upto(5) { msgs << sub.next_msg }
 
+    expect(msgs.first.inspect).to eql(%Q(#<NATS::Msg(subject: "hello", reply: "", data: "hello worl...", header={"foo"=>"bar", "hello"=>"hello-1"})>))
+
     msgs.each_with_index do |msg, i|
       n = i + 1
       expect(msg.data).to eql("hello world-#{'A' * n}")

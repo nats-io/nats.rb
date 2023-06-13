@@ -41,11 +41,15 @@ module NATS
 
         def nak(**params)
           ensure_is_acked_once!
-
+          payload = if params[:delay]
+                      payload = "#{Ack::Nak} #{{ delay: params[:delay] }.to_json}"
+                    else
+                      Ack::Nak
+                    end
           resp = if params[:timeout]
-                   @nc.request(@reply, Ack::Nak, **params)
+                   @nc.request(@reply, payload, **params)
                  else
-                   @nc.publish(@reply, Ack::Nak)
+                   @nc.publish(@reply, payload)
                  end
           @sub.synchronize { @ackd = true }
 
