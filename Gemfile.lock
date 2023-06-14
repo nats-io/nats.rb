@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    nats-pure (2.3.0)
+    nats (2.3.0)
       concurrent-ruby (~> 1.0)
 
 GEM
@@ -174,7 +174,7 @@ PLATFORMS
 DEPENDENCIES
   activerecord
   benchmark-ips
-  nats-pure!
+  nats!
   nkeys
   rails
   rake
