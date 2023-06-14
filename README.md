@@ -1,13 +1,15 @@
-# NATS - Pure Ruby Client
+# NATS - Ruby Client
 
-A thread safe [Ruby](http://ruby-lang.org) client for the [NATS messaging system](https://nats.io) written in pure Ruby.
+A [Ruby](http://ruby-lang.org) client for the [NATS messaging system](https://nats.io) written in pure Ruby.
 
-[![License Apache 2.0](https://img.shields.io/badge/License-Apache2-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)[![Build Status](https://travis-ci.org/nats-io/nats-pure.rb.svg)](http://travis-ci.org/nats-io/nats-pure.rb)[![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=2.2.1)](https://rubygems.org/gems/nats-pure/versions/2.2.1)
+[![License Apache 2.0](https://img.shields.io/badge/License-Apache2-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)[![Build Status](https://travis-ci.org/nats-io/nats-pure.rb.svg)](http://travis-ci.org/nats-io/nats-pure.rb)[![Gem Version](https://d25lcipzij17d.cloudfront.net/badge.svg?id=rb&type=5&v=2.3.0)](https://rubygems.org/gems/nats-pure/versions/2.3.0)
+
+The original EventMachine based client can be found in the [`v0-em-stable`](https://github.com/nats-io/nats.rb/tree/v0-em-stable) branch.
 
 ## Getting Started
 
 ```bash
-gem install nats-pure
+gem install nats
 ```
 
 ## Basic Usage
